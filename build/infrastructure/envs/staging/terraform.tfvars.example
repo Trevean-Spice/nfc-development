@@ -1,0 +1,106 @@
+# ===========================================================================
+# STAGING. Copy to terraform.tfvars and fill in.
+#
+# Staging is deployable TODAY, into an account we control, with only the two
+# values in section A. Everything else can stay commented out.
+#
+# Markers used throughout:
+#   [READY]   has a working default, change only if you have a reason
+#   [FILL IN] needed when AWS access, repo access or a client answer lands
+#   [AUDIT]   answered by the scaffold audit, open questions Q13 to Q18
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# A. The values needed to deploy staging today
+# ---------------------------------------------------------------------------
+
+# [FILL IN] REQUIRED. The account guard, and it has no default, so a plan
+# without it fails rather than deploying wherever the ambient credentials
+# point. Staging belongs in an account we control, so neither of Trevean's two
+# accounts is a valid value here: not <TREVEAN_MANAGEMENT_ACCOUNT_ID>, the Organization management
+# account, and not <TREVEAN_DEV_ACCOUNT_ID>, Trevean-NFC-Development, which is envs/dev's
+# target.
+#
+# Corrected Thursday 27 August 2026. This block previously named <TREVEAN_DEV_ACCOUNT_ID>
+# as the management account. The two were the wrong way round.
+expected_account_id = "FILL IN: the Serene Labs account id"
+
+# [FILL IN] S3 bucket names are globally unique across every AWS account, so
+# "trevean-staging" alone will collide. Append something short and specific.
+name_prefix = "trevean-staging-CHANGEME"
+
+# [READY] Built by build/edge/. Staging refuses to deploy a placeholder,
+# because staging is where the 2.0 second budget is measured before the domain
+# exists and measuring a placeholder measures nothing.
+edge_function_source_path = "../../../edge/dist/redirect.js"
+
+# ---------------------------------------------------------------------------
+# B. Filled in when access lands
+# ---------------------------------------------------------------------------
+
+# [FILL IN] An alarm nobody receives is a dashboard. Each address gets a
+# confirmation email a human has to click.
+# alarm_email_addresses = ["jacob@serenelabs.io"]
+
+# [FILL IN] One named person, "Name, role, organisation". Dan's nomination.
+# Rotation path is in modules/secrets/main.tf and depends on Q4.
+# tag_password_holder = "TO CONFIRM: named holder not yet nominated"
+
+# [FILL IN] Where the admin CMS is served from. An empty list is tighter than
+# a guess, and browser media upload correctly fails CORS until this is set.
+# admin_origins = ["https://admin-staging.example.com"]
+
+# ---------------------------------------------------------------------------
+# C. Answered by the audit
+# ---------------------------------------------------------------------------
+
+# [AUDIT] Q15, check 2. true only if SpiceBlends is keyed on a synthetic
+# blendId rather than the slug. Without it, resolving a slug to an id is a Scan
+# on the build path.
+# create_slug_index = false
+
+# [AUDIT] Q15, check 4, described in the data model as the highest-value single
+# check in the list. blend_slug_first or recipe_id_first. One index is required
+# either way and access pattern 3 is one Query either way.
+# recipes_key_shape = "blend_slug_first"
+
+# [AUDIT] Risk R18. Credentials tied to the previous contractor, identified
+# during the audit and replaced. Short name to description. Values never here.
+# extra_secrets = {
+#   "microgroove-legacy-token" = "TO CONFIRM IN AUDIT: what this authenticates, and whether it can be revoked before handover."
+# }
+
+# ---------------------------------------------------------------------------
+# D. Filled in when repo access lands
+# ---------------------------------------------------------------------------
+
+# [FILL IN] Built deployment packages. Anything absent gets the inert
+# placeholder that answers 501 and logs loudly. Leaving this empty is a valid
+# choice: the application's own pipeline can deploy over the top, and every
+# function ignores changes to its package so an apply never reverts a build.
+# function_packages = {
+#   content_api       = "../../../app/dist/content-api.zip"
+#   scan_ingest       = "../../../app/dist/scan-ingest.zip"
+#   admin_api         = "../../../app/dist/admin-api.zip"
+#   rollup_consumer   = "../../../app/dist/rollup-consumer.zip"
+#   media_derivatives = "../../../app/dist/media-derivatives.zip"
+#   catalog_sync      = "../../../app/dist/catalog-sync.zip"
+#   shopify_webhook   = "../../../app/dist/shopify-webhook.zip"
+#   web_renderer      = "../../../app/dist/web-renderer.zip"
+# }
+
+# [FILL IN] Turn these on only AFTER the real code is deployed. A placeholder
+# attached to a live stream fails every batch, fills the dead letter queue, and
+# produces an alarm storm on day one.
+# enable_rollup_event_source_mapping = true
+# enable_media_event_source_mapping  = true
+
+# ---------------------------------------------------------------------------
+# E. Rarely changed
+# ---------------------------------------------------------------------------
+
+# [READY] Never point staging at the live Vercel production project.
+# vercel_origin_domain_name = null
+
+# [READY]
+# aws_region = "us-east-1"

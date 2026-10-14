@@ -1,0 +1,167 @@
+/*
+ * Placeholder render contract.
+ *
+ * The third of the three layers described in the placeholder convention: obvious in the
+ * data, obvious in the API response, obvious ON THE PAGE. This file is the page half.
+ *
+ * The web build imports this and applies the classes. It is deliberately a separate
+ * file with no brand tokens in it, so that deleting one import line removes every trace
+ * of the convention on the day the last placeholder goes away, and so that nobody has
+ * to unpick placeholder styling out of the brand stylesheet.
+ *
+ * Rules the page must follow, not just the styling:
+ *
+ * 1. A page rendered from any record with placeholderContent true shows the banner.
+ *    It is fixed to the top, it does not dismiss, and it is not behind a flag.
+ * 2. A null value on a placeholder record renders its slot with the pending marker
+ *    rather than collapsing. Collapsing the slot makes the layout smaller than the real
+ *    page, which makes the measurement a lie: when the real content lands the layout
+ *    would change and the above the fold constraint in the Acceptance criteria document
+ *    section 6.3 would have to be re-tested.
+ * 3. Nothing here loads a font, an image or a script. The tap path budget is zero
+ *    additional requests, and a debugging aid that costs 40 ms of the 2.0 seconds is
+ *    a debugging aid that gets deleted at the wrong moment.
+ * 4. The banner is inside the inlined critical CSS, not an async stylesheet. A banner
+ *    that paints late is a banner a screenshot can miss.
+ *
+ * Total cost, uncompressed, under 2 KB. It counts against the 9 KB critical CSS cap.
+ */
+
+:root {
+  --placeholder-ink: #1a1816;
+  --placeholder-hazard: #ff008c;
+  --placeholder-paper: #fff4fa;
+}
+
+/* 1. The page level banner. */
+
+.placeholder-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--placeholder-hazard);
+  color: #fff;
+  font: 700 0.8125rem/1.35 system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.placeholder-banner b {
+  display: block;
+  font-size: 0.9375rem;
+  text-transform: uppercase;
+}
+
+/* 2. Any element whose content came from a placeholder field. */
+
+.is-placeholder {
+  outline: 2px dashed var(--placeholder-hazard);
+  outline-offset: 2px;
+  background: var(--placeholder-paper);
+}
+
+/* 3. A slot whose value is deliberately null, so the space is still reserved.
+      The height is set by the page from the real design, not from here. */
+
+.placeholder-pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--placeholder-hazard);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--placeholder-paper) 0 10px,
+      #ffe3f1 10px 20px
+    );
+  color: var(--placeholder-ink);
+  font: 700 0.75rem/1.3 system-ui, sans-serif;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0.75rem;
+}
+
+.placeholder-pending::before {
+  content: "Pending: ";
+}
+
+/* 4. A control that cannot work yet, for example reorder with no cart permalink.
+      Disabled and labelled, never hidden and never linked somewhere plausible. */
+
+.placeholder-disabled {
+  pointer-events: none;
+  opacity: 0.55;
+  filter: grayscale(1);
+  position: relative;
+}
+
+.placeholder-disabled::after {
+  content: "No Shopify link yet";
+  position: absolute;
+  inset: auto 0 -1.25rem 0;
+  font: 700 0.6875rem/1 system-ui, sans-serif;
+  color: var(--placeholder-hazard);
+  text-align: center;
+}
+
+/* 5. High contrast, because that is exactly the setting someone reviewing
+      accessibility will be in when they screenshot the page. */
+
+@media (forced-colors: active) {
+  .placeholder-banner,
+  .is-placeholder,
+  .placeholder-pending {
+    border: 3px solid CanvasText;
+    forced-color-adjust: none;
+    background: Mark;
+    color: MarkText;
+  }
+}
+
+/* 6. Print, which is not irrelevant and was the one route out of this convention.
+      Browsers do not print background colours unless the person printing goes and
+      turns them on, so a banner that is white text on a hazard background prints as
+      white text on white paper: nothing at all. Measured on the built page, Chrome,
+      default print settings: the banner text is in the print output and its
+      background is not.
+
+      Anyone who prints a review page or saves it as a PDF is exactly the reader this
+      convention exists for, so the banner is restated in print as dark text inside a
+      heavy black rule, which is legible whether or not the person printing has
+      background graphics switched on. The outlines and dashed borders on the field
+      level markers are borders rather than backgrounds and already print. */
+
+@media print {
+  .placeholder-banner {
+    position: static;
+    background: none;
+    color: #000;
+    border: 4px solid #000;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0 0.5rem;
+  }
+
+  .is-placeholder {
+    outline: 2px dashed #000;
+    background: none;
+    color: #000;
+  }
+
+  .placeholder-pending {
+    border: 2px dashed #000;
+    background: none;
+    color: #000;
+  }
+
+  .placeholder-disabled {
+    opacity: 1;
+    filter: none;
+    text-decoration: line-through;
+  }
+
+  .placeholder-disabled::after {
+    color: #000;
+  }
+}

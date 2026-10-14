@@ -1,0 +1,35 @@
+{
+  "source": "C:\\Users\\ender\\OneDrive\\Documents\\GitHub\\trevean-spice-nfc\\deliverables\\m1\\harness\\dist\\web",
+  "syncedFrom": "deliverables/m1/harness",
+  "files": {
+    "beacon/beacon.js": {
+      "bytes": 8159,
+      "sha256": "293241be7d4fd724"
+    },
+    "beacon/timing.js": {
+      "bytes": 5837,
+      "sha256": "90a7837e04997a53"
+    },
+    "beacon/environment.js": {
+      "bytes": 3261,
+      "sha256": "6a9fe77b62ab1608"
+    },
+    "beacon/dedupe.js": {
+      "bytes": 5194,
+      "sha256": "092c961fef24a335"
+    },
+    "beacon/scanEvent.js": {
+      "bytes": 8335,
+      "sha256": "ec32932411225cc5"
+    },
+    "beacon/transport.js": {
+      "bytes": 4899,
+      "sha256": "58ac7ea264a39777"
+    },
+    "shared/schema.js": {
+      "bytes": 4716,
+      "sha256": "aeec0091c1905cae"
+    }
+  },
+  "harnessVersion": "1.0.0"
+}

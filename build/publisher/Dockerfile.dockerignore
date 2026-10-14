@@ -1,0 +1,24 @@
+# The build context is build/, so these patterns are relative to build/.
+#
+# node_modules is excluded on purpose even though the image needs it: it is
+# installed inside the image from the lockfile, so copying a host tree in would
+# ship whatever a laptop happened to have, including native binaries built for
+# the wrong platform. sharp is the one that would bite.
+
+**/node_modules
+**/.next
+**/out
+**/.content-snapshot
+**/.local-site
+**/.lambda-build
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/.lighthouseci
+**/.lhci
+**/.lhci-report
+**/scratch
+**/coverage
+**/*.log
+**/.DS_Store

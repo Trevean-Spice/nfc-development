@@ -1,0 +1,176 @@
+{
+  "slug": "north-african-night-market",
+  "name": "North African Night Market",
+  "status": "published",
+  "placeholder": true,
+  "placeholderNote": "No name, story, location, date or price on this page is real.",
+  "tagline": "PLACEHOLDER TAGLINE, one line, supplied by the client",
+  "originRegion": "Fez, Morocco",
+  "keyNotes": [
+    "Aleppo pepper",
+    "Cumin",
+    "Preserved lemon"
+  ],
+  "hero": {
+    "src": "/media/north-african-night-market/hero-900.webp",
+    "alt": "Placeholder graphic standing in for the North African Night Market hero photograph, which has not been supplied",
+    "width": 1280,
+    "height": 955,
+    "sizes": "100vw",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/north-african-night-market/hero-640.avif 640w, /media/north-african-night-market/hero-900.avif 900w, /media/north-african-night-market/hero-1280.avif 1280w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/north-african-night-market/hero-640.webp 640w, /media/north-african-night-market/hero-900.webp 900w, /media/north-african-night-market/hero-1280.webp 1280w"
+      }
+    ]
+  },
+  "originStory": {
+    "heading": "Where North African Night Market comes from",
+    "lede": "PLACEHOLDER ORIGIN STORY. This opening paragraph is filler set at the length the delivered copy needs to be, so that the layout can be tested against the requirement that the origin story is readable without scrolling. It describes no real farm, no real family and no real harvest, and it must be replaced before this page is shown to a customer.",
+    "paragraphs": [
+      "PLACEHOLDER PARAGRAPH TWO. Filler at the length a second paragraph of the delivered story is expected to run to, so the page can be measured, reviewed and signed off on shape before the words exist. Replace it with the supplied copy.",
+      "PLACEHOLDER PARAGRAPH THREE. Filler at the length a closing paragraph is expected to run to. It exists so that the type scale, the measure and the scroll depth of the finished page can be judged now rather than on the day the copy arrives."
+    ]
+  },
+  "grower": {
+    "growerId": "placeholder-grower-north-african-night-market",
+    "name": "PLACEHOLDER GROWER NAME",
+    "role": "PLACEHOLDER ROLE",
+    "location": "PLACEHOLDER FARM LOCATION",
+    "bio": "PLACEHOLDER GROWER BIOGRAPHY. Filler at roughly the length of the delivered biography. No real person is described here. The grower name, role, farm and photograph are all outstanding from the client and must be supplied before release.",
+    "photo": {
+      "src": "/media/north-african-night-market/grower-320.webp",
+      "alt": "Placeholder graphic standing in for the grower photograph, which has not been supplied",
+      "width": 640,
+      "height": 640,
+      "sizes": "(min-width:400px) 104px, 88px",
+      "sources": [
+        {
+          "type": "image/avif",
+          "srcset": "/media/north-african-night-market/grower-320.avif 320w, /media/north-african-night-market/grower-640.avif 640w"
+        },
+        {
+          "type": "image/webp",
+          "srcset": "/media/north-african-night-market/grower-320.webp 320w, /media/north-african-night-market/grower-640.webp 640w"
+        }
+      ]
+    },
+    "farm": {
+      "label": "PLACEHOLDER FARM NAME",
+      "latitude": null,
+      "longitude": null,
+      "staticMap": {
+        "src": "/media/north-african-night-market/map-640.webp",
+        "alt": "Placeholder graphic standing in for the static farm map. Coordinates have not been supplied",
+        "width": 900,
+        "height": 506,
+        "sizes": "(min-width:672px) 608px, calc(100vw - 32px)",
+        "sources": [
+          {
+            "type": "image/avif",
+            "srcset": "/media/north-african-night-market/map-640.avif 640w, /media/north-african-night-market/map-900.avif 900w"
+          },
+          {
+            "type": "image/webp",
+            "srcset": "/media/north-african-night-market/map-640.webp 640w, /media/north-african-night-market/map-900.webp 900w"
+          }
+        ]
+      },
+      "mapLinkUrl": null
+    }
+  },
+  "freshness": {
+    "lotCode": "PLACEHOLDER-LOT-CODE",
+    "shelfLifeDays": null,
+    "steps": [
+      {
+        "label": "Harvested",
+        "date": null,
+        "displayDate": "DATE NOT SUPPLIED",
+        "state": "done",
+        "detail": "PLACEHOLDER. The harvest window comes from the lot record."
+      },
+      {
+        "label": "Milled and blended",
+        "date": null,
+        "displayDate": "DATE NOT SUPPLIED",
+        "state": "done",
+        "detail": "PLACEHOLDER. Milling date comes from the lot record."
+      },
+      {
+        "label": "Packed into this jar",
+        "date": null,
+        "displayDate": "DATE NOT SUPPLIED",
+        "state": "current",
+        "detail": "PLACEHOLDER. Pack date comes from the lot record."
+      },
+      {
+        "label": "At its best until",
+        "date": null,
+        "displayDate": "DATE NOT SUPPLIED",
+        "state": "upcoming",
+        "detail": "PLACEHOLDER. Derived from the pack date and the shelf life."
+      }
+    ]
+  },
+  "recipes": [
+    {
+      "recipeId": "placeholder-recipe-north-african-night-market-1",
+      "title": "PLACEHOLDER RECIPE ONE",
+      "summary": "PLACEHOLDER RECIPE SUMMARY. Two lines of filler standing in for the delivered summary, so the carousel card can be sized and tested before the recipes exist.",
+      "timeMinutes": null,
+      "difficulty": "PLACEHOLDER",
+      "url": null
+    },
+    {
+      "recipeId": "placeholder-recipe-north-african-night-market-2",
+      "title": "PLACEHOLDER RECIPE TWO",
+      "summary": "PLACEHOLDER RECIPE SUMMARY. Two lines of filler standing in for the delivered summary, so the carousel card can be sized and tested before the recipes exist.",
+      "timeMinutes": null,
+      "difficulty": "PLACEHOLDER",
+      "url": null
+    },
+    {
+      "recipeId": "placeholder-recipe-north-african-night-market-3",
+      "title": "PLACEHOLDER RECIPE THREE",
+      "summary": "PLACEHOLDER RECIPE SUMMARY. Two lines of filler standing in for the delivered summary, so the carousel card can be sized and tested before the recipes exist.",
+      "timeMinutes": null,
+      "difficulty": "PLACEHOLDER",
+      "url": null
+    },
+    {
+      "recipeId": "placeholder-recipe-north-african-night-market-4",
+      "title": "PLACEHOLDER RECIPE FOUR",
+      "summary": "PLACEHOLDER RECIPE SUMMARY. Two lines of filler standing in for the delivered summary, so the carousel card can be sized and tested before the recipes exist.",
+      "timeMinutes": null,
+      "difficulty": "PLACEHOLDER",
+      "url": null
+    },
+    {
+      "recipeId": "placeholder-recipe-north-african-night-market-5",
+      "title": "PLACEHOLDER RECIPE FIVE",
+      "summary": "PLACEHOLDER RECIPE SUMMARY. Two lines of filler standing in for the delivered summary, so the carousel card can be sized and tested before the recipes exist.",
+      "timeMinutes": null,
+      "difficulty": "PLACEHOLDER",
+      "url": null
+    },
+    {
+      "recipeId": "placeholder-recipe-north-african-night-market-6",
+      "title": "PLACEHOLDER RECIPE SIX",
+      "summary": "PLACEHOLDER RECIPE SUMMARY. Two lines of filler standing in for the delivered summary, so the carousel card can be sized and tested before the recipes exist.",
+      "timeMinutes": null,
+      "difficulty": "PLACEHOLDER",
+      "url": null
+    }
+  ],
+  "commerce": {
+    "cartPermalink": null,
+    "price": null,
+    "available": null,
+    "variantLabel": "PLACEHOLDER SIZE"
+  }
+}

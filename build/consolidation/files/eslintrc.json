@@ -1,0 +1,138 @@
+// Destination: .eslintrc.json at the root of nfc-development. This is the whole file.
+//
+// WHY IT EXISTS
+//
+// There is no ESLint configuration anywhere in this repository and there never has been.
+// `git ls-files | grep -iE "eslint|prettier"` returns nothing: no .eslintrc, no
+// eslint.config.js, no eslintConfig key in any manifest. The root package.json has
+// declared eslint, @typescript-eslint/parser, @typescript-eslint/eslint-plugin and
+// eslint-config-prettier since June 2026, and `lint` and `lint:fix` scripts to run them,
+// and every one of those invocations has ended the same way:
+//
+//   Oops! Something went wrong! :(
+//   ESLint: 8.57.1
+//   ESLint couldn't find a configuration file.
+//
+// That is the same class of defect as the two absent workspace manifests and the absent
+// src/api/tsconfig.json: a script that names a thing which does not exist, failing at the
+// point of use rather than at the point of review. It belongs with them, in the
+// foundational set, and not in the pull request that introduces CI. A Lint job that
+// arrives red on the day CI arrives teaches the lesson this whole package exists to
+// prevent.
+//
+// WHY .eslintrc.json AND NOT eslint.config.js
+//
+// The declared eslint is ^8.54.0 and the installed one is 8.57.1. Flat config is not the
+// default in ESLint 8 and requires an environment variable to enable, so the eslintrc
+// format is the one that matches this repository as it actually is. Migrating to flat
+// config is an ESLint 9 upgrade, which is its own pull request with its own argument, and
+// doing it here would mean shipping a configuration that the installed linter reads only
+// under a flag nobody has set.
+//
+// WHAT THIS CONFIGURATION ADDS TO THE DEPENDENCY TREE
+//
+// Nothing. Every package it references is already declared and already installed:
+// @typescript-eslint/parser, @typescript-eslint/eslint-plugin and eslint-config-prettier.
+// No row is added to MANIFEST.md because no dependency is added.
+//
+// THE QUARANTINE LIST, WHICH IS THE ONLY JUDGEMENT IN THIS FILE
+//
+// eslint:recommended and plugin:@typescript-eslint/recommended are adopted whole. Against
+// the tree as inherited they report fourteen problems in nine files: twelve unused
+// variables or imports and two explicit `any`. Measured on 25 August 2026 with the eight
+// dead suites already deleted.
+//
+// There were three ways to make the gate green on arrival and only one of them is honest.
+//
+//   1. Turn the two rules off globally. Rejected. no-unused-vars is the single most
+//      useful rule available to a repository whose defining problem is code that looks
+//      like function and provides none: 165 lines of dead Redis client, a dead cache
+//      middleware, a path alias to a directory that never existed, four blend datasets
+//      that disagree. Disabling it globally to get a green tick is the vacuity this
+//      package is written against, wearing a lint badge.
+//   2. Fix the fourteen sites in this pull request. Rejected, but only just. Eleven of
+//      them are behaviour neutral one line deletions. It is the right change and it is
+//      not a configuration change: it puts source edits in nine files into the pull
+//      request whose entire claim is "the three instruments now tell the truth", and a
+//      reviewer can then no longer tell a configuration decision from a code cleanup.
+//   3. Adopt both rules everywhere, and quarantine the nine inherited files by name.
+//      Chosen. The allowance is explicit, committed, and visible in a diff: a tenth file
+//      cannot join the list without somebody adding a line that says so and a reviewer
+//      reading it. New code gets the rule from the first line. The list shrinks as the
+//      API rewrite lands and it is deleted when it reaches zero.
+//
+// This is the same shape as ci/test-floor.json and it is chosen for the same reason: a
+// gate that cannot be met is a gate somebody disables, and the cure is a dated or named
+// allowance that is impossible to grow quietly, not a rule that is quietly off. The
+// difference from the test floor is that this one has no expiry date, because it shrinks
+// file by file rather than closing on a day. If it has not shrunk by the time the API
+// rewrite is done, that is a finding for the retrospective.
+//
+// OWNER OF THIS JUDGEMENT: Serene Labs, technical. No client decision is needed.
+//
+// VERIFIED, NOT ASSERTED. On a scratch copy of nfc-development at HEAD 2220c43 with
+// PRs 1 to 4 applied, the exact CI command
+//   npx eslint 'src/**/*.{ts,tsx}' 'config/**/*.ts' 'scripts/**/*.ts' --max-warnings=0
+// exits 0 with no output. Adding one unused variable to a file outside the quarantine
+// list turns it red with a named rule and a line number, so the gate is live rather than
+// green by construction.
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "ecmaFeatures": { "jsx": true }
+  },
+  "plugins": ["@typescript-eslint"],
+
+  // eslint-config-prettier last, so that it can switch off the stylistic rules the
+  // repository's own prettier is responsible for. This is a correctness gate, not a
+  // formatting gate: formatting disagreements in CI are how a lint job becomes noise.
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+
+  // The node side and the browser side are both in scope. src/web runs in both.
+  "env": { "node": true, "es2022": true, "browser": true },
+
+  // src/mobile is out of scope per the Scope document, section "Out of scope, deferred
+  // not dropped", exactly as it is excluded from the root tsconfig. Excluding it from the
+  // linter says nothing about whether it is in version control.
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    ".next/",
+    "coverage/",
+    "src/web/.next/",
+    "src/web/public/sw.js",
+    "src/web/public/workbox-*.js",
+    "src/mobile/"
+  ],
+
+  "overrides": [
+    {
+      // THE QUARANTINE LIST. Nine inherited files, fourteen problems, measured
+      // 25 August 2026. Read the note at the head of this file before adding to it.
+      // Delete an entry when its file is cleaned, and delete this whole block when the
+      // list is empty. Do not add a file to it to make a pull request go green.
+      "files": [
+        "config/database.ts",
+        "config/default.ts",
+        "scripts/seed.ts",
+        "src/api/controllers/blend.controller.ts",
+        "src/api/models/recipe.model.ts",
+        "src/api/models/scan.model.ts",
+        "src/shared/types/api.ts",
+        "src/shared/utils/index.ts",
+        "src/web/lib/api-client.ts"
+      ],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "off",
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
+}

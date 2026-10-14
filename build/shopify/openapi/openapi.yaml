@@ -1,0 +1,3142 @@
+openapi: 3.1.0
+
+info:
+  title: Trevean Spice Tap-to-Story API
+  version: 1.0.0
+  summary: Content, scan telemetry, catalog mirror and admin API for the Trevean Spice NFC tap-to-story MVP.
+  description: |
+    Frozen M1 API contract, 18 August 2026. Both engineers build against this for the
+    remainder of the engagement. The prose companion to this document explains the
+    reasoning; where the two disagree, this document governs the wire format.
+
+    THE ONE RULE THAT MATTERS
+
+    Exactly one operation is on the tap critical path: POST /v1/scan-events, and it fires
+    after the page is readable, as a browser beacon. Every content operation (blends,
+    recipes, growers) is called at BUILD time and REVALIDATE time only, by the build
+    process and the publish pipeline. They are never called when a customer taps a jar.
+
+    The blend page is pre-rendered and served from the CDN edge cache. On a tap the
+    sequence is: 307 at the edge, cached HTML from the edge, paint, then a beacon. A page
+    that fetches content on load adds a DNS lookup, a TLS handshake, a possible cold start
+    and a database read to a 2.0 second budget that has roughly 400 ms of headroom on
+    cellular. Every operation below carries an x-tap-path extension recording which side
+    of that line it sits on.
+
+    ATTRIBUTION
+
+    Attribution is per SKU. The 1,000 shipped tags were encoded per blend with an
+    identical URL for every jar of that blend, so there is no per-tag identifier and no
+    chip UID available to the page. Scan deduplication uses a browser generated token,
+    the same mechanism the QR path uses. Counts are labelled with that method rather than
+    implying a precision the encoding does not provide.
+
+    PRIVACY
+
+    No IP address is stored. Geography is derived server side from CDN viewer headers to
+    country, region and city only. The browser is never asked for location permission.
+    There are no customer accounts, no cookies and no third-party trackers on the tap path.
+
+    EXAMPLES
+
+    Blend, slug and tag code examples are the five real blends and the real tag code map.
+    Grower names, recipe content, prices and photography references in the examples are
+    illustrative placeholders pending content delivery for the two launch blends.
+  contact:
+    name: Serene Labs Inc, Jacob Ralph
+    email: jacob@serenelabs.io
+  license:
+    name: Work for hire, owned by Trevean Spice on full payment
+    identifier: LicenseRef-Trevean-Work-For-Hire
+
+servers:
+  - url: https://api.treveanspice.com
+    description: Production
+  - url: https://api.staging.treveanspice.com
+    description: Staging. Everything on the contractor side builds and measures here so the schedule never waits on client DNS.
+  - url: http://localhost:3001
+    description: Local development
+
+tags:
+  - name: Content
+    description: |
+      Public reads. Called at build and revalidate time only. NOT on the tap path.
+      Only published content is served without a credential.
+  - name: Tap
+    description: |
+      The only operation on the tap critical path. Fires after paint, as a browser beacon,
+      and must never block or retry.
+  - name: Catalog
+    description: |
+      Shopify price and availability mirror. Baked into the page at build time and
+      optionally refreshed after paint. Degradable: if it fails, the page keeps the baked
+      value and the reorder permalink still works.
+  - name: Admin Content
+    description: Role protected content authoring. Not on the tap path.
+  - name: Admin Media
+    description: |
+      Presigned S3 upload plus asynchronous derivative generation. A large photograph
+      never passes through an application function.
+  - name: Admin Publishing
+    description: Publish and on demand revalidation of pre-rendered pages.
+  - name: Admin Analytics
+    description: |
+      Dashboard time series read from pre-aggregated rollups. Never a raw event query and
+      never a table scan.
+  - name: Admin Tags
+    description: |
+      Read only view of the deployed redirect table and tag records. The redirect table is
+      a version controlled artifact deployed with the application and is not editable
+      through this API by any role.
+
+security:
+  - {}
+
+paths:
+
+  /v1/blends:
+    get:
+      operationId: listBlends
+      summary: List blends
+      description: |
+        Access pattern 2 in the Architecture document data layer table: list blends by
+        status. Used by the build manifest, the sitemap generator and the admin list view.
+        Unauthenticated callers receive published blends only.
+      tags: [Content]
+      security:
+        - {}
+      x-tap-path: false
+      x-called-at: build, revalidate, admin page load
+      parameters:
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of blend summaries, in launch order.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPublic'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlendSummaryList'
+              examples:
+                allPublished:
+                  summary: |
+                    The four published blends, which are the four codes currently encoded.
+                    Kyoto Garden is draft and is never returned by this operation, because
+                    this operation has no authenticated variant and only published content is
+                    served without a credential. It appears through the admin list operation
+                    instead. The reserved fifth code is visible on the tag records operation.
+                  value:
+                    data:
+                      - slug: persian-sunrise
+                        name: Persian Sunrise
+                        status: published
+                        tagline: Saffron, cardamom, rose petals and lime from Isfahan
+                        originCountry: IR
+                        originRegion: Isfahan
+                        launchTier: real
+                        tagCode: ps
+                        heroImage:
+                          mediaId: med_01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                          cdnUrl: https://cdn.treveanspice.com/media/med_01J9Z8XK4M2Q7T5V3N8R1B6C0D/hero-1280.avif
+                          alt: A copper bowl of saffron threads and dried rose petals
+                          width: 1280
+                          height: 853
+                        recipeCount: 7
+                        version: 12
+                        publishedAt: '2026-08-14T16:02:11Z'
+                        updatedAt: '2026-08-14T16:02:11Z'
+                      - slug: caribbean-sunset
+                        name: Caribbean Sunset
+                        status: published
+                        tagline: Scotch bonnet, allspice and thyme from Trinidad and Tobago
+                        originCountry: TT
+                        originRegion: Trinidad
+                        launchTier: real
+                        tagCode: cs
+                        heroImage:
+                          mediaId: med_01J9Z8XM7P4R2T6W4Q9S3C7E1F
+                          cdnUrl: https://cdn.treveanspice.com/media/med_01J9Z8XM7P4R2T6W4Q9S3C7E1F/hero-1280.avif
+                          alt: Scotch bonnet peppers and thyme on a wooden board
+                          width: 1280
+                          height: 853
+                        recipeCount: 6
+                        version: 9
+                        publishedAt: '2026-08-14T16:04:40Z'
+                        updatedAt: '2026-08-14T16:04:40Z'
+                      - slug: north-african-night-market
+                        name: North African Night Market
+                        status: published
+                        tagline: Aleppo pepper, cumin and preserved lemon from Fez
+                        originCountry: MA
+                        originRegion: Fes-Meknes
+                        launchTier: seeded
+                        tagCode: nm
+                        heroImage: null
+                        recipeCount: 0
+                        version: 2
+                        publishedAt: '2026-08-15T11:20:03Z'
+                        updatedAt: '2026-08-15T11:20:03Z'
+                      - slug: silk-road
+                        name: The Silk Road
+                        status: published
+                        tagline: Cumin, coriander, fenugreek and turmeric from Central Asia
+                        originCountry: UZ
+                        originRegion: Central Asia
+                        launchTier: seeded
+                        tagCode: sr
+                        heroImage: null
+                        recipeCount: 0
+                        version: 2
+                        publishedAt: '2026-08-15T11:21:44Z'
+                        updatedAt: '2026-08-15T11:21:44Z'
+                    nextCursor: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/blends/{slug}:
+    get:
+      operationId: getBlendBySlug
+      summary: Get one blend by slug
+      description: |
+        Access pattern 1 in the Architecture document data layer table: blend by slug with
+        grower and recipes. BUILD AND REVALIDATE ONLY, NEVER ON A TAP.
+
+        With include=grower,recipes this returns the entire payload the blend page needs in
+        one call, which is exactly what the build process asks for. The grower record is
+        snapshotted into the generated page, so a later grower edit requires a republish of
+        the affected blends. That is intentional: the page must not depend on a live read.
+      tags: [Content]
+      security:
+        - {}
+      x-tap-path: false
+      x-called-at: build, revalidate
+      parameters:
+        - $ref: '#/components/parameters/BlendSlug'
+        - name: include
+          in: query
+          required: false
+          description: |
+            Comma separated related resources to embed. Any other value is ignored rather
+            than rejected, so adding a new includable resource later stays additive.
+          schema:
+            type: string
+            pattern: '^[a-z]+(,[a-z]+)*$'
+            examples: ['grower,recipes']
+      responses:
+        '200':
+          description: The blend, with optional embedded grower and recipes.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPublic'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blend'
+              examples:
+                persianSunriseFull:
+                  summary: Persian Sunrise with grower and recipes embedded, the exact build time payload
+                  value:
+                    slug: persian-sunrise
+                    name: Persian Sunrise
+                    status: published
+                    tagline: Saffron, cardamom, rose petals and lime from Isfahan
+                    launchTier: real
+                    tagCode: ps
+                    originCountry: IR
+                    originRegion: Isfahan
+                    originCity: Isfahan
+                    farm:
+                      latitude: 32.6539
+                      longitude: 51.666
+                      label: Smallholding outside Isfahan, Iran
+                    storyBlocks:
+                      - type: heading
+                        text: Picked before the heat
+                      - type: paragraph
+                        text: >-
+                          Saffron is harvested in the cool hours after dawn, when the stigmas
+                          are still soft enough to separate by hand without breaking.
+                      - type: paragraph
+                        text: >-
+                          Cardamom, rose petals and dried lime are blended in small batches so
+                          the saffron is never ground into the background.
+                    heroImage:
+                      mediaId: med_01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                      cdnUrl: https://cdn.treveanspice.com/media/med_01J9Z8XK4M2Q7T5V3N8R1B6C0D/hero-1280.avif
+                      alt: A copper bowl of saffron threads and dried rose petals
+                      width: 1280
+                      height: 853
+                      blurDataUrl: data:image/webp;base64,UklGRhAAAABXRUJQVlA4IAQAAACwAQCdASoIAAUA
+                      formats: [avif, webp, jpeg]
+                    gallery: []
+                    freshness:
+                      harvestedOn: '2026-05-12'
+                      blendedOn: '2026-06-30'
+                      bestBefore: '2027-06-30'
+                      lotLabel: PS-2606
+                      note: Freshness is stated per blend rather than per jar, because tag encoding is per SKU.
+                    growerId: grw_01J9Z900A1B2C3D4E5F6G7H8J9
+                    shopify:
+                      productId: gid://shopify/Product/7391043289601
+                      variantId: gid://shopify/ProductVariant/41802938471233
+                      sku: TRV-PS-60G
+                      cartPermalinkUrl: https://shop.treveanspice.com/cart/41802938471233:1?channel=nfc
+                    recipeCount: 7
+                    version: 12
+                    publishedAt: '2026-08-14T16:02:11Z'
+                    updatedAt: '2026-08-14T16:02:11Z'
+                    updatedBy: editor@treveanspice.com
+                    grower:
+                      growerId: grw_01J9Z900A1B2C3D4E5F6G7H8J9
+                      name: Placeholder pending content delivery
+                      farmName: Placeholder pending content delivery
+                      country: IR
+                      region: Isfahan
+                      bio: Grower profile copy is supplied by Trevean. This record is seeded so the page shape can be built and measured before content lands.
+                      yearsFarming: null
+                      portrait: null
+                      farm:
+                        latitude: 32.6539
+                        longitude: 51.666
+                      blendSlugs: [persian-sunrise]
+                      version: 3
+                      updatedAt: '2026-08-13T09:15:00Z'
+                    recipes:
+                      - recipeId: rcp_01J9Z91B2C3D4E5F6G7H8J9K0M
+                        blendSlug: persian-sunrise
+                        title: Saffron rice with crisp tahdig
+                        summary: A weeknight version that still gives you the golden crust.
+                        servings: 4
+                        prepMinutes: 15
+                        cookMinutes: 45
+                        difficulty: medium
+                        ingredients:
+                          - quantity: 2
+                            unit: cup
+                            item: basmati rice
+                            note: rinsed until the water runs clear
+                          - quantity: 2
+                            unit: tsp
+                            item: Persian Sunrise blend
+                            note: null
+                        steps:
+                          - Rinse the rice until the water runs clear, then soak for 30 minutes.
+                          - Parboil, drain, and layer back into a buttered pan over a low heat.
+                          - Cover with a cloth wrapped lid and cook undisturbed until the base is golden.
+                        image: null
+                        sortOrder: 1
+                        status: published
+                        version: 4
+                        updatedAt: '2026-08-14T15:58:02Z'
+        '304':
+          description: Not modified. The build process sends If-None-Match and takes this.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/blends/{slug}/recipes:
+    get:
+      operationId: listRecipesForBlend
+      summary: List recipes for a blend, in carousel order
+      description: |
+        Access pattern 3 in the Architecture document data layer table: recipes for a
+        blend, at page build time. Between 5 and 10 recipes per blend per the Scope
+        document. Sorted by sortOrder ascending, then by recipeId for stability.
+      tags: [Content]
+      security:
+        - {}
+      x-tap-path: false
+      x-called-at: build, revalidate
+      parameters:
+        - $ref: '#/components/parameters/BlendSlug'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Recipes for the blend, in carousel order.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPublic'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipeList'
+              examples:
+                caribbeanSunset:
+                  summary: Recipes for Caribbean Sunset
+                  value:
+                    data:
+                      - recipeId: rcp_01J9Z92C3D4E5F6G7H8J9K0M1N
+                        blendSlug: caribbean-sunset
+                        title: Grilled corn with scotch bonnet butter
+                        summary: Fifteen minutes, one bowl, and a jar you will finish faster than you planned.
+                        servings: 4
+                        prepMinutes: 10
+                        cookMinutes: 12
+                        difficulty: easy
+                        ingredients:
+                          - quantity: 4
+                            unit: ear
+                            item: sweetcorn
+                            note: husks removed
+                          - quantity: 60
+                            unit: g
+                            item: salted butter
+                            note: softened
+                          - quantity: 2
+                            unit: tsp
+                            item: Caribbean Sunset blend
+                            note: null
+                        steps:
+                          - Mash the blend into the softened butter and set aside.
+                          - Grill the corn over a high heat, turning, until charred in patches.
+                          - Roll the hot corn through the butter and serve immediately.
+                        image: null
+                        sortOrder: 1
+                        status: published
+                        version: 2
+                        updatedAt: '2026-08-14T16:03:55Z'
+                    nextCursor: null
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/recipes/{recipeId}:
+    get:
+      operationId: getRecipe
+      summary: Get one recipe
+      tags: [Content]
+      security:
+        - {}
+      x-tap-path: false
+      x-called-at: build, admin
+      parameters:
+        - $ref: '#/components/parameters/RecipeId'
+      responses:
+        '200':
+          description: The recipe.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPublic'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recipe'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/growers:
+    get:
+      operationId: listGrowers
+      summary: List growers
+      tags: [Content]
+      security:
+        - {}
+      x-tap-path: false
+      x-called-at: build, admin
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of growers.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPublic'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowerList'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/growers/{growerId}:
+    get:
+      operationId: getGrower
+      summary: Get one grower
+      description: |
+        Access pattern 4 in the Architecture document data layer table: grower for a blend,
+        at page build time, snapshotted into the page. A single read.
+      tags: [Content]
+      security:
+        - {}
+      x-tap-path: false
+      x-called-at: build, revalidate
+      parameters:
+        - $ref: '#/components/parameters/GrowerId'
+      responses:
+        '200':
+          description: The grower.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPublic'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grower'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/catalog/{slug}:
+    get:
+      operationId: getCatalogEntry
+      summary: Shopify price and availability mirror for a blend
+      description: |
+        Access pattern 8 in the Architecture document data layer table: catalog mirror
+        read, after paint. A single read or a cache hit.
+
+        This is a mirror of Shopify, populated by a scheduled sync and by product update
+        webhooks, so Shopify latency is never inside the 2.0 second budget and a Shopify
+        incident degrades a price label rather than breaking a page.
+
+        The same values are baked into the page at build and revalidate time. This
+        operation is an OPTIONAL after paint refresh. If it is slow, fails, or the customer
+        is offline, the page keeps the baked value and the reorder button still works,
+        because the cart permalink is a static URL requiring no API call.
+      tags: [Catalog]
+      security:
+        - {}
+      x-tap-path: after-paint-optional
+      x-called-at: build, revalidate, optional after paint refresh
+      parameters:
+        - $ref: '#/components/parameters/BlendSlug'
+      responses:
+        '200':
+          description: The mirrored catalog entry.
+          headers:
+            Cache-Control:
+              description: Cacheable at the CDN. Serving a slightly stale price beats serving nothing.
+              schema:
+                type: string
+                examples: ['public, max-age=60, stale-while-revalidate=600']
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogEntry'
+              examples:
+                persianSunrise:
+                  summary: Persian Sunrise, in stock
+                  value:
+                    slug: persian-sunrise
+                    sku: TRV-PS-60G
+                    shopifyProductId: gid://shopify/Product/7391043289601
+                    shopifyVariantId: gid://shopify/ProductVariant/41802938471233
+                    price:
+                      amount: 2400
+                      currency: USD
+                    compareAtPrice: null
+                    available: true
+                    inventoryStatus: in_stock
+                    cartPermalinkUrl: https://shop.treveanspice.com/cart/41802938471233:1?channel=nfc
+                    syncedAt: '2026-08-17T08:55:00Z'
+                    stale: false
+                staleMirror:
+                  summary: Mirror is behind because the last sync failed. The page still renders.
+                  value:
+                    slug: caribbean-sunset
+                    sku: TRV-CS-60G
+                    shopifyProductId: gid://shopify/Product/7391043355137
+                    shopifyVariantId: gid://shopify/ProductVariant/41802938536769
+                    price:
+                      amount: 2200
+                      currency: USD
+                    compareAtPrice: null
+                    available: true
+                    inventoryStatus: unknown
+                    cartPermalinkUrl: https://shop.treveanspice.com/cart/41802938536769:1?channel=nfc
+                    syncedAt: '2026-08-16T04:00:00Z'
+                    stale: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/scan-events:
+    post:
+      operationId: recordScanEvent
+      summary: Record a scan event. THE ONLY OPERATION ON THE TAP CRITICAL PATH.
+      description: |
+        Access pattern 5 in the Architecture document data layer table: write a scan event,
+        every tap, after paint. One conditional write.
+
+        DELIVERY
+
+        Sent with navigator.sendBeacon so the browser owns delivery. It survives an
+        immediate navigation away and cannot block anything. Content-Type is
+        application/json. If sendBeacon is unavailable, fetch with keepalive true. Never a
+        blocking XHR, never before paint, never with a retry loop.
+
+        IDEMPOTENCY
+
+        Deduplicated server side on (blendSlug, dedupToken, deduplication window) through a
+        single conditional write with no read beforehand. A duplicate returns 202 exactly
+        like a first write. The client cannot tell the difference and must not try.
+
+        The dedupToken is a random value generated in the browser and kept in localStorage.
+        It is not a user identifier and carries no personal data. It exists because per SKU
+        tag encoding means there is no per-tag counter, so NFC deduplication uses the same
+        mechanism as QR. Reported counts are labelled with that method.
+
+        WHAT MUST NOT BE SENT
+
+        No IP address, no precise geolocation, no customer identifier, no email, no order
+        number, no free text. Geography is derived server side from CDN viewer headers to
+        country, region and city only. Unknown properties are rejected.
+      tags: [Tap]
+      security:
+        - {}
+      x-tap-path: true
+      x-called-at: every tap and every QR scan, after paint, non blocking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanEventInput'
+            examples:
+              nfcTap:
+                summary: An NFC tap on a Persian Sunrise jar, iPhone, cache hit
+                value:
+                  blendSlug: persian-sunrise
+                  tagCode: ps
+                  channel: nfc
+                  dedupToken: 9f2c41a7b6e04d8fa3c5d17e8b0f6a24
+                  occurredAt: '2026-08-17T09:41:07Z'
+                  platform: ios
+                  deviceFamily: iPhone
+                  connectionType: 4g
+                  cacheStatus: hit
+                  ttfbMs: 184
+                  timeToReadableMs: 1120
+                  pageVersion: 12
+                  redirected: true
+              qrScan:
+                summary: A QR scan on Caribbean Sunset, Android, the sole recovery route when a handset is asleep or locked
+                value:
+                  blendSlug: caribbean-sunset
+                  tagCode: cs
+                  channel: qr
+                  dedupToken: 41d8b0937ca24e0f9b6e2af1c8305d77
+                  occurredAt: '2026-08-17T09:44:22Z'
+                  platform: android
+                  deviceFamily: Pixel
+                  connectionType: 4g
+                  cacheStatus: hit
+                  ttfbMs: 205
+                  timeToReadableMs: 1290
+                  pageVersion: 9
+                  redirected: true
+              directVisit:
+                summary: A direct visit with no tag and no QR, for example a link shared by a customer
+                value:
+                  blendSlug: silk-road
+                  tagCode: null
+                  channel: direct
+                  dedupToken: 6ba2f0e51c9b4d3e8a7c5019d4f38b26
+                  occurredAt: '2026-08-17T10:02:00Z'
+                  platform: other
+                  deviceFamily: unknown
+                  connectionType: wifi
+                  cacheStatus: miss
+                  ttfbMs: 340
+                  timeToReadableMs: 1480
+                  pageVersion: 2
+                  redirected: false
+      responses:
+        '202':
+          description: |
+            Accepted. Returned for a new event and for a duplicate alike. Empty body.
+            The client does not inspect this response and does not retry on any status.
+          headers:
+            Cache-Control:
+              description: Never cached.
+              schema:
+                type: string
+                examples: ['no-store']
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '400':
+          description: |
+            Malformed or rejected body. The client does NOT retry. A beacon that retries is
+            a beacon that can interfere with navigation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                unknownBlend:
+                  value:
+                    error:
+                      code: VALIDATION_FAILED
+                      message: 'blendSlug must be one of the known blend slugs.'
+                      requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                      details:
+                        - field: blendSlug
+                          issue: not_in_enum
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/blends:
+    get:
+      operationId: adminListBlends
+      summary: List blends including drafts
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Viewer
+      parameters:
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of blend summaries, including drafts and archived blends.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlendSummaryList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: adminCreateBlend
+      summary: Create a blend
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlendCreate'
+            examples:
+              kyotoGarden:
+                summary: Seeding Kyoto Garden, the reserved fifth code, not in this production tag run
+                value:
+                  slug: kyoto-garden
+                  name: Kyoto Garden
+                  tagline: Sesame, nori, yuzu and green tea from Kyoto
+                  launchTier: seeded
+                  originCountry: JP
+                  originRegion: Kyoto
+                  originCity: Kyoto
+                  status: draft
+      responses:
+        '201':
+          description: Created, in draft. Creating a blend never publishes it.
+          headers:
+            Location:
+              description: URL of the created blend.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blend'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: A blend already exists with this slug.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                slugTaken:
+                  value:
+                    error:
+                      code: SLUG_TAKEN
+                      message: "A blend already exists with slug 'kyoto-garden'."
+                      requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/blends/{slug}:
+    get:
+      operationId: adminGetBlend
+      summary: Get a blend including its unpublished draft
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Viewer
+      parameters:
+        - $ref: '#/components/parameters/BlendSlug'
+        - name: include
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[a-z]+(,[a-z]+)*$'
+            examples: ['grower,recipes,draft']
+      responses:
+        '200':
+          description: The blend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blend'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: adminUpdateBlend
+      summary: Update a blend
+      description: |
+        Partial update. An omitted field is left unchanged, an explicit null clears it.
+
+        Optimistic concurrency: send the version you read. A mismatch returns 409
+        VERSION_CONFLICT. This is what stops two editors silently overwriting each other,
+        whose failure mode in this product is literally the page showing the wrong story.
+
+        Editing does not publish. See the publish operation.
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/BlendSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlendUpdate'
+            examples:
+              addStory:
+                summary: Adding the origin story and hero image to Persian Sunrise
+                value:
+                  version: 11
+                  storyBlocks:
+                    - type: heading
+                      text: Picked before the heat
+                    - type: paragraph
+                      text: Saffron is harvested in the cool hours after dawn.
+                  heroImageId: med_01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                  growerId: grw_01J9Z900A1B2C3D4E5F6G7H8J9
+      responses:
+        '200':
+          description: Updated. The returned version is incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blend'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/blends/{slug}/publish:
+    post:
+      operationId: adminPublishBlend
+      summary: Publish a blend and enqueue revalidation of the affected pages
+      description: |
+        Moves the blend to published, writes an immutable published snapshot, and enqueues
+        regeneration of exactly the affected pages.
+
+        Returns 202 rather than 200: publishing does NOT wait for regeneration. The
+        previous version keeps serving until the new one is ready, so no customer waits for
+        a render and no editor waits for a deploy. SOW section 6.2 requires content live
+        within 5 minutes; this is expected to complete in seconds.
+
+        Returns 422 PUBLISH_BLOCKED when the blend is not publishable, for example a
+        missing grower or a hero image still processing. The response lists every blocking
+        reason at once rather than one at a time, because an editor fixing five problems in
+        five round trips will stop using the tool.
+      tags: [Admin Publishing]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/BlendSlug'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                version:
+                  type: integer
+                  minimum: 1
+                  description: The version being published. Guards against publishing a stale draft.
+                note:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: Optional change note recorded against the published snapshot.
+      responses:
+        '202':
+          description: Publish accepted, revalidation enqueued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishResult'
+              examples:
+                published:
+                  value:
+                    slug: persian-sunrise
+                    status: published
+                    version: 12
+                    publishedAt: '2026-08-17T09:12:44Z'
+                    revalidationId: rvl_01J9Z95D6E7F8G9H0J1K2M3N4P
+                    paths:
+                      - /blend.html?blend=persian-sunrise
+                      - /blends/persian-sunrise
+                      - /sitemap.xml
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '422':
+          description: The blend cannot be published yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                blocked:
+                  value:
+                    error:
+                      code: PUBLISH_BLOCKED
+                      message: 'This blend cannot be published yet. 2 problems must be fixed.'
+                      requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                      details:
+                        - field: growerId
+                          issue: required_for_publish
+                        - field: heroImageId
+                          issue: media_still_processing
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/revalidate:
+    post:
+      operationId: adminRevalidate
+      summary: Revalidate given paths without a content change
+      description: |
+        The manual escape hatch for the case where the cache and the data disagree. It will
+        be needed at least once during this engagement, and building it now is cheaper than
+        needing it at 22:00 on 26 September.
+      tags: [Admin Publishing]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevalidateRequest'
+            examples:
+              bothLaunchBlends:
+                value:
+                  blendSlugs: [persian-sunrise, caribbean-sunset]
+                  reason: Cache and data disagreed after the 08:00 catalog sync.
+      responses:
+        '202':
+          description: Revalidation enqueued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevalidateResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/recipes:
+    post:
+      operationId: adminCreateRecipe
+      summary: Create a recipe
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeCreate'
+            examples:
+              silkRoad:
+                value:
+                  blendSlug: silk-road
+                  title: Roasted carrots with cumin and coriander
+                  summary: One tray, forty minutes, very little attention.
+                  servings: 4
+                  prepMinutes: 10
+                  cookMinutes: 35
+                  difficulty: easy
+                  ingredients:
+                    - quantity: 700
+                      unit: g
+                      item: carrots
+                      note: halved lengthways
+                    - quantity: 2
+                      unit: tsp
+                      item: The Silk Road blend
+                      note: null
+                  steps:
+                    - Heat the oven to 200 C.
+                    - Toss the carrots with oil and the blend, then spread on one tray.
+                    - Roast for 35 minutes, turning once.
+                  sortOrder: 1
+                  status: draft
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recipe'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/recipes/{recipeId}:
+    patch:
+      operationId: adminUpdateRecipe
+      summary: Update a recipe
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/RecipeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeUpdate'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recipe'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: adminDeleteRecipe
+      summary: Archive a recipe
+      description: |
+        Soft delete. The record moves to status archived and stops appearing on the page at
+        the next revalidation. Nothing is destroyed, because content that has been on a
+        printed jar's page is worth keeping.
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/RecipeId'
+      responses:
+        '204':
+          description: Archived.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/growers:
+    post:
+      operationId: adminCreateGrower
+      summary: Create a grower
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowerCreate'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grower'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/growers/{growerId}:
+    patch:
+      operationId: adminUpdateGrower
+      summary: Update a grower
+      description: |
+        A grower edit does not change any already generated page, because the grower record
+        is snapshotted into the page at build time. The response lists the blends that need
+        republishing so the CMS can prompt for it rather than leaving the editor to guess.
+      tags: [Admin Content]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/GrowerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowerUpdate'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Grower'
+                  - type: object
+                    properties:
+                      republishRequiredFor:
+                        type: array
+                        description: Published blends whose generated pages now hold a stale grower snapshot.
+                        items:
+                          $ref: '#/components/schemas/Slug'
+                        examples:
+                          - [persian-sunrise]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/media:
+    get:
+      operationId: adminListMedia
+      summary: List the media library
+      tags: [Admin Media]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Viewer
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/MediaKind'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of media records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/media/uploads:
+    post:
+      operationId: adminCreateMediaUpload
+      summary: Request a presigned S3 upload URL
+      description: |
+        Step 1 of 3. Returns a presigned S3 PUT URL and a mediaId. The browser then uploads
+        DIRECTLY to S3 using that URL, and calls the complete operation afterwards.
+
+        A large photograph never passes through an application function. Premium brand
+        photography plus a function mediated upload is a timeout and a memory limit waiting
+        to happen, and it puts image bytes on a code path that has to stay fast for other
+        reasons.
+      tags: [Admin Media]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaUploadRequest'
+            examples:
+              heroImage:
+                value:
+                  filename: persian-sunrise-hero.jpg
+                  contentType: image/jpeg
+                  bytes: 4831244
+                  kind: hero
+                  alt: A copper bowl of saffron threads and dried rose petals
+      responses:
+        '201':
+          description: Upload authorised. The URL is short lived.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaUploadTicket'
+              examples:
+                ticket:
+                  value:
+                    mediaId: med_01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                    uploadUrl: https://trevean-media-prod.s3.us-east-1.amazonaws.com/incoming/med_01J9Z8XK4M2Q7T5V3N8R1B6C0D?X-Amz-Signature=REDACTED
+                    method: PUT
+                    headers:
+                      Content-Type: image/jpeg
+                    maxBytes: 26214400
+                    expiresAt: '2026-08-17T09:27:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          description: The declared size exceeds the limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '415':
+          description: Unsupported media type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/media/{mediaId}:
+    get:
+      operationId: adminGetMedia
+      summary: Get a media record and its derivative status
+      tags: [Admin Media]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Viewer
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: The media record. status may be processing for a few seconds after upload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/media/{mediaId}/complete:
+    post:
+      operationId: adminCompleteMediaUpload
+      summary: Mark an upload complete and trigger derivative generation
+      description: |
+        Step 3 of 3. Verifies the object exists in S3, records its real size and dimensions,
+        and enqueues asynchronous derivative generation into responsive modern formats
+        served from CloudFront.
+
+        Returns 202, because derivatives are asynchronous. The CMS shows the processing
+        state rather than a broken image, and publish is blocked while a hero image is
+        still processing.
+      tags: [Admin Media]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Editor
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                alt:
+                  type: [string, 'null']
+                  maxLength: 300
+                  description: Alternative text. Required before a media item can be used on a published page.
+      responses:
+        '202':
+          description: Accepted, derivative generation enqueued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/analytics/scans:
+    get:
+      operationId: adminGetScanTimeSeries
+      summary: Scan time series, read from pre-aggregated rollups
+      description: |
+        Access pattern 7 in the Architecture document data layer table: dashboard time
+        series. A rollup range query, NEVER a table scan.
+
+        This operation reads pre-aggregated rollup items only. It never reads raw scan
+        events and never scans a table. That is the difference between a dashboard that is
+        still fast at ten million scans and one that gets slower every month.
+
+        Every response carries measurementMethod. Per SKU tag encoding means there is no
+        per-tag counter, so NFC and QR counts are both produced by a browser side token.
+        The dashboard states that rather than implying an NFC precision the encoding does
+        not provide.
+      tags: [Admin Analytics]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Viewer
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            examples: ['2026-08-01']
+        - name: to
+          in: query
+          required: true
+          description: Inclusive. Maximum range is 366 days at day granularity and 31 days at hour granularity.
+          schema:
+            type: string
+            format: date
+            examples: ['2026-08-17']
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [hour, day]
+            default: day
+        - name: blend
+          in: query
+          required: false
+          description: Restrict to one blend. Omit for the all blends rollup.
+          schema:
+            $ref: '#/components/schemas/Slug'
+      responses:
+        '200':
+          description: The time series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanTimeSeries'
+              examples:
+                threeDays:
+                  summary: Persian Sunrise, three days at day granularity
+                  value:
+                    blend: persian-sunrise
+                    granularity: day
+                    from: '2026-08-15'
+                    to: '2026-08-17'
+                    measurementMethod: browser_token
+                    measurementNote: >-
+                      NFC and QR counts are deduplicated by the same browser side token,
+                      because per SKU tag encoding provides no per-tag counter. The two
+                      channels are directly comparable to each other and neither is a
+                      per-jar count.
+                    source: rollup
+                    points:
+                      - bucket: '2026-08-15'
+                        scans: 118
+                        byChannel: { nfc: 74, qr: 41, direct: 3 }
+                        byPlatform: { ios: 79, android: 36, other: 3 }
+                        reorderClicks: 14
+                        recipeOpens: 61
+                        cache: { hit: 115, miss: 3 }
+                        timeToReadable: { count: 118, sumMs: 139240, p50Ms: 1150, p95Ms: 1720 }
+                        topCities:
+                          - { country: US, region: MA, city: Boston, scans: 44 }
+                          - { country: US, region: NY, city: Brooklyn, scans: 21 }
+                      - bucket: '2026-08-16'
+                        scans: 96
+                        byChannel: { nfc: 60, qr: 34, direct: 2 }
+                        byPlatform: { ios: 63, android: 31, other: 2 }
+                        reorderClicks: 9
+                        recipeOpens: 48
+                        cache: { hit: 96, miss: 0 }
+                        timeToReadable: { count: 96, sumMs: 111360, p50Ms: 1130, p95Ms: 1690 }
+                        topCities:
+                          - { country: US, region: MA, city: Boston, scans: 33 }
+                      - bucket: '2026-08-17'
+                        scans: 41
+                        byChannel: { nfc: 27, qr: 13, direct: 1 }
+                        byPlatform: { ios: 28, android: 12, other: 1 }
+                        reorderClicks: 5
+                        recipeOpens: 19
+                        cache: { hit: 41, miss: 0 }
+                        timeToReadable: { count: 41, sumMs: 46740, p50Ms: 1120, p95Ms: 1660 }
+                        topCities:
+                          - { country: US, region: MA, city: Boston, scans: 16 }
+        '400':
+          description: Invalid or excessive range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                rangeTooLarge:
+                  value:
+                    error:
+                      code: VALIDATION_FAILED
+                      message: 'Range exceeds 31 days at hour granularity.'
+                      requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                      details:
+                        - field: to
+                          issue: range_too_large
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/admin/tags:
+    get:
+      operationId: adminListTagRecords
+      summary: Read the deployed redirect table and tag records
+      description: |
+        READ ONLY. The redirect table is a version controlled artifact deployed with the
+        application, never hand edited state in a hosting console. There is no write
+        operation here for any role, including Admin. A thousand encoded tags resolve
+        through this table, so a change to it is a code review and a deployment, not a
+        form submission.
+
+        This operation exists so an operator can verify what is actually deployed without
+        cloning the repository, and so a pre cutover and post cutover verification against
+        physical tags can be recorded.
+
+        writeProtected is false for the shipped SO4731 run. Answered on Wednesday 19 August
+        2026 (decision log D18, closing Q4): the shipped tags carry no write protection, so
+        the 1,000 tags can be re-encoded and recovery has a second path behind the redirect
+        table. It stays null on the reserved code, where no tag exists to have a state.
+      tags: [Admin Tags]
+      security:
+        - bearerAuth: []
+      x-tap-path: false
+      x-minimum-role: Admin
+      responses:
+        '200':
+          description: The deployed redirect table, one entry per tag code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagRecordList'
+              examples:
+                deployedTable:
+                  summary: The four encoded codes and the reserved fifth
+                  value:
+                    deployedAt: '2026-08-16T18:30:00Z'
+                    sourceCommit: 13cce96
+                    data:
+                      - code: ps
+                        blendSlug: persian-sunrise
+                        requestPath: /t/ps
+                        targetPath: /blend.html?blend=persian-sunrise&via=nfc
+                        redirectStatus: 307
+                        unitsEncoded: 250
+                        status: encoded
+                        encodedOn: '2026-07-24'
+                        supplierOrderRef: SO4731
+                        chipPartNumber: ST25TV02KC
+                        writeProtected: false
+                        ndefUri: https://treveanspice.com/t/ps
+                        lastVerifiedAgainstPhysicalTag: null
+                      - code: cs
+                        blendSlug: caribbean-sunset
+                        requestPath: /t/cs
+                        targetPath: /blend.html?blend=caribbean-sunset&via=nfc
+                        redirectStatus: 307
+                        unitsEncoded: 250
+                        status: encoded
+                        encodedOn: '2026-07-24'
+                        supplierOrderRef: SO4731
+                        chipPartNumber: ST25TV02KC
+                        writeProtected: false
+                        ndefUri: https://treveanspice.com/t/cs
+                        lastVerifiedAgainstPhysicalTag: null
+                      - code: sr
+                        blendSlug: silk-road
+                        requestPath: /t/sr
+                        targetPath: /blend.html?blend=silk-road&via=nfc
+                        redirectStatus: 307
+                        unitsEncoded: 250
+                        status: encoded
+                        encodedOn: '2026-07-24'
+                        supplierOrderRef: SO4731
+                        chipPartNumber: ST25TV02KC
+                        writeProtected: false
+                        ndefUri: https://treveanspice.com/t/sr
+                        lastVerifiedAgainstPhysicalTag: null
+                      - code: nm
+                        blendSlug: north-african-night-market
+                        requestPath: /t/nm
+                        targetPath: /blend.html?blend=north-african-night-market&via=nfc
+                        redirectStatus: 307
+                        unitsEncoded: 250
+                        status: encoded
+                        encodedOn: '2026-07-24'
+                        supplierOrderRef: SO4731
+                        chipPartNumber: ST25TV02KC
+                        writeProtected: false
+                        ndefUri: https://treveanspice.com/t/nm
+                        lastVerifiedAgainstPhysicalTag: null
+                      - code: kg
+                        blendSlug: kyoto-garden
+                        requestPath: /t/kg
+                        targetPath: /blend.html?blend=kyoto-garden&via=nfc
+                        redirectStatus: 307
+                        unitsEncoded: 0
+                        status: reserved
+                        encodedOn: null
+                        supplierOrderRef: null
+                        chipPartNumber: null
+                        writeProtected: null
+                        ndefUri: null
+                        lastVerifiedAgainstPhysicalTag: null
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT issued by the managed identity provider on the Trevean AWS account, validated
+        on signature, issuer, audience and expiry. The roles claim carries one of Admin,
+        Editor or Viewer. Insufficient role returns 403, not 404.
+
+  headers:
+    CacheControlPublic:
+      description: Public content is briefly cacheable and revalidates in the background.
+      schema:
+        type: string
+        examples: ['public, max-age=60, stale-while-revalidate=300']
+    ETag:
+      description: Entity tag. Build callers send If-None-Match and take 304 responses.
+      schema:
+        type: string
+        examples: ['"W/12-1755423731"']
+    XRequestId:
+      description: ULID, identical to error.requestId and to the structured log line.
+      schema:
+        type: string
+        examples: ['01J9Z8XK4M2Q7T5V3N8R1B6C0D']
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+        minimum: 1
+        examples: [30]
+
+  parameters:
+    BlendSlug:
+      name: slug
+      in: path
+      required: true
+      description: The blend slug. One of the five real slugs.
+      schema:
+        $ref: '#/components/schemas/Slug'
+    RecipeId:
+      name: recipeId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^rcp_[0-9A-HJKMNP-TV-Z]{26}$'
+        examples: ['rcp_01J9Z91B2C3D4E5F6G7H8J9K0M']
+    GrowerId:
+      name: growerId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^grw_[0-9A-HJKMNP-TV-Z]{26}$'
+        examples: ['grw_01J9Z900A1B2C3D4E5F6G7H8J9']
+    MediaId:
+      name: mediaId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        examples: ['med_01J9Z8XK4M2Q7T5V3N8R1B6C0D']
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      description: |
+        Filter by publication status. Unauthenticated callers may only request published,
+        and any other value returns published only rather than an error.
+      schema:
+        $ref: '#/components/schemas/ContentStatus'
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: |
+        Opaque cursor from a previous nextCursor. Cursor pagination only. Offset pagination
+        is not offered, because it does not exist cheaply in DynamoDB and pretending
+        otherwise produces a table scan.
+      schema:
+        type: string
+        maxLength: 2048
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Client generated key, retained 24 hours. Replaying returns the original result.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+
+  responses:
+    BadRequest:
+      description: Malformed request or failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            validationFailed:
+              value:
+                error:
+                  code: VALIDATION_FAILED
+                  message: '1 field failed validation.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                  details:
+                    - field: slug
+                      issue: pattern_mismatch
+    Unauthenticated:
+      description: Missing, malformed or expired credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            expired:
+              value:
+                error:
+                  code: TOKEN_EXPIRED
+                  message: 'The access token has expired. Sign in again.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+    Forbidden:
+      description: |
+        Valid credentials, insufficient role. Returned rather than 404: hiding the existence
+        of admin routes from an authenticated internal user buys nothing and makes support
+        harder.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            viewerTriedToPublish:
+              value:
+                error:
+                  code: INSUFFICIENT_ROLE
+                  message: 'Publishing requires the Editor role. Your role is Viewer.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+    NotFound:
+      description: The resource does not exist, or is not published and the caller is unauthenticated.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            blendNotFound:
+              value:
+                error:
+                  code: BLEND_NOT_FOUND
+                  message: "No published blend exists with slug 'persian-sunrize'."
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                  details:
+                    - field: slug
+                      issue: not_found
+    VersionConflict:
+      description: |
+        The version supplied does not match the stored version. Someone else saved first.
+        Re-read, merge, and retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            conflict:
+              value:
+                error:
+                  code: VERSION_CONFLICT
+                  message: 'This blend was changed by editor@treveanspice.com at 09:11. Reload before saving.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+                  details:
+                    - field: version
+                      issue: stale
+    RateLimited:
+      description: Too many requests.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            limited:
+              value:
+                error:
+                  code: RATE_LIMITED
+                  message: 'Rate limit exceeded. Retry in 30 seconds.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+    UpstreamUnavailable:
+      description: An upstream dependency failed. The page degrades a price label rather than breaking.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            shopifyDown:
+              value:
+                error:
+                  code: UPSTREAM_UNAVAILABLE
+                  message: 'The catalog mirror could not be refreshed from Shopify.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+    InternalError:
+      description: Unhandled error. Always logged against the same requestId.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            internal:
+              value:
+                error:
+                  code: INTERNAL_ERROR
+                  message: 'Something went wrong. Quote the requestId when reporting this.'
+                  requestId: 01J9Z8XK4M2Q7T5V3N8R1B6C0D
+
+  schemas:
+
+    Slug:
+      type: string
+      description: Lowercase hyphen separated identifier. The five real values are enumerated for validation.
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+      maxLength: 64
+      enum:
+        - persian-sunrise
+        - caribbean-sunset
+        - north-african-night-market
+        - silk-road
+        - kyoto-garden
+      examples: ['persian-sunrise']
+
+    TagCode:
+      type: [string, 'null']
+      description: |
+        The short code encoded into the NDEF URI record on the tag, as in
+        treveanspice.com/t/{code}. Null on a direct visit with no tag and no QR.
+      pattern: '^[a-z]{2}$'
+      enum: [ps, cs, sr, nm, kg, null]
+      examples: ['ps']
+
+    ContentStatus:
+      type: string
+      enum: [draft, published, archived]
+      description: Unknown future values must be treated by clients as draft, not thrown on.
+      examples: ['published']
+
+    LaunchTier:
+      type: string
+      enum: [real, seeded]
+      description: |
+        real means launch content is supplied by Trevean. seeded means the record exists so
+        the page shape can be built and measured before content lands. Persian Sunrise and
+        Caribbean Sunset are real at launch, the other three are seeded.
+      examples: ['real']
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: RFC 3339, UTC, with a Z suffix. No local times anywhere in this API.
+      examples: ['2026-08-17T09:41:07Z']
+
+    Money:
+      type: object
+      description: Integer minor units plus an ISO 4217 code. Never a float.
+      additionalProperties: false
+      required: [amount, currency]
+      properties:
+        amount:
+          type: integer
+          description: Minor units. 2400 is $24.00.
+          examples: [2400]
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          examples: ['USD']
+
+    GeoPoint:
+      type: object
+      description: >-
+        A farm location. Latitude and longitude are nullable because they are factual
+        claims about a real supply chain, and Trevean supplies them. Before content
+        lands, an implementation must be able to say "not known" rather than being
+        forced to invent a coordinate that would render on a map as a real grower's
+        farm. Widened from non nullable on Saturday 22 August 2026, erratum E12.
+      additionalProperties: false
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: [number, 'null']
+          minimum: -90
+          maximum: 90
+          examples: [32.6539]
+        longitude:
+          type: [number, 'null']
+          minimum: -180
+          maximum: 180
+          examples: [51.666]
+        label:
+          type: [string, 'null']
+          maxLength: 200
+          examples: ['Smallholding outside Isfahan, Iran']
+
+    ErrorEnvelope:
+      type: object
+      description: The single error shape returned by every non 2xx response from every operation.
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              pattern: '^[A-Z][A-Z0-9_]*$'
+              description: Stable and machine readable. Clients branch on this, never on message.
+              examples: ['BLEND_NOT_FOUND']
+            message:
+              type: string
+              description: |
+                For developers and admin users. Never rendered to a consumer. Wording may
+                change without a version bump.
+              examples: ["No published blend exists with slug 'persian-sunrize'."]
+            requestId:
+              type: string
+              pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+              examples: ['01J9Z8XK4M2Q7T5V3N8R1B6C0D']
+            details:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                additionalProperties: false
+                required: [field, issue]
+                properties:
+                  field:
+                    type: string
+                    examples: ['slug']
+                  issue:
+                    type: string
+                    examples: ['not_found']
+
+    MediaKind:
+      type: string
+      enum: [hero, gallery, grower_portrait, recipe]
+      examples: ['hero']
+
+    MediaRef:
+      type: [object, 'null']
+      description: |
+        A CDN reference with explicit dimensions. Dimensions are always present so nothing
+        shifts during layout, which is a Lighthouse requirement and a real user experience
+        one.
+      additionalProperties: false
+      required: [mediaId, cdnUrl, alt, width, height]
+      properties:
+        mediaId:
+          type: string
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        cdnUrl:
+          type: string
+          format: uri
+          examples: ['https://cdn.treveanspice.com/media/med_01J9Z8XK4M2Q7T5V3N8R1B6C0D/hero-1280.avif']
+        alt:
+          type: string
+          maxLength: 300
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+        blurDataUrl:
+          type: [string, 'null']
+          description: Tiny inline placeholder. Inlined into the HTML, never a separate request.
+        formats:
+          type: array
+          items:
+            type: string
+            enum: [avif, webp, jpeg, png]
+          examples:
+            - [avif, webp, jpeg]
+
+    Media:
+      type: object
+      additionalProperties: false
+      required: [mediaId, filename, contentType, kind, status, createdAt]
+      properties:
+        mediaId:
+          type: string
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        filename:
+          type: string
+          maxLength: 255
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/avif]
+        bytes:
+          type: [integer, 'null']
+          minimum: 0
+        kind:
+          $ref: '#/components/schemas/MediaKind'
+        status:
+          type: string
+          enum: [pending, processing, ready, failed]
+          description: |
+            pending means the presigned URL was issued but the object is not confirmed.
+            processing means derivatives are being generated. A hero image that is not ready
+            blocks publish.
+        alt:
+          type: [string, 'null']
+          maxLength: 300
+        width:
+          type: [integer, 'null']
+        height:
+          type: [integer, 'null']
+        cdnUrl:
+          type: [string, 'null']
+          format: uri
+        derivatives:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [format, width, cdnUrl]
+            properties:
+              format:
+                type: string
+                enum: [avif, webp, jpeg]
+              width:
+                type: integer
+              cdnUrl:
+                type: string
+                format: uri
+        uploadedBy:
+          type: [string, 'null']
+          format: email
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    MediaList:
+      type: object
+      additionalProperties: false
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Media'
+        nextCursor:
+          type: [string, 'null']
+
+    MediaUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [filename, contentType, bytes, kind]
+      properties:
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/avif]
+        bytes:
+          type: integer
+          minimum: 1
+          maximum: 26214400
+          description: Declared size in bytes. The presigned URL enforces this limit at S3.
+        kind:
+          $ref: '#/components/schemas/MediaKind'
+        alt:
+          type: [string, 'null']
+          maxLength: 300
+
+    MediaUploadTicket:
+      type: object
+      additionalProperties: false
+      required: [mediaId, uploadUrl, method, headers, maxBytes, expiresAt]
+      properties:
+        mediaId:
+          type: string
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        uploadUrl:
+          type: string
+          format: uri
+          description: Presigned S3 URL. The browser PUTs the file here directly.
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          description: Headers that must be sent verbatim with the upload or the signature fails.
+          additionalProperties:
+            type: string
+        maxBytes:
+          type: integer
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    StoryBlock:
+      type: object
+      additionalProperties: false
+      required: [type, text]
+      properties:
+        type:
+          type: string
+          enum: [heading, paragraph, quote]
+          description: |
+            Deliberately a small closed set rather than raw HTML. Raw HTML from a CMS is how
+            a blocking script or a third party font gets onto the tap path without anyone
+            deciding to put it there.
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+
+    Freshness:
+      type: object
+      description: |
+        Freshness is stated per blend, not per jar. Per SKU tag encoding makes per lot
+        attribution impossible, so per jar freshness is not offered rather than faked.
+      additionalProperties: false
+      properties:
+        harvestedOn:
+          type: [string, 'null']
+          format: date
+        blendedOn:
+          type: [string, 'null']
+          format: date
+        bestBefore:
+          type: [string, 'null']
+          format: date
+        lotLabel:
+          type: [string, 'null']
+          maxLength: 40
+        note:
+          type: [string, 'null']
+          maxLength: 300
+
+    ShopifyLink:
+      type: object
+      additionalProperties: false
+      properties:
+        productId:
+          type: [string, 'null']
+          examples: ['gid://shopify/Product/7391043289601']
+        variantId:
+          type: [string, 'null']
+          examples: ['gid://shopify/ProductVariant/41802938471233']
+        sku:
+          type: [string, 'null']
+          maxLength: 64
+          examples: ['TRV-PS-60G']
+        cartPermalinkUrl:
+          type: [string, 'null']
+          format: uri
+          description: |
+            A static cart permalink. Zero API calls, zero client credentials, zero latency,
+            nothing to fail, and it bakes into the pre-rendered page. This is the one tap
+            reorder mechanism.
+          examples: ['https://shop.treveanspice.com/cart/41802938471233:1?channel=nfc']
+
+    BlendSummary:
+      type: object
+      description: |
+        Deliberately NOT additionalProperties false, because Blend extends it with allOf and
+        a closed base schema would reject every field the extension adds. Unknown fields are
+        rejected by request validation on the write schemas instead, where it matters.
+      required: [slug, name, status, launchTier, version, updatedAt]
+      properties:
+        slug:
+          $ref: '#/components/schemas/Slug'
+        name:
+          type: string
+          maxLength: 120
+        status:
+          $ref: '#/components/schemas/ContentStatus'
+        tagline:
+          type: [string, 'null']
+          maxLength: 200
+        originCountry:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2.
+        originRegion:
+          type: [string, 'null']
+          maxLength: 120
+        launchTier:
+          $ref: '#/components/schemas/LaunchTier'
+        tagCode:
+          $ref: '#/components/schemas/TagCode'
+        heroImage:
+          $ref: '#/components/schemas/MediaRef'
+        recipeCount:
+          type: integer
+          minimum: 0
+        version:
+          type: integer
+          minimum: 1
+        publishedAt:
+          type: [string, 'null']
+          format: date-time
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    BlendSummaryList:
+      type: object
+      additionalProperties: false
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlendSummary'
+        nextCursor:
+          type: [string, 'null']
+
+    Blend:
+      allOf:
+        - $ref: '#/components/schemas/BlendSummary'
+        - type: object
+          properties:
+            originCity:
+              type: [string, 'null']
+              maxLength: 120
+            farm:
+              oneOf:
+                - $ref: '#/components/schemas/GeoPoint'
+                - type: 'null'
+              description: Farm location for the map. Coarse enough not to identify a private address.
+            storyBlocks:
+              type: array
+              maxItems: 40
+              items:
+                $ref: '#/components/schemas/StoryBlock'
+            gallery:
+              type: array
+              maxItems: 20
+              items:
+                $ref: '#/components/schemas/MediaRef'
+            freshness:
+              $ref: '#/components/schemas/Freshness'
+            growerId:
+              type: [string, 'null']
+              pattern: '^grw_[0-9A-HJKMNP-TV-Z]{26}$'
+            shopify:
+              $ref: '#/components/schemas/ShopifyLink'
+            updatedBy:
+              type: [string, 'null']
+              format: email
+            grower:
+              description: Present only when include=grower. Snapshotted into the generated page.
+              oneOf:
+                - $ref: '#/components/schemas/Grower'
+                - type: 'null'
+            recipes:
+              description: Present only when include=recipes, in carousel order.
+              type: array
+              items:
+                $ref: '#/components/schemas/Recipe'
+
+    BlendCreate:
+      type: object
+      additionalProperties: false
+      required: [slug, name]
+      properties:
+        slug:
+          $ref: '#/components/schemas/Slug'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        tagline:
+          type: [string, 'null']
+          maxLength: 200
+        launchTier:
+          $ref: '#/components/schemas/LaunchTier'
+        status:
+          type: string
+          enum: [draft]
+          default: draft
+          description: A blend is always created as a draft. Creating never publishes.
+        originCountry:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+        originRegion:
+          type: [string, 'null']
+          maxLength: 120
+        originCity:
+          type: [string, 'null']
+          maxLength: 120
+        farm:
+          oneOf:
+            - $ref: '#/components/schemas/GeoPoint'
+            - type: 'null'
+        storyBlocks:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/StoryBlock'
+        heroImageId:
+          type: [string, 'null']
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        galleryImageIds:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        freshness:
+          $ref: '#/components/schemas/Freshness'
+        growerId:
+          type: [string, 'null']
+          pattern: '^grw_[0-9A-HJKMNP-TV-Z]{26}$'
+        shopify:
+          $ref: '#/components/schemas/ShopifyLink'
+
+    BlendUpdate:
+      type: object
+      description: |
+        Partial update. An omitted field is unchanged, an explicit null clears it. slug is
+        not updatable: a thousand encoded tags resolve to it through the redirect table, so
+        changing a slug strands inventory.
+      additionalProperties: false
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          description: The version last read. A mismatch returns 409 VERSION_CONFLICT.
+        name:
+          type: string
+          maxLength: 120
+        tagline:
+          type: [string, 'null']
+          maxLength: 200
+        launchTier:
+          $ref: '#/components/schemas/LaunchTier'
+        status:
+          type: string
+          enum: [draft, archived]
+          description: Publishing is a separate operation, so an accidental save never puts a page live.
+        originCountry:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+        originRegion:
+          type: [string, 'null']
+          maxLength: 120
+        originCity:
+          type: [string, 'null']
+          maxLength: 120
+        farm:
+          oneOf:
+            - $ref: '#/components/schemas/GeoPoint'
+            - type: 'null'
+        storyBlocks:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/StoryBlock'
+        heroImageId:
+          type: [string, 'null']
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        galleryImageIds:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        freshness:
+          $ref: '#/components/schemas/Freshness'
+        growerId:
+          type: [string, 'null']
+          pattern: '^grw_[0-9A-HJKMNP-TV-Z]{26}$'
+        shopify:
+          $ref: '#/components/schemas/ShopifyLink'
+
+    Ingredient:
+      type: object
+      additionalProperties: false
+      required: [item]
+      properties:
+        quantity:
+          type: [number, 'null']
+          minimum: 0
+        unit:
+          type: [string, 'null']
+          maxLength: 24
+        item:
+          type: string
+          minLength: 1
+          maxLength: 160
+        note:
+          type: [string, 'null']
+          maxLength: 200
+
+    Recipe:
+      type: object
+      additionalProperties: false
+      required: [recipeId, blendSlug, title, status, sortOrder, version, updatedAt]
+      properties:
+        recipeId:
+          type: string
+          pattern: '^rcp_[0-9A-HJKMNP-TV-Z]{26}$'
+        blendSlug:
+          $ref: '#/components/schemas/Slug'
+        title:
+          type: string
+          maxLength: 160
+        summary:
+          type: [string, 'null']
+          maxLength: 400
+        servings:
+          type: [integer, 'null']
+          minimum: 1
+        prepMinutes:
+          type: [integer, 'null']
+          minimum: 0
+        cookMinutes:
+          type: [integer, 'null']
+          minimum: 0
+        difficulty:
+          type: [string, 'null']
+          enum: [easy, medium, hard, null]
+        ingredients:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        steps:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            minLength: 1
+            maxLength: 800
+        image:
+          $ref: '#/components/schemas/MediaRef'
+        sortOrder:
+          type: integer
+          minimum: 0
+          description: Carousel order. Ties break on recipeId so ordering is stable across builds.
+        status:
+          $ref: '#/components/schemas/ContentStatus'
+        version:
+          type: integer
+          minimum: 1
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    RecipeList:
+      type: object
+      additionalProperties: false
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recipe'
+        nextCursor:
+          type: [string, 'null']
+
+    RecipeCreate:
+      type: object
+      additionalProperties: false
+      required: [blendSlug, title]
+      properties:
+        blendSlug:
+          $ref: '#/components/schemas/Slug'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        summary:
+          type: [string, 'null']
+          maxLength: 400
+        servings:
+          type: [integer, 'null']
+          minimum: 1
+        prepMinutes:
+          type: [integer, 'null']
+          minimum: 0
+        cookMinutes:
+          type: [integer, 'null']
+          minimum: 0
+        difficulty:
+          type: [string, 'null']
+          enum: [easy, medium, hard, null]
+        ingredients:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        steps:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 800
+        imageId:
+          type: [string, 'null']
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        sortOrder:
+          type: integer
+          minimum: 0
+          default: 0
+        status:
+          type: string
+          enum: [draft, published]
+          default: draft
+
+    RecipeUpdate:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+          maxLength: 160
+        summary:
+          type: [string, 'null']
+          maxLength: 400
+        servings:
+          type: [integer, 'null']
+          minimum: 1
+        prepMinutes:
+          type: [integer, 'null']
+          minimum: 0
+        cookMinutes:
+          type: [integer, 'null']
+          minimum: 0
+        difficulty:
+          type: [string, 'null']
+          enum: [easy, medium, hard, null]
+        ingredients:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/Ingredient'
+        steps:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 800
+        imageId:
+          type: [string, 'null']
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        sortOrder:
+          type: integer
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/ContentStatus'
+
+    Grower:
+      type: object
+      description: |
+        Deliberately NOT additionalProperties false, because the grower update response
+        extends it with allOf to add republishRequiredFor.
+      required: [growerId, name, version, updatedAt]
+      properties:
+        growerId:
+          type: string
+          pattern: '^grw_[0-9A-HJKMNP-TV-Z]{26}$'
+        name:
+          type: string
+          maxLength: 160
+        farmName:
+          type: [string, 'null']
+          maxLength: 160
+        country:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+        region:
+          type: [string, 'null']
+          maxLength: 120
+        bio:
+          type: [string, 'null']
+          maxLength: 4000
+        yearsFarming:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 120
+        portrait:
+          $ref: '#/components/schemas/MediaRef'
+        farm:
+          oneOf:
+            - $ref: '#/components/schemas/GeoPoint'
+            - type: 'null'
+        blendSlugs:
+          type: array
+          description: Blends this grower supplies. Used to work out what needs republishing after an edit.
+          items:
+            $ref: '#/components/schemas/Slug'
+        version:
+          type: integer
+          minimum: 1
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    GrowerList:
+      type: object
+      additionalProperties: false
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Grower'
+        nextCursor:
+          type: [string, 'null']
+
+    GrowerCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        farmName:
+          type: [string, 'null']
+          maxLength: 160
+        country:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+        region:
+          type: [string, 'null']
+          maxLength: 120
+        bio:
+          type: [string, 'null']
+          maxLength: 4000
+        yearsFarming:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 120
+        portraitId:
+          type: [string, 'null']
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        farm:
+          oneOf:
+            - $ref: '#/components/schemas/GeoPoint'
+            - type: 'null'
+
+    GrowerUpdate:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          maxLength: 160
+        farmName:
+          type: [string, 'null']
+          maxLength: 160
+        country:
+          type: [string, 'null']
+          pattern: '^[A-Z]{2}$'
+        region:
+          type: [string, 'null']
+          maxLength: 120
+        bio:
+          type: [string, 'null']
+          maxLength: 4000
+        yearsFarming:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 120
+        portraitId:
+          type: [string, 'null']
+          pattern: '^med_[0-9A-HJKMNP-TV-Z]{26}$'
+        farm:
+          oneOf:
+            - $ref: '#/components/schemas/GeoPoint'
+            - type: 'null'
+
+    CatalogEntry:
+      type: object
+      additionalProperties: false
+      required: [slug, available, syncedAt]
+      properties:
+        slug:
+          $ref: '#/components/schemas/Slug'
+        sku:
+          type: [string, 'null']
+          maxLength: 64
+        shopifyProductId:
+          type: [string, 'null']
+        shopifyVariantId:
+          type: [string, 'null']
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        compareAtPrice:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        available:
+          type: boolean
+        inventoryStatus:
+          type: string
+          enum: [in_stock, low_stock, out_of_stock, unknown]
+          description: unknown is a legitimate answer when the mirror is stale. It is not an error.
+        cartPermalinkUrl:
+          type: [string, 'null']
+          format: uri
+        syncedAt:
+          $ref: '#/components/schemas/Timestamp'
+        stale:
+          type: boolean
+          default: false
+          description: True when the last successful sync is older than the freshness threshold.
+
+    ScanChannel:
+      type: string
+      enum: [nfc, qr, direct]
+      description: |
+        How the customer arrived. nfc and qr are both deduplicated by the same browser side
+        token, so they are directly comparable to each other. direct covers a shared link.
+      examples: ['nfc']
+
+    ScanEventInput:
+      type: object
+      description: |
+        The beacon body. Every field is an enum, a bounded string or a number in a documented
+        range. No free text, no identifiers of value, no IP, no precise location. Unknown
+        properties are rejected.
+      additionalProperties: false
+      required: [blendSlug, channel, dedupToken, occurredAt]
+      properties:
+        blendSlug:
+          $ref: '#/components/schemas/Slug'
+        tagCode:
+          $ref: '#/components/schemas/TagCode'
+        channel:
+          $ref: '#/components/schemas/ScanChannel'
+        dedupToken:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: |
+            Random 128 bit value generated in the browser and kept in localStorage. Not a
+            user identifier, carries no personal data, and has no server side identity
+            attached. It exists because per SKU tag encoding provides no per-tag counter.
+          examples: ['9f2c41a7b6e04d8fa3c5d17e8b0f6a24']
+        occurredAt:
+          $ref: '#/components/schemas/Timestamp'
+        platform:
+          type: string
+          enum: [ios, android, other]
+          default: other
+        deviceFamily:
+          type: [string, 'null']
+          maxLength: 40
+          description: Coarse family only, for example iPhone, Pixel, Galaxy. Never a full user agent.
+          examples: ['iPhone']
+        connectionType:
+          type: string
+          enum: ['slow-2g', '2g', '3g', '4g', '5g', wifi, unknown]
+          default: unknown
+        cacheStatus:
+          type: string
+          enum: [hit, miss, stale, unknown]
+          default: unknown
+          description: |
+            From the CDN response header, read client side. A falling hit ratio is the
+            earliest warning that something broke the rendering strategy.
+        ttfbMs:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 120000
+        timeToReadableMs:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 120000
+          description: |
+            Navigation start to page readable. The 2.0 second acceptance number, measured by
+            the same instrument that records the bench runs and the September matrix.
+        pageVersion:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 2147483647
+          description: |
+            The blend version baked into the served page. Identifies stale cached HTML.
+
+            The upper bound is derived from how the value is produced rather than chosen for
+            comfort. A blend version starts at 1 and is incremented by exactly one per
+            accepted admin write, so it grows no faster than admin writes are permitted, and
+            section 9 of the frozen API contract caps those at 300 per minute per subject. A
+            single blend absorbing that entire limit without pause for ten years reaches
+            1576800000, so 2147483647 sits above anything this system can legitimately
+            produce. It is also the largest signed 32 bit integer, which keeps every accepted
+            value representable without loss everywhere between the browser and the stored
+            attribute. The highest version in the worked examples is 12.
+
+            The bound exists because this is an unauthenticated write on the tap path.
+            Without it, minimum 1 alone accepts 1e308, which is an integer as far as JSON
+            Schema is concerned, and the stored attribute cannot carry it.
+        redirected:
+          type: [boolean, 'null']
+          description: |
+            Whether the 307 from /t/{code} was in this navigation. Recorded because the
+            2.0 second clock starts at the request for /t/{code}, so the hop is inside the
+            budget and its cost has to be visible.
+
+    ScanRollupPoint:
+      type: object
+      description: One pre-aggregated bucket. Never computed from raw events at read time.
+      additionalProperties: false
+      required: [bucket, scans]
+      properties:
+        bucket:
+          type: string
+          description: YYYY-MM-DD at day granularity, YYYY-MM-DDTHH at hour granularity, always UTC.
+          examples: ['2026-08-17']
+        scans:
+          type: integer
+          minimum: 0
+          description: Deduplicated scans in this bucket.
+        byChannel:
+          type: object
+          additionalProperties: false
+          properties:
+            nfc: { type: integer, minimum: 0 }
+            qr: { type: integer, minimum: 0 }
+            direct: { type: integer, minimum: 0 }
+        byPlatform:
+          type: object
+          additionalProperties: false
+          properties:
+            ios: { type: integer, minimum: 0 }
+            android: { type: integer, minimum: 0 }
+            other: { type: integer, minimum: 0 }
+        reorderClicks:
+          type: integer
+          minimum: 0
+        recipeOpens:
+          type: integer
+          minimum: 0
+        cache:
+          type: object
+          additionalProperties: false
+          properties:
+            hit: { type: integer, minimum: 0 }
+            miss: { type: integer, minimum: 0 }
+            stale: { type: integer, minimum: 0 }
+        timeToReadable:
+          type: object
+          description: |
+            count and sumMs give an honest mean. p50 and p95 are read from stored histogram
+            buckets, not reconstructed from a mean, because a percentile derived from a sum
+            is a fiction.
+          additionalProperties: false
+          properties:
+            count: { type: integer, minimum: 0 }
+            sumMs: { type: integer, minimum: 0 }
+            p50Ms: { type: [integer, 'null'], minimum: 0 }
+            p95Ms: { type: [integer, 'null'], minimum: 0 }
+        topCities:
+          type: array
+          description: |
+            Country, region and city only, derived server side from CDN viewer headers. No
+            IP is stored and the browser is never asked for location permission.
+          maxItems: 25
+          items:
+            type: object
+            additionalProperties: false
+            required: [country, scans]
+            properties:
+              country:
+                type: string
+                pattern: '^[A-Z]{2}$'
+              region:
+                type: [string, 'null']
+                maxLength: 80
+              city:
+                type: [string, 'null']
+                maxLength: 120
+              scans:
+                type: integer
+                minimum: 0
+
+    ScanTimeSeries:
+      type: object
+      additionalProperties: false
+      required: [granularity, from, to, measurementMethod, source, points]
+      properties:
+        blend:
+          oneOf:
+            - $ref: '#/components/schemas/Slug'
+            - type: 'null'
+          description: Null when the series covers all blends.
+        granularity:
+          type: string
+          enum: [hour, day]
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        measurementMethod:
+          type: string
+          enum: [browser_token]
+          description: |
+            The only value. NFC and QR are deduplicated identically, because per SKU
+            encoding provides no per-tag counter. Stated on every response so the dashboard
+            cannot accidentally imply a precision the hardware does not give.
+        measurementNote:
+          type: string
+          description: Human readable version of the above, rendered on the dashboard.
+        source:
+          type: string
+          enum: [rollup]
+          description: The only value. This operation never reads raw events and never scans a table.
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScanRollupPoint'
+
+    PublishResult:
+      type: object
+      additionalProperties: false
+      required: [slug, status, version, publishedAt, revalidationId, paths]
+      properties:
+        slug:
+          $ref: '#/components/schemas/Slug'
+        status:
+          $ref: '#/components/schemas/ContentStatus'
+        version:
+          type: integer
+        publishedAt:
+          $ref: '#/components/schemas/Timestamp'
+        revalidationId:
+          type: string
+          pattern: '^rvl_[0-9A-HJKMNP-TV-Z]{26}$'
+        paths:
+          type: array
+          description: |
+            Exactly the paths queued for regeneration. The previous version keeps serving
+            until each one is ready.
+          items:
+            type: string
+
+    RevalidateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        blendSlugs:
+          type: array
+          maxItems: 25
+          items:
+            $ref: '#/components/schemas/Slug'
+        paths:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            maxLength: 512
+        reason:
+          type: [string, 'null']
+          maxLength: 300
+          description: Recorded in the audit log. Required in practice by review, not by schema.
+      anyOf:
+        - required: [blendSlugs]
+        - required: [paths]
+
+    RevalidateResult:
+      type: object
+      additionalProperties: false
+      required: [revalidationId, paths, status]
+      properties:
+        revalidationId:
+          type: string
+          pattern: '^rvl_[0-9A-HJKMNP-TV-Z]{26}$'
+        paths:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [queued]
+
+    TagRecord:
+      type: object
+      description: |
+        One row of the redirect table as deployed. The version controlled file in the
+        application repository is the source of truth. This is a read of what is live.
+      additionalProperties: false
+      required: [code, blendSlug, requestPath, targetPath, redirectStatus, status]
+      properties:
+        code:
+          type: string
+          pattern: '^[a-z]{2}$'
+          examples: ['ps']
+        blendSlug:
+          $ref: '#/components/schemas/Slug'
+        requestPath:
+          type: string
+          description: The path encoded into the NDEF URI record on the physical tag.
+          examples: ['/t/ps']
+        targetPath:
+          type: string
+          description: The 307 target.
+          examples: ['/blend.html?blend=persian-sunrise&via=nfc']
+        redirectStatus:
+          type: integer
+          enum: [307]
+          description: |
+            307 preserves the method and is explicitly temporary, so destinations can change
+            by editing this table without a cached permanent redirect stranding inventory.
+        unitsEncoded:
+          type: integer
+          minimum: 0
+          examples: [250]
+        status:
+          type: string
+          enum: [encoded, reserved]
+          description: |
+            encoded means physical tags carry this code. reserved means the code is allocated
+            and served but no tag in this production run carries it.
+        encodedOn:
+          type: [string, 'null']
+          format: date
+          examples: ['2026-07-24']
+        supplierOrderRef:
+          type: [string, 'null']
+          examples: ['SO4731']
+        chipPartNumber:
+          type: [string, 'null']
+          description: |
+            STMicroelectronics ST25TV02KC, NFC Forum Type 5 / ISO 15693. Not NTAG21x and not
+            Type 2. Different air interface, different memory model, area based password
+            protection rather than lock bits.
+          examples: ['ST25TV02KC']
+        writeProtected:
+          type: [boolean, 'null']
+          description: |
+            Null means unknown. False across the shipped SO4731 run, answered on Wednesday
+            19 August 2026 (decision log D18, closing Q4): those tags carry no write
+            protection and can be re-encoded, so the chip tooling serves this production run
+            rather than only the next order. Null on the reserved code, where no tag exists
+            to have a state.
+        ndefUri:
+          type: [string, 'null']
+          format: uri
+          examples: ['https://treveanspice.com/t/ps']
+        lastVerifiedAgainstPhysicalTag:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            When this code was last confirmed by tapping a real tag. Every code is verified
+            before and after any change of production host. A host migration that leaves this
+            table behind does not break a deployment, it strands inventory.
+
+    TagRecordList:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        deployedAt:
+          $ref: '#/components/schemas/Timestamp'
+        sourceCommit:
+          type: [string, 'null']
+          description: Commit of the version controlled redirect table this deployment was built from.
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagRecord'

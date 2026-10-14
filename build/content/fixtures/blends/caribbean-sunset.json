@@ -1,0 +1,109 @@
+{
+  "_fixture": {
+    "entity": "blend",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Content for the two launch blends was due Friday 14 August 2026 and has not been received as of Monday 17 August 2026. Content writing, photography and translation are outside the contractor's scope per the Scope document, 'Out of scope, deferred not dropped'. Nothing in this record about a person, a place, a date or a price is invented.",
+    "fields": {
+      "slug": "contractor_real",
+      "name": "client_real",
+      "tagCode": "contractor_real",
+      "launchTier": "contractor_real",
+      "status": "contractor_real",
+      "tagline": "placeholder_text",
+      "originCountry": "client_real",
+      "originRegion": "placeholder_null",
+      "originCity": "placeholder_null",
+      "farm.latitude": "placeholder_null",
+      "farm.longitude": "placeholder_null",
+      "farm.label": "placeholder_null",
+      "storyBlocks": "placeholder_text",
+      "heroImageId": "placeholder_media",
+      "galleryImageIds": "placeholder_null",
+      "freshness.harvestedOn": "placeholder_null",
+      "freshness.blendedOn": "placeholder_null",
+      "freshness.bestBefore": "placeholder_null",
+      "freshness.lotLabel": "placeholder_text",
+      "freshness.note": "contractor_real",
+      "growerId": "contractor_real",
+      "shopify.sku": "placeholder_null",
+      "shopify.productId": "placeholder_null",
+      "shopify.variantId": "placeholder_null",
+      "shopify.cartPermalinkUrl": "placeholder_null"
+    },
+    "notes": {
+      "originRegion": "The client stated 'Trinidad and Tobago', which is the country. Which island, district or estate is not stated, so the region is left null rather than narrowed to Trinidad on our own authority.",
+      "farm.latitude": "Left null. A fabricated coordinate renders as a pin on a map and reads as a fact.",
+      "shopify.sku": "Waiting on Shopify Plus store access."
+    }
+  },
+  "_clientFacts": {
+    "$comment": "Facts supplied by Trevean. These are real and are used as given.",
+    "source": "Scope document, 'The five blends' and 'Tag code map'",
+    "spices": [
+      "scotch bonnet",
+      "allspice",
+      "thyme"
+    ],
+    "originAsStatedByClient": "Trinidad and Tobago",
+    "tagUnitsEncoded": 250
+  },
+  "blend": {
+    "slug": "caribbean-sunset",
+    "name": "Caribbean Sunset",
+    "status": "published",
+    "tagline": "[PLACEHOLDER] TAGLINE PENDING, NOT REAL CONTENT. Trevean facts: scotch bonnet, allspice, thyme; Trinidad and Tobago.",
+    "launchTier": "real",
+    "tagCode": "cs",
+    "originCountry": "TT",
+    "originRegion": null,
+    "originCity": null,
+    "farm": null,
+    "storyBlocks": [
+      {
+        "type": "heading",
+        "text": "[PLACEHOLDER] STORY HEADING PENDING, NOT REAL CONTENT"
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] ORIGIN STORY PARAGRAPH 1 OF 3, NOT REAL CONTENT. Trevean to supply 320 to 480 characters of real copy here. This block is padded to the length we are asking for, so the document byte budget and the above the fold layout are measured against something the size of the real thing rather than against a short stub. NOT REAL CONTENT. NOT REAL CONTENT."
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] ORIGIN STORY PARAGRAPH 2 OF 3, NOT REAL CONTENT. Trevean to supply 320 to 480 characters of real copy here. The Acceptance criteria document section 6.3 requires the origin story visible without scrolling, so paragraph 1 has to read as a complete opening on its own and this one continues it. NOT REAL CONTENT. NOT REAL CONTENT."
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] ORIGIN STORY PARAGRAPH 3 OF 3, NOT REAL CONTENT. Trevean to supply 320 to 480 characters of real copy here. No claim about a grower, a harvest, a farm or a family appears anywhere in this fixture, because a fabricated one that looks real can ship and reach a customer. NOT REAL CONTENT. NOT REAL CONTENT."
+      }
+    ],
+    "heroImageId": "med_FAKEHRCS010000000000000000",
+    "galleryImageIds": [],
+    "freshness": {
+      "harvestedOn": null,
+      "blendedOn": null,
+      "bestBefore": null,
+      "lotLabel": "[PLACEHOLDER] LOT PENDING",
+      "note": "Freshness is stated per blend rather than per jar, because tag encoding is per SKU."
+    },
+    "growerId": "grw_FAKEGRCS010000000000000000",
+    "shopify": {
+      "productId": "7804403581031",
+      "variantId": "44647352336487",
+      "sku": null,
+      "cartPermalinkUrl": null
+    },
+    "recipeCount": 6,
+    "version": 1,
+    "publishedAt": "2026-08-17T09:00:00Z",
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z",
+    "updatedBy": "content-fixtures@serenelabs.io"
+  }
+}

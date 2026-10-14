@@ -1,0 +1,38 @@
+{
+  "package": "@trevean/chip-cli",
+  "installedPairs": 3,
+  "installedNames": 3,
+  "installedCopies": 3,
+  "resolvedByLockfile": 3,
+  "installedAtMoreThanOneVersion": [],
+  "byLicence": {
+    "MIT": 2,
+    "Apache-2.0": 1
+  },
+  "nonPermissive": [],
+  "copyleft": [],
+  "copyleftResolvedButNotInstalledHere": [],
+  "packages": [
+    {
+      "name": "@types/node",
+      "version": "20.19.43",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+      "role": "development"
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "homepage": "https://www.typescriptlang.org/",
+      "role": "development"
+    },
+    {
+      "name": "undici-types",
+      "version": "6.21.0",
+      "license": "MIT",
+      "homepage": "https://undici.nodejs.org",
+      "role": "transitive"
+    }
+  ]
+}

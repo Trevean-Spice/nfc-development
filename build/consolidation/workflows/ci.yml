@@ -1,0 +1,303 @@
+# Trevean Spice NFC. Continuous integration for the nfc-development repository.
+#
+# This repository has never had CI. That is not a gap to fill quietly: the reason the
+# jest configuration has carried two typos since June, the reason the typecheck reports
+# one error and hides 326, and the reason a test suite of 2,102 lines has never executed
+# is that nothing has ever run and reported.
+#
+# THE DESIGN RULE FOR THIS FILE
+#
+#   A green build on a repository where nothing executes is worse than no CI, because it
+#   converts "we do not know" into "we checked". Every job below is written to fail loudly
+#   and legibly rather than to pass vacuously. Concretely:
+#
+#     1. npm ci, never npm install. npm ci refuses to run without a lockfile and refuses
+#        to run against a lockfile that disagrees with package.json. Install is therefore
+#        a real gate rather than a step that quietly re-resolves the tree.
+#     2. Every job depends on the foundations job, so a missing lockfile produces one
+#        legible sentence rather than six npm stack traces in six jobs.
+#     3. The test job does not trust jest's exit code alone. It reads the machine readable
+#        result file and asserts a floor: suites that failed to compile are a failure, and
+#        a run that executed zero tests is a failure UNLESS the committed floor in
+#        ci/test-floor.json is a dated zero that has not expired. In this repository all
+#        eight suites fail to compile, which jest reports as suite failures rather than as
+#        test failures, and the two are not the same thing.
+#     4. Nothing here carries continue-on-error, and nothing is piped to `|| true`. The
+#        jest step captures its own exit code with `set +e` and PIPESTATUS and reports it,
+#        so the assertion step downstream produces the message instead of jest's stack
+#        trace, and so the code itself is available as a number rather than as the word
+#        "failure". The assertion step is the gate and it swallows nothing.
+#     5. --passWithNoTests is deliberately not set anywhere, and passWithNoTests is set to
+#        false in jest.config.ts. jest refuses an empty run; whether an empty run is
+#        acceptable today is decided by the committed, dated floor rather than by a flag.
+#
+# ADOPTION: see build/consolidation/README.md in the Serene Labs knowledge base. Copy this
+# file to .github/workflows/ci.yml in nfc-development, together with scripts/ci/.
+#
+# Required status checks on the default branch as this file stands: Foundations,
+# Typecheck, Lint, Tests, Build. Until they are marked required in branch protection this
+# workflow reports, it does not enforce. That setting is the step most often skipped.
+#
+# A SIXTH JOB ARRIVES LATER, ON PURPOSE. There is no Guards job in this file. It is added
+# by PR 8 of the consolidation plan, in the same diff as the slug rename and the copy of
+# the canonical redirect table, because assert-slugs.mjs cannot pass without both of them.
+# Shipping the job here and its inputs two pull requests later would put a red required
+# check on the default branch for the whole gap, which is the exact habit this file is
+# written to prevent. The rule the plan applies, and it is worth stating once: a job lands
+# in the same pull request as the thing it measures. The same rule sends contract-tests.yml
+# to PR 9 and performance-budget.yml to PR 10.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------- foundations --
+  # Runs first and gates everything. It answers one question: is this repository in a
+  # state where a CI result means anything at all? It needs no dependency install, so it
+  # answers in seconds and its failure message is ours rather than a tool's.
+  foundations:
+    name: Foundations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads .nvmrc rather than hard coding a version, so the version developers use and
+      # the version CI uses cannot drift apart. Node 20 or newer is required: the contract
+      # test suite declares node >=20.11.0 and the budget scripts declare node >=20.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Lockfile, workspace manifests, referenced tsconfig files, .env.example coverage,
+      # undeclared imports, the two jest configuration typos, the tsconfig settings, and
+      # whether .github/workflows still contains nothing but a 2 byte placeholder.
+      # Every failure prints what is wrong, why it matters and the exact fix.
+      - name: Assert the foundations exist
+        run: node scripts/ci/assert-foundations.mjs
+
+      # Proves the lockfile is installable and in sync with package.json. If this step
+      # fails after assert-foundations passed, the lockfile is stale and the fix is
+      # `npm install` followed by committing the result, not `npm ci --force`.
+      - name: Install from the lockfile
+        run: npm ci
+
+  # ------------------------------------------------------------------ typecheck --
+  # Three projects, checked separately, because they have genuinely different compiler
+  # settings. The root project covers node side code (config, scripts, src/api,
+  # src/shared) and emits no JSX. The web project is Next.js with jsx: preserve and its
+  # own next-env.d.ts. src/mobile is excluded from all three: it is out of scope per the
+  # Scope document, it does not build, and until August 2026 it was the reason
+  # `tsc --noEmit` at the root failed on its first error and reported nothing else.
+  #
+  # This job is green from the pull request that introduces it. It was not always going to
+  # be, and two separate pull requests had to change for that to be true:
+  #
+  #   PR 3 clears ten TS2702 errors at `Redis.Redis` in six files under src/api. ioredis 5
+  #   exports Redis as a class rather than as a namespace, so Redis.Redis is not a type. The
+  #   errors are not visible at the root project until PR 4, because the inherited typeRoots
+  #   makes tsc stop on TS2688 before it reaches a source file, and they are not visible from
+  #   the API project until PR 3 creates it. That is exactly why they were missed, and why
+  #   they are fixed in the pull request that introduces the tsconfig exposing them.
+  #
+  #   PR 6 clears 27 further errors at the root project, every one of them inside tests/.
+  #   They are the compiler's version of the evidence PR 6 rests on and they go with the
+  #   eight suites.
+  #
+  # Run on a scratch copy with PRs 1 to 6 applied, 25 August 2026: all three invocations
+  # below exit 0 with no output. See the consolidation plan, PR 3 and section 6.
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: foundations
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck the root project
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Typecheck the API project
+        run: npx tsc --noEmit -p src/api/tsconfig.json
+
+      - name: Typecheck the web project
+        run: npx tsc --noEmit -p src/web/tsconfig.json
+
+  # ----------------------------------------------------------------------- lint --
+  # This job needs .eslintrc.json, which arrives in PR 4 with the other two instrument
+  # configurations. Before that pull request there is no ESLint configuration anywhere in
+  # the repository and `npx eslint` does not run at all: it exits with "ESLint couldn't
+  # find a configuration file", which is not a lint failure, it is the linter refusing to
+  # start. The repository has declared eslint and two @typescript-eslint packages since
+  # June 2026 and has never had a configuration for them.
+  #
+  # The globs below are the same three the root `lint` script uses, deliberately, so that
+  # a developer running `npm run lint` and this job get the same answer. tests/ is not in
+  # them: the eight suites there are deleted in PR 6 and eslint exits non-zero on a glob
+  # that matches no file, which would make the job red for a reason that is not a lint
+  # problem.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: foundations
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # --max-warnings=0 so a warning is a failure. A lint gate that tolerates warnings
+      # accumulates them until nobody reads the output, which is the state this
+      # repository's documentation is already in.
+      - name: ESLint
+        run: npx eslint 'src/**/*.{ts,tsx}' 'config/**/*.ts' 'scripts/**/*.ts' --max-warnings=0
+
+  # ---------------------------------------------------------------------- tests --
+  # The job this repository most needs and the one most at risk of passing vacuously.
+  #
+  # jest's own exit code is not sufficient evidence that anything ran:
+  #   - a suite that fails to compile is reported as a failed SUITE with zero TESTS, and
+  #     an eye scanning for "Tests: 0 failed" reads that as success;
+  #   - --testPathPattern with a pattern that matches nothing exits 1 today, but that
+  #     behaviour is a default (passWithNoTests) that any future edit can flip;
+  #   - a repaired-import run of the suite that was deleted in this consolidation would
+  #     have gone green while asserting an 840 byte NTAG216 payload limit against a
+  #     256 byte ST25TV02KC.
+  #
+  # So the gate is the assertion script, not jest.
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: foundations
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # jest's output and its exit code are both captured, because the assertion step below
+      # cannot otherwise tell two different things apart, and they look identical on disk.
+      #
+      #   a. jest ran, found no test file, and refused because passWithNoTests is false.
+      #   b. jest died before discovery, for example on a configuration that will not
+      #      compile.
+      #
+      # In BOTH cases jest exits 1 and writes no result file. Only jest's own output
+      # distinguishes them: it prints "No tests found" in case (a) and does not in case (b).
+      # Between PR 6 and the replacement suite landing, case (a) is the expected state of
+      # this repository, and it is the state the dated zero floor in ci/test-floor.json
+      # exists to make honest. An earlier version of this workflow gave the assertion script
+      # nothing to tell them apart with, so the whole zero window reported a crash that had
+      # not happened and named a cause that PR 4 had already fixed.
+      #
+      # The exit code is not sufficient on its own: jest exits 1 for both. The output is
+      # what carries the answer, so it is what gets captured.
+      #
+      # `set +e` and PIPESTATUS rather than continue-on-error, because the exit code has to
+      # be recorded as a number for the assertion step and continue-on-error only exposes
+      # success or failure. There is no `|| true` here: the code is captured, reported and
+      # acted on downstream.
+      - name: Run jest
+        id: jest
+        run: |
+          set +e
+          npx jest --config jest.config.ts --ci --json --outputFile=jest-results.json 2>&1 | tee jest-output.txt
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          echo "jest exited with code $code"
+          exit 0
+
+      # THE GATE. Fails if any suite failed to compile, if any suite loaded and executed
+      # zero tests, if the executed count is below the floor in ci/test-floor.json, if a
+      # zero floor has passed its recorded expiry date, or if jest wrote no result file for
+      # a reason other than having found no tests to run. A run that found no tests at all
+      # is a first class outcome here rather than an error: it is passed to the floor, which
+      # accepts it only while the committed, dated zero window is open, and says so loudly
+      # on every build.
+      - name: Assert tests actually executed
+        run: |
+          node scripts/ci/assert-tests-executed.mjs \
+            --results jest-results.json \
+            --floor ci/test-floor.json \
+            --jest-output jest-output.txt \
+            --jest-exit-code ${{ steps.jest.outputs.exit_code }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jest-results
+          path: |
+            jest-results.json
+            jest-output.txt
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------- build --
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [foundations, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # npm run build is `build:api && build:web`. build:api targets src/api/tsconfig.json,
+      # which does not exist before this consolidation lands. scripts/build.sh is NOT run
+      # here and must not be added: it produces neither dist/api nor dist/web, which is
+      # exactly what scripts/deploy.sh consumes, and the two have never run together.
+      - name: Build
+        run: npm run build
+
+      # The five blend pages are statically generated ahead of time. That is the one thing
+      # the scaffold gets right and it is the committed rendering decision, so it is worth
+      # a check rather than an assumption. A build that stops pre-rendering them is a
+      # regression against the architecture, not a build detail.
+      - name: Assert the blend pages were pre-rendered
+        run: |
+          count=$(find src/web/.next/server/pages/blend -name '*.html' 2>/dev/null | wc -l)
+          echo "Pre-rendered blend pages: $count"
+          if [ "$count" -lt 5 ]; then
+            echo "FAIL: expected at least 5 pre-rendered blend pages, found $count."
+            echo "The committed rendering decision is that each blend page is rendered"
+            echo "ahead of time and served from the edge cache, with no origin compute on"
+            echo "the tap path. If this build stopped pre-rendering, that decision has"
+            echo "been silently reversed."
+            exit 1
+          fi

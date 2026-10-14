@@ -1,0 +1,7 @@
+# Copy to backend.hcl and run: terraform init -backend-config=backend.hcl
+
+bucket       = "FILL IN: serene-labs-tfstate-<suffix>"
+key          = "trevean-spice-nfc/dev/terraform.tfstate"
+region       = "us-east-1"
+use_lockfile = true
+encrypt      = true

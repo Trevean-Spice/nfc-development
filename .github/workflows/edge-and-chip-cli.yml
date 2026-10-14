@@ -1,0 +1,147 @@
+name: Edge redirect and chip tooling
+
+# What this gates, and why it did not exist before
+#
+# These two packages are the only ones in the tree that can destroy physical inventory that
+# cannot be recalled. build/edge holds the canonical redirect table that 1,000 shipped
+# ST25TV02KC tags resolve through, and build/chip-cli writes NDEF onto silicon and applies
+# area based password protection to it. Both had full suites and a repoint guard, and no
+# workflow ran any of it: the only workflow in the repository was contract-tests.yml, which
+# runs build/contract-tests and touches neither. Every check in both packages was manual.
+#
+# Three jobs:
+#
+#   edge       npm run ci: validate the table, prove dist/ has not drifted from it, run the
+#              suite. Plus the repoint guard, in strict mode, against a real baseline.
+#   chip-cli   npm run ci: typecheck, build, run the suite.
+#   guard      the repoint guard on its own, so its failure is legible in the checks list
+#              rather than buried inside "edge".
+#
+# THE BASE REF, which is the whole reason the guard was inert.
+#
+# previousTable() defaults to HEAD. At a bench that is right: HEAD is the last commit and
+# the working tree holds the edit being proposed. In a CI checkout the working tree IS HEAD,
+# so the table gets compared with itself, every comparison succeeds by construction, and the
+# output reads like a comparison happened. The steps below set REDIRECT_TABLE_BASE_REF to
+# the commit this change will actually merge on top of, and REDIRECT_TABLE_STRICT_REPOINT=1
+# turns "the guard did not run" and "the guard ran vacuously" into failures rather than into
+# a sentence above "All checks pass".
+#
+# Neither package has any dependency that is not devDependencies, and neither reaches the
+# network, so every job here runs without credentials.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'build/edge/**'
+      - 'build/chip-cli/**'
+      - '.github/workflows/edge-and-chip-cli.yml'
+  pull_request:
+    paths:
+      - 'build/edge/**'
+      - 'build/chip-cli/**'
+      - '.github/workflows/edge-and-chip-cli.yml'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  edge:
+    name: Edge redirect table and CloudFront Function
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: build/edge
+    steps:
+      # fetch-depth 0, because the repoint guard reads the table out of git history and a
+      # shallow clone has no history to read.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Work out what to compare the table against
+        id: baseref
+        working-directory: .
+        # On a pull request the baseline is the branch being merged into. On a push it is
+        # the commit before this one. Neither is HEAD, which is the point.
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}"
+            BASE="origin/${{ github.base_ref }}"
+          elif git rev-parse --verify --quiet HEAD^ >/dev/null; then
+            BASE="HEAD^"
+          else
+            BASE="HEAD"
+          fi
+          echo "REDIRECT_TABLE_BASE_REF=$BASE" >> "$GITHUB_ENV"
+          echo "Comparing the redirect table against $BASE"
+
+      # validate, build:check and test. build:check regenerates every derived artifact and
+      # fails on a byte difference, so dist/ cannot drift from the table.
+      - name: Validate, check dist is in sync, and run the suite
+        env:
+          REDIRECT_TABLE_STRICT_REPOINT: '1'
+        run: npm run ci
+
+  chip-cli:
+    name: Chip programming tool
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: build/chip-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # chip-cli reads build/edge/redirect-table.json through DEFAULT_TABLE_PATH, so the
+      # two packages are checked out together and the suite proves the tool encodes from the
+      # same table the edge serves rather than from a copy.
+      - name: Typecheck, build and run the suite
+        run: npm run ci
+
+  repoint-guard:
+    name: Redirect table repoint guard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: build/edge
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Work out what to compare the table against
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}"
+            BASE="origin/${{ github.base_ref }}"
+          elif git rev-parse --verify --quiet HEAD^ >/dev/null; then
+            BASE="HEAD^"
+          else
+            BASE="HEAD"
+          fi
+          echo "REDIRECT_TABLE_BASE_REF=$BASE" >> "$GITHUB_ENV"
+
+      # A repointed code is refused unless allowRepoint is set and the version is bumped,
+      # and a guard that could not compare anything is refused outright. Make this a
+      # required status check on any pull request that touches redirect-table.json.
+      - name: Repoint guard, strict
+        env:
+          REDIRECT_TABLE_STRICT_REPOINT: '1'
+        run: npm run validate

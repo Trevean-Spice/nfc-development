@@ -1,0 +1,16 @@
+{
+  "name": "trevean-vercel-redirect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The /t/{code} and /q/{code} redirect compiled into Vercel platform configuration, for serving the shipped tags from the client's existing Vercel project while the AWS environment is still outstanding. The canonical table stays in the edge package and is read, never copied. Zero dependencies.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:check": "node scripts/build.mjs --check",
+    "test": "node --test test/",
+    "verify": "node scripts/verify-live.mjs",
+    "ci": "npm run build:check && npm test"
+  }
+}

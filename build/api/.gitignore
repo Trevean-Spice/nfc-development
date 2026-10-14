@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Build output of scripts/package-lambda.mjs: a staged production dependency tree and the
+# deployment archive. Reproducible from the lock file and the source, so it is built rather
+# than committed.
+.lambda-build/
+
+# Never commit a real secret or a real environment. .env.example is the template, and it is
+# re-included explicitly because the repository root ignores .env.* wholesale.
+.env
+.env.local
+.env.*.local
+!.env.example

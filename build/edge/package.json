@@ -1,0 +1,18 @@
+{
+  "name": "trevean-edge-redirect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The /t/{code} edge redirect for Trevean Spice: the canonical redirect table, the CloudFront Function compiled from it, its tests, and the cutover verification script. Zero dependencies.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs && node scripts/build-blend-rewrite.mjs",
+    "build:check": "node scripts/build.mjs --check",
+    "validate": "node scripts/validate-table.mjs",
+    "test": "node --test test/",
+    "verify": "node scripts/verify-live.mjs",
+    "ci": "npm run validate && npm run build:check && npm test",
+    "build:blend-rewrite": "node scripts/build-blend-rewrite.mjs"
+  }
+}

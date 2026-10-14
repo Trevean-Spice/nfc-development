@@ -1,0 +1,128 @@
+/* Trevean Spice blend page. The whole stylesheet, inlined into the document.
+   Capped at 9,216 bytes uncompressed by the byte budget, section 4.1. There is
+   no second stylesheet: zero render-blocking resources is easier to hold than
+   zero-plus-an-async-one, and at this size the split buys nothing.
+   Palette and type scale are PLACEHOLDER pending the Pulp+Wire brand assets. */
+
+:root{
+  --ink:#1d1611;--ink-2:#4c4038;--paper:#fbf7f0;--surface:#f2e9dc;--line:#e0d3c0;
+  --accent:#b5651d;--accent-ink:#fff;
+  --r:10px;--pad:16px;--max:640px;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --serif:ui-serif,Georgia,"Times New Roman",serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,figure{margin:0}
+ul{padding:0;list-style:none}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 var(--pad)}
+
+/* The placeholder markers are not here. They live in src/styles/placeholder.css,
+   a verbatim copy of the content package's render contract, and are appended to
+   this file by scripts/postbuild.mjs so the whole lot is inlined together. That
+   keeps them deletable in one move on the day the last placeholder goes away,
+   rather than unpicked out of the brand stylesheet. */
+
+.masthead{padding:10px var(--pad) 6px;max-width:var(--max);margin:0 auto}
+.brand{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-2);
+  font-weight:600}
+h1{font-family:var(--serif);font-size:29px;line-height:1.08;letter-spacing:-.01em;
+  margin:3px 0 4px}
+.origin{font-size:13px;color:var(--ink-2)}
+.origin b{color:var(--ink);font-weight:600}
+
+/* Hero. Height is set in CSS and width and height are on the element, so the box
+   is known before the bytes arrive and the layout cannot shift. */
+.hero{margin:0;background:var(--surface)}
+.hero img{width:100%;height:clamp(168px,46vw,224px);object-fit:cover}
+
+.jump{display:flex;gap:7px;overflow-x:auto;padding:8px var(--pad);
+  max-width:var(--max);margin:0 auto;scrollbar-width:none}
+.jump::-webkit-scrollbar{display:none}
+.jump a{flex:0 0 auto;font-size:13px;font-weight:600;text-decoration:none;
+  padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff}
+.jump a.go{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+section{padding:22px 0 4px}
+section:last-of-type{padding-bottom:26px}
+h2{font-family:var(--serif);font-size:20px;line-height:1.18;margin-bottom:8px}
+h3{font-size:15px;line-height:1.3}
+.lede{font-size:17px;line-height:1.52}
+.body p{margin-top:12px;color:var(--ink-2);font-size:16px}
+
+/* Grower */
+.grower{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start}
+.grower img{border-radius:var(--r);width:88px;height:88px;object-fit:cover;
+  background:var(--surface)}
+.grower .role{font-size:13px;color:var(--ink-2);margin-top:2px}
+.grower .bio{grid-column:1/-1;font-size:15px;color:var(--ink-2)}
+.map{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  background:var(--surface)}
+.map img{width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+.map figcaption{display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:space-between;
+  align-items:baseline;padding:9px 12px;font-size:13px;color:var(--ink-2);background:#fff}
+.map a{font-weight:600;color:var(--accent)}
+.note{font-size:12px;color:var(--ink-2)}
+
+/* Freshness timeline */
+.time{margin-top:4px}
+.time li{position:relative;padding:0 0 16px 24px;border-left:2px solid var(--line)}
+.time li:last-child{border-left-color:transparent;padding-bottom:0}
+.time li::before{content:"";position:absolute;left:-7px;top:3px;width:12px;height:12px;
+  border-radius:50%;background:#fff;border:2px solid var(--line)}
+.time li.done::before{background:var(--ink-2);border-color:var(--ink-2)}
+.time li.current::before{background:var(--accent);border-color:var(--accent);
+  box-shadow:0 0 0 4px rgba(181,101,29,.18)}
+.time .when{font-size:13px;color:var(--ink-2)}
+.time .det{font-size:13px;color:var(--ink-2);margin-top:2px}
+.lot{margin-top:10px;font-size:12px;color:var(--ink-2)}
+
+/* Recipe carousel. Scroll snap, no script. */
+.rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;
+  padding:2px var(--pad) 12px;margin:0 calc(var(--pad)*-1);
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.card{flex:0 0 78%;max-width:280px;scroll-snap-align:start;background:#fff;
+  border:1px solid var(--line);border-radius:var(--r);padding:13px}
+.card .num{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  font-weight:700}
+.card h3{margin:5px 0 6px}
+.card p{font-size:14px;color:var(--ink-2)}
+.card .meta{margin-top:9px;font-size:12px;color:var(--ink-2)}
+.hint{font-size:12px;color:var(--ink-2);margin-top:-4px}
+
+/* Reorder */
+.buy{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:15px}
+.price{font-family:var(--serif);font-size:23px}
+.btn{display:block;margin-top:12px;text-align:center;text-decoration:none;
+  background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:16px;
+  padding:14px 16px;border-radius:var(--r);border:0;width:100%}
+.btn[aria-disabled="true"]{background:var(--line);color:var(--ink-2)}
+
+/* Platform instructions. Never describe one platform's behaviour as universal. */
+.plat{display:grid;gap:10px}
+.plat div{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.plat h3{margin-bottom:3px}
+.plat p{font-size:14px;color:var(--ink-2)}
+
+footer{border-top:1px solid var(--line);margin-top:22px;padding:16px var(--pad) 28px;
+  font-size:12px;color:var(--ink-2);max-width:var(--max);margin-left:auto;margin-right:auto}
+
+/* Branded error and recovery pages */
+.mid{min-height:78vh;display:flex;flex-direction:column;justify-content:center;
+  padding:28px var(--pad);max-width:var(--max);margin:0 auto}
+.mid h1{font-size:27px;margin-bottom:10px}
+.mid p{color:var(--ink-2);margin-bottom:12px}
+
+@media (min-width:400px){
+  body{font-size:18px}
+  h1{font-size:33px}
+  .grower{grid-template-columns:104px 1fr}
+  .grower img{width:104px;height:104px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}

@@ -1,0 +1,15 @@
+.DS_Store
+Thumbs.db
+node_modules/
+.env
+.env.*
+*.log
+.vscode/
+.idea/
+~$*
+
+# Browser tool scratch dumps, not deliverables
+.playwright-mcp/
+build/admin/.tmp/
+build/admin/.lambda-build/
+build/api/.lambda-build/

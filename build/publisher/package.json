@@ -1,0 +1,26 @@
+{
+  "name": "@trevean/publisher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The publish pipeline. Renders the affected blend pages, puts them in the site bucket with the cache headers already in use, invalidates exactly the paths that changed, and reads the page back to confirm the change is live.",
+  "license": "LicenseRef-Trevean-Work-For-Hire",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "main": "src/index.mjs",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "dev": "node src/index.mjs",
+    "publish:all": "node bin/publish.mjs --all",
+    "test": "node --test test/",
+    "stand-in": "node src/stand-in-edge.mjs",
+    "licences": "node scripts/licenses.mjs",
+    "licences:check": "node scripts/licenses.mjs --check"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudfront": "^3.658.0",
+    "@aws-sdk/client-s3": "^3.658.0",
+    "@aws-sdk/client-secrets-manager": "^3.658.0"
+  }
+}

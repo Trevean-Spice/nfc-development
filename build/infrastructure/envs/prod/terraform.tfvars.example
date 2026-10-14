@@ -1,0 +1,140 @@
+# ===========================================================================
+# PRODUCTION. Copy to terraform.tfvars and fill in.
+#
+# Nothing in this file has been applied. We do not have working access to
+# Trevean's AWS account or to the nfc-development repository as of Monday 17
+# August 2026.
+#
+# Markers:
+#   [FILL IN]  needed when AWS access, Squarespace access or Vercel access lands
+#   [AUDIT]    answered by the scaffold audit, open questions Q13 to Q18
+#   [CUTOVER]  changes value across the runs described in main.tf. Read that
+#              header comment before touching any of them.
+#   [READY]    working default
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# A. Account guard. Set this first.
+# ---------------------------------------------------------------------------
+
+# [FILL IN] Trevean's AWS account id. With it set, Terraform refuses to apply
+# if the caller's credentials belong to any other account. The failure it
+# prevents is a production apply landing in the wrong place.
+expected_account_id = "FILL IN WHEN ACCESS LANDS"
+
+# [FILL IN] S3 bucket names are globally unique across every AWS account.
+name_prefix = "trevean-prod"
+
+# ---------------------------------------------------------------------------
+# B. The cutover. Three runs, in this order. See main.tf.
+# ---------------------------------------------------------------------------
+
+# [CUTOVER] Run 1, Tuesday 18 August. Creates the certificate and the hosted
+# zone. Changes no nameserver.
+manage_dns = false
+
+# [READY] The hostname 1,000 tags carry. A fact, not a choice.
+apex_domain = "treveanspice.com"
+
+# [CUTOVER] Run 2, Wednesday 19 August. Gates the apply on ACM reporting ISSUED.
+wait_for_certificate_validation = false
+
+# [CUTOVER] Run 3, Wednesday 19 August, only once certificate_status reads
+# ISSUED. CloudFront rejects an alias whose certificate is not issued.
+attach_apex_aliases = false
+
+# [CUTOVER] AFTER the flip and after resolution is confirmed. Before the flip,
+# Route 53 cannot validate a zone it is not yet answering for.
+manage_validation_records_in_route53 = false
+
+# [FILL IN] EVERY RECORD FROM THE CURRENT ZONE, VERBATIM. Export it with the
+# procedure in scripts/export-zone.md. Do not hand type it. Do NOT include the
+# apex or www A/AAAA records: those become CloudFront ALIAS records.
+#
+# The failure this prevents is not a broken website. It is silently losing the
+# company's email on the day the nameservers move.
+#
+# copied_zone_records = [
+#   { name = "treveanspice.com",         type = "MX",    ttl = 3600, records = ["10 mx1.example.net", "20 mx2.example.net"] },
+#   { name = "treveanspice.com",         type = "TXT",   ttl = 3600, records = ["v=spf1 include:_spf.example.net ~all"] },
+#   { name = "_dmarc.treveanspice.com",  type = "TXT",   ttl = 3600, records = ["v=DMARC1; p=none; rua=mailto:dmarc@treveanspice.com"] },
+#   { name = "s1._domainkey.treveanspice.com", type = "CNAME", ttl = 3600, records = ["s1.domainkey.example.net"] },
+# ]
+copied_zone_records = []
+
+# ---------------------------------------------------------------------------
+# C. Origins
+# ---------------------------------------------------------------------------
+
+# [FILL IN] The existing Vercel marketing site, reached as the default origin.
+# TO CONFIRM IN AUDIT: the project's domain configuration, and who deploys it.
+# vercel_origin_domain_name = "FILL IN WHEN VERCEL ACCESS LANDS"
+
+# [READY] Requires treveanspice.com attached as a domain on the Vercel project.
+# That is the correct arrangement. Verify domain ownership by TXT record.
+forward_host_header_to_vercel = true
+
+# [READY] Built by build/edge/ from the version-controlled redirect table.
+# Production refuses to deploy a placeholder.
+edge_function_source_path = "../../../edge/dist/redirect.js"
+
+# ---------------------------------------------------------------------------
+# D. Answered by the audit
+# ---------------------------------------------------------------------------
+
+# [AUDIT] Q13 and Q15. If usable tables already exist, adopting them unprefixed
+# and importing them into state is cheaper than renaming. A DynamoDB rename is
+# a migration, not a rename.
+name_tables_with_prefix = true
+
+# [AUDIT] Q15, check 2.
+create_slug_index = false
+
+# [AUDIT] Q15, check 4, the highest-value single check in the data model's list.
+recipes_key_shape = "blend_slug_first"
+
+# [AUDIT] Risk R18. Credentials tied to the previous contractor.
+# extra_secrets = {}
+
+# ---------------------------------------------------------------------------
+# E. People and alarms
+# ---------------------------------------------------------------------------
+
+# [FILL IN] Confirm every subscription BEFORE the flip. Each address gets a
+# confirmation email a human has to click.
+alarm_email_addresses = []
+
+# [FILL IN] One named person, "Name, role, organisation". Dan's nomination.
+# The rotation path is in modules/secrets/main.tf and is not a normal rotation:
+# it happens at encoding time on the next tag order, and Q4 governs whether the
+# shipped SO4731 run can be re-written at all.
+tag_password_holder = "TO CONFIRM: named holder not yet nominated"
+
+# [FILL IN] Where the admin CMS is served from.
+admin_origins = []
+
+# ---------------------------------------------------------------------------
+# F. Filled in when repo access lands
+# ---------------------------------------------------------------------------
+
+# [FILL IN] Absent keys get the inert placeholder, which answers 501 and logs
+# loudly. functions_still_on_placeholder must be empty before the domain
+# resolves: a resolving domain pointing at nothing is worse than a domain that
+# does not resolve, because it looks like it works.
+# function_packages = {}
+
+# [FILL IN] Only after the real code is deployed.
+enable_rollup_event_source_mapping = false
+enable_media_event_source_mapping  = false
+
+# ---------------------------------------------------------------------------
+# G. Rarely changed
+# ---------------------------------------------------------------------------
+
+# [READY] Tune once there are three days of real numbers, and record the change
+# rather than adjusting it quietly to stop a page.
+cache_hit_rate_threshold = 90
+
+# [READY]
+price_class = "PriceClass_100"
+aws_region  = "us-east-1"

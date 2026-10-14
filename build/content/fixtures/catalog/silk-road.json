@@ -1,0 +1,46 @@
+{
+  "_fixture": {
+    "entity": "catalog",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "The Shopify catalog mirror is populated from Trevean Shopify Plus store by a scheduled sync and by product update webhooks. We do not have store access, so there is nothing to mirror yet. No price, SKU or availability is invented: a wrong price shown to a customer is worse than no price, and this record is designed to degrade to no price rather than to a guess.",
+    "fields": {
+      "sku": "placeholder_null",
+      "shopifyProductId": "placeholder_null",
+      "shopifyVariantId": "placeholder_null",
+      "price": "placeholder_null",
+      "compareAtPrice": "not_applicable",
+      "available": "placeholder_null",
+      "inventoryStatus": "contractor_real",
+      "cartPermalinkUrl": "placeholder_null"
+    },
+    "notes": {
+      "inventoryStatus": "unknown is a legitimate value in the frozen API contract when the mirror is stale. It is the honest value here and is not a placeholder.",
+      "cartPermalinkUrl": "Derived from the Shopify variant id. Until it exists the reorder button has no destination and the page must render it disabled with the placeholder marker rather than linking somewhere plausible.",
+      "available": "Stored as false, meaning we cannot say it is available, not that it is out of stock. There is nothing to mirror until Shopify Plus store access is provided."
+    }
+  },
+  "catalog": {
+    "slug": "silk-road",
+    "sku": null,
+    "shopifyProductId": null,
+    "shopifyVariantId": null,
+    "price": null,
+    "compareAtPrice": null,
+    "available": false,
+    "inventoryStatus": "unknown",
+    "cartPermalinkUrl": null,
+    "syncedAt": "2026-08-17T09:00:00Z",
+    "stale": true,
+    "syncSource": "schedule",
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z",
+    "version": 1
+  }
+}

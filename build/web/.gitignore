@@ -1,0 +1,33 @@
+# Dependencies and framework caches
+node_modules/
+.next/
+*.tsbuildinfo
+
+# Build output. Every file under out/ is produced by "npm run build" from the
+# sources in this repository, so committing it would mean two copies of the
+# page and no way to tell which one was deployed.
+out/
+
+# Generated media and icons. scripts/generate-media.mjs runs as prebuild and
+# regenerates all of it from the masters in the content package. Real
+# photography arrives as masters in build/content/media, never as derivatives
+# committed here.
+public/media/
+public/icons/
+
+# Measurement working files. The measured numbers that are worth keeping are
+# committed as measurement-report.json and verification/, not as raw
+# Lighthouse result files.
+.lighthouseci/
+.lhci/
+.lhci-report/
+
+# Throwaway. Nothing here is a deliverable and nothing here is read by the
+# build. Beacon logs, server logs and one-off experiments.
+scratch/
+
+# The content snapshot the API is read into at build and revalidate time.
+# scripts/fetch-content.mjs regenerates it, and it is a copy of what the
+# database held at one instant. Committing it would put a stale copy of the
+# client's content in the repository under a name that reads like a source.
+.content-snapshot/

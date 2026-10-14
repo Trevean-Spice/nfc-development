@@ -1,0 +1,48 @@
+# DEV. Copy to terraform.tfvars and fill in.
+#
+# Markers:
+#   [READY]   working default
+#   [FILL IN] needed when access or an answer lands
+#   [AUDIT]   answered by the scaffold audit
+
+# [READY] REQUIRED. The account guard, and it has no default, so a plan
+# without it fails rather than deploying wherever the ambient credentials
+# point. Dev deploys into <TREVEAN_DEV_ACCOUNT_ID>, Trevean-NFC-Development, which is where
+# the development environment was applied on Thursday 27 August 2026.
+#
+# Corrected Thursday 27 August 2026. This block previously said <TREVEAN_DEV_ACCOUNT_ID>
+# must never be used because it is the management account. That was backwards
+# and would have stopped someone deploying into the right place. The management
+# account is <TREVEAN_MANAGEMENT_ACCOUNT_ID>, Trevean Spice, and it is the id that must never
+# appear here.
+expected_account_id = "<TREVEAN_DEV_ACCOUNT_ID>"
+
+# [FILL IN] S3 bucket names are globally unique. Append something specific.
+# Do not embed a fragment of an AWS account id here: bucket names are visible
+# from outside the account.
+name_prefix = "trevean-dev-CHANGEME"
+
+# [READY] Dev is the ONLY environment allowed to run the inert placeholder on
+# /t/*. Set false as soon as build/edge/ produces an artifact.
+allow_placeholder_edge_function = true
+
+# [READY]
+edge_function_source_path = "../../../edge/dist/redirect.js"
+
+# [FILL IN] Include the local admin origin if the CMS runs on the machine.
+# admin_origins = ["http://localhost:3000"]
+
+# [FILL IN]
+# alarm_email_addresses = ["jacob@serenelabs.io"]
+
+# [FILL IN] Dan's nomination, one named person.
+# tag_password_holder = "TO CONFIRM: named holder not yet nominated"
+
+# [AUDIT] Q15
+# create_slug_index = false
+# recipes_key_shape = "blend_slug_first"
+
+# [FILL IN] When repo access lands.
+# function_packages = {}
+# enable_rollup_event_source_mapping = false
+# enable_media_event_source_mapping  = false

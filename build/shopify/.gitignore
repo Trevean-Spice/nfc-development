@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# There is no .env.example in this component and there will not be one. Every credential
+# comes from the managed secret store through an injected CredentialProvider, and the only
+# environment variables this package reads are configuration values and secret NAMES. A
+# committed .env template is how a real value eventually ends up beside it.
+.env
+.env.*

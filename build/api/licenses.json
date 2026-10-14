@@ -1,0 +1,1292 @@
+{
+  "package": "@trevean/tap-to-story-api",
+  "total": 181,
+  "distinctNames": 174,
+  "installedAtMoreThanOneVersion": [
+    "@esbuild/win32-x64",
+    "abstract-leveldown",
+    "ajv-formats",
+    "esbuild",
+    "fast-uri",
+    "immediate",
+    "process-warning"
+  ],
+  "byLicence": {
+    "MIT": 131,
+    "Apache-2.0": 34,
+    "ISC": 9,
+    "BSD-3-Clause": 5,
+    "MIT (declared in the older object form)": 1,
+    "0BSD": 1
+  },
+  "nonPermissive": [],
+  "packages": [
+    {
+      "name": "@aws-sdk/checksums",
+      "version": "3.1000.28",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/checksums",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/client-dynamodb",
+      "version": "3.1112.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-dynamodb",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "version": "3.1112.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-s3",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-secrets-manager",
+      "version": "3.1112.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-secrets-manager",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/core",
+      "version": "3.977.8",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/core",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-env",
+      "version": "3.972.69",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-env",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-http",
+      "version": "3.972.71",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-http",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-ini",
+      "version": "3.973.14",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-ini",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-login",
+      "version": "3.972.76",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-login",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-node",
+      "version": "3.972.80",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-node",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-process",
+      "version": "3.972.69",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-process",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-sso",
+      "version": "3.973.13",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-sso",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-web-identity",
+      "version": "3.972.75",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-web-identity",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/dynamodb-codec",
+      "version": "3.973.43",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/dynamodb-codec",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/endpoint-cache",
+      "version": "3.972.11",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/endpoint-cache",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/lib-dynamodb",
+      "version": "3.1112.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/lib/lib-dynamodb",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/middleware-endpoint-discovery",
+      "version": "3.972.29",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/middleware-endpoint-discovery",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/middleware-sdk-s3",
+      "version": "3.972.74",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/middleware-sdk-s3",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/nested-clients",
+      "version": "3.997.43",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/nested-clients",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/s3-request-presigner",
+      "version": "3.1112.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/s3-request-presigner",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/signature-v4-multi-region",
+      "version": "3.996.45",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/signature-v4-multi-region",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/token-providers",
+      "version": "3.1111.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/token-providers",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/types",
+      "version": "3.974.4",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/types",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/util-dynamodb",
+      "version": "3.996.9",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/util-dynamodb",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/xml-builder",
+      "version": "3.972.39",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/xml-builder",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws/lambda-invoke-store",
+      "version": "0.3.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/awslabs/aws-lambda-invoke-store",
+      "role": "transitive"
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.21.5",
+      "license": "MIT",
+      "homepage": "git+https://github.com/evanw/esbuild.git",
+      "role": "transitive"
+    },
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.2",
+      "license": "MIT",
+      "homepage": "git+https://github.com/evanw/esbuild.git",
+      "role": "transitive"
+    },
+    {
+      "name": "@fastify/ajv-compiler",
+      "version": "3.6.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/ajv-compiler#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@fastify/aws-lambda",
+      "version": "4.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/aws-lambda-fastify",
+      "role": "runtime"
+    },
+    {
+      "name": "@fastify/error",
+      "version": "3.4.1",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fastify-error#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@fastify/fast-json-stringify-compiler",
+      "version": "4.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fast-json-stringify-compiler#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@fastify/merge-json-schemas",
+      "version": "0.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/merge-json-schemas#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@jridgewell/sourcemap-codec",
+      "version": "1.5.5",
+      "license": "MIT",
+      "homepage": "https://github.com/jridgewell/sourcemaps/tree/main/packages/sourcemap-codec",
+      "role": "transitive"
+    },
+    {
+      "name": "@pinojs/redact",
+      "version": "0.4.0",
+      "license": "MIT",
+      "homepage": "https://github.com/pinojs/redact#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@rollup/rollup-win32-x64-gnu",
+      "version": "4.62.4",
+      "license": "MIT",
+      "homepage": "https://rollupjs.org/",
+      "role": "transitive"
+    },
+    {
+      "name": "@rollup/rollup-win32-x64-msvc",
+      "version": "4.62.4",
+      "license": "MIT",
+      "homepage": "https://rollupjs.org/",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/core",
+      "version": "3.33.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/core",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/credential-provider-imds",
+      "version": "4.5.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/credential-provider-imds",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/fetch-http-handler",
+      "version": "5.7.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/fetch-http-handler",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/node-http-handler",
+      "version": "4.11.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/node-http-handler",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/signature-v4",
+      "version": "5.7.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/signature-v4",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/types",
+      "version": "4.17.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/types",
+      "role": "transitive"
+    },
+    {
+      "name": "@types/estree",
+      "version": "1.0.9",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/estree",
+      "role": "transitive"
+    },
+    {
+      "name": "@types/node",
+      "version": "20.19.43",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+      "role": "development"
+    },
+    {
+      "name": "@vitest/expect",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/expect#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@vitest/mocker",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/mocker#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@vitest/pretty-format",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/utils#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@vitest/runner",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/runner#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@vitest/snapshot",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/snapshot#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@vitest/spy",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/spy#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "@vitest/utils",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/utils#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "abstract-leveldown",
+      "version": "6.2.3",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/abstract-leveldown",
+      "role": "transitive"
+    },
+    {
+      "name": "abstract-leveldown",
+      "version": "6.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/abstract-leveldown",
+      "role": "transitive"
+    },
+    {
+      "name": "abstract-logging",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/jsumners/abstract-logging#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "ajv",
+      "version": "8.20.0",
+      "license": "MIT",
+      "homepage": "https://ajv.js.org",
+      "role": "runtime"
+    },
+    {
+      "name": "ajv-formats",
+      "version": "2.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/ajv-validator/ajv-formats#readme",
+      "role": "runtime"
+    },
+    {
+      "name": "ajv-formats",
+      "version": "3.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/ajv-validator/ajv-formats#readme",
+      "role": "runtime"
+    },
+    {
+      "name": "assertion-error",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "git@github.com:chaijs/assertion-error.git",
+      "role": "transitive"
+    },
+    {
+      "name": "async",
+      "version": "2.6.4",
+      "license": "MIT",
+      "homepage": "https://caolan.github.io/async/",
+      "role": "transitive"
+    },
+    {
+      "name": "atomic-sleep",
+      "version": "1.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/davidmarkclements/atomic-sleep#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "avvio",
+      "version": "8.4.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/avvio#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "base64-js",
+      "version": "1.5.1",
+      "license": "MIT",
+      "homepage": "https://github.com/beatgammit/base64-js",
+      "role": "transitive"
+    },
+    {
+      "name": "big.js",
+      "version": "5.2.2",
+      "license": "MIT",
+      "homepage": "https://github.com/MikeMcl/big.js.git",
+      "role": "transitive"
+    },
+    {
+      "name": "bowser",
+      "version": "2.14.1",
+      "license": "MIT",
+      "homepage": "https://github.com/bowser-js/bowser",
+      "role": "transitive"
+    },
+    {
+      "name": "buffer",
+      "version": "5.7.1",
+      "license": "MIT",
+      "homepage": "https://github.com/feross/buffer",
+      "role": "transitive"
+    },
+    {
+      "name": "buffer-crc32",
+      "version": "0.2.13",
+      "license": "MIT",
+      "homepage": "https://github.com/brianloveswords/buffer-crc32",
+      "role": "transitive"
+    },
+    {
+      "name": "cac",
+      "version": "6.7.14",
+      "license": "MIT",
+      "homepage": "egoist/cac",
+      "role": "transitive"
+    },
+    {
+      "name": "chai",
+      "version": "5.3.3",
+      "license": "MIT",
+      "homepage": "http://chaijs.com",
+      "role": "transitive"
+    },
+    {
+      "name": "check-error",
+      "version": "2.1.3",
+      "license": "MIT",
+      "homepage": "git+ssh://git@github.com/chaijs/check-error.git",
+      "role": "transitive"
+    },
+    {
+      "name": "cookie",
+      "version": "0.7.2",
+      "license": "MIT",
+      "homepage": "jshttp/cookie",
+      "role": "transitive"
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "homepage": "git://github.com/debug-js/debug.git",
+      "role": "transitive"
+    },
+    {
+      "name": "deep-eql",
+      "version": "5.0.2",
+      "license": "MIT",
+      "homepage": "git@github.com:chaijs/deep-eql.git",
+      "role": "transitive"
+    },
+    {
+      "name": "deferred-leveldown",
+      "version": "5.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/deferred-leveldown",
+      "role": "transitive"
+    },
+    {
+      "name": "defined",
+      "version": "0.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/substack/defined",
+      "role": "transitive"
+    },
+    {
+      "name": "dynalite",
+      "version": "3.2.2",
+      "license": "MIT",
+      "homepage": "mhart/dynalite",
+      "role": "development"
+    },
+    {
+      "name": "encoding-down",
+      "version": "6.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/encoding-down",
+      "role": "transitive"
+    },
+    {
+      "name": "errno",
+      "version": "0.1.8",
+      "license": "MIT",
+      "homepage": "https://github.com/rvagg/node-errno.git",
+      "role": "transitive"
+    },
+    {
+      "name": "es-module-lexer",
+      "version": "1.7.0",
+      "license": "MIT",
+      "homepage": "https://github.com/guybedford/es-module-lexer#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "esbuild",
+      "version": "0.21.5",
+      "license": "MIT",
+      "homepage": "git+https://github.com/evanw/esbuild.git",
+      "role": "transitive"
+    },
+    {
+      "name": "esbuild",
+      "version": "0.28.2",
+      "license": "MIT",
+      "homepage": "git+https://github.com/evanw/esbuild.git",
+      "role": "transitive"
+    },
+    {
+      "name": "estree-walker",
+      "version": "3.0.3",
+      "license": "MIT",
+      "homepage": "https://github.com/Rich-Harris/estree-walker",
+      "role": "transitive"
+    },
+    {
+      "name": "expect-type",
+      "version": "1.4.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/mmkal/expect-type#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-content-type-parse",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fast-content-type-parse.git",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-decode-uri-component",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/delvedor/fast-decode-uri-component#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-deep-equal",
+      "version": "3.1.3",
+      "license": "MIT",
+      "homepage": "https://github.com/epoberezkin/fast-deep-equal#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-json-stringify",
+      "version": "5.16.1",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fast-json-stringify#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-querystring",
+      "version": "1.1.2",
+      "license": "MIT",
+      "homepage": "git+https://github.com/anonrig/fast-querystring.git",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-uri",
+      "version": "2.4.4",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fast-uri",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-uri",
+      "version": "3.1.5",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/fastify/fast-uri",
+      "role": "transitive"
+    },
+    {
+      "name": "fastify",
+      "version": "4.29.1",
+      "license": "MIT",
+      "homepage": "https://fastify.dev/",
+      "role": "runtime"
+    },
+    {
+      "name": "fastq",
+      "version": "1.20.1",
+      "license": "ISC",
+      "homepage": "https://github.com/mcollina/fastq#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "find-my-way",
+      "version": "8.2.2",
+      "license": "MIT",
+      "homepage": "https://github.com/delvedor/find-my-way#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "forwarded",
+      "version": "0.2.0",
+      "license": "MIT",
+      "homepage": "jshttp/forwarded",
+      "role": "transitive"
+    },
+    {
+      "name": "functional-red-black-tree",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "git://github.com/mikolalysenko/functional-red-black-tree.git",
+      "role": "transitive"
+    },
+    {
+      "name": "ieee754",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "homepage": "git://github.com/feross/ieee754.git",
+      "role": "transitive"
+    },
+    {
+      "name": "immediate",
+      "version": "3.2.3",
+      "license": "MIT",
+      "homepage": "git://github.com/calvinmetcalf/immediate.git",
+      "role": "transitive"
+    },
+    {
+      "name": "immediate",
+      "version": "3.3.0",
+      "license": "MIT",
+      "homepage": "git://github.com/calvinmetcalf/immediate.git",
+      "role": "transitive"
+    },
+    {
+      "name": "inherits",
+      "version": "2.0.4",
+      "license": "ISC",
+      "homepage": "git://github.com/isaacs/inherits",
+      "role": "transitive"
+    },
+    {
+      "name": "ipaddr.js",
+      "version": "1.9.1",
+      "license": "MIT",
+      "homepage": "git://github.com/whitequark/ipaddr.js",
+      "role": "transitive"
+    },
+    {
+      "name": "jose",
+      "version": "5.10.0",
+      "license": "MIT",
+      "homepage": "https://github.com/panva/jose",
+      "role": "runtime"
+    },
+    {
+      "name": "json-schema-ref-resolver",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "git+https://github.com/fastify/json-schema-ref-resolver.git",
+      "role": "transitive"
+    },
+    {
+      "name": "json-schema-traverse",
+      "version": "1.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/epoberezkin/json-schema-traverse#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "lazy",
+      "version": "1.0.11",
+      "license": "MIT (declared in the older object form)",
+      "homepage": "http://github.com/pkrumins/node-lazy.git",
+      "role": "transitive"
+    },
+    {
+      "name": "level-codec",
+      "version": "9.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/codec",
+      "role": "transitive"
+    },
+    {
+      "name": "level-concat-iterator",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/concat-iterator",
+      "role": "transitive"
+    },
+    {
+      "name": "level-errors",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/errors",
+      "role": "transitive"
+    },
+    {
+      "name": "level-iterator-stream",
+      "version": "4.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/iterator-stream",
+      "role": "transitive"
+    },
+    {
+      "name": "level-option-wrap",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/substack/level-option-wrap",
+      "role": "transitive"
+    },
+    {
+      "name": "level-supports",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/supports",
+      "role": "transitive"
+    },
+    {
+      "name": "leveldown",
+      "version": "5.6.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/leveldown",
+      "role": "transitive"
+    },
+    {
+      "name": "levelup",
+      "version": "4.4.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/levelup",
+      "role": "transitive"
+    },
+    {
+      "name": "light-my-request",
+      "version": "5.14.0",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/fastify/light-my-request/blob/master/README.md",
+      "role": "transitive"
+    },
+    {
+      "name": "lock",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/dominictarr/lock",
+      "role": "transitive"
+    },
+    {
+      "name": "lodash",
+      "version": "4.18.1",
+      "license": "MIT",
+      "homepage": "https://lodash.com/",
+      "role": "transitive"
+    },
+    {
+      "name": "loupe",
+      "version": "3.2.1",
+      "license": "MIT",
+      "homepage": "https://github.com/chaijs/loupe",
+      "role": "transitive"
+    },
+    {
+      "name": "ltgt",
+      "version": "2.2.1",
+      "license": "MIT",
+      "homepage": "https://github.com/dominictarr/ltgt",
+      "role": "transitive"
+    },
+    {
+      "name": "magic-string",
+      "version": "0.30.21",
+      "license": "MIT",
+      "homepage": "git+https://github.com/Rich-Harris/magic-string.git",
+      "role": "transitive"
+    },
+    {
+      "name": "memdown",
+      "version": "5.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Level/memdown",
+      "role": "transitive"
+    },
+    {
+      "name": "minimist",
+      "version": "1.2.8",
+      "license": "MIT",
+      "homepage": "https://github.com/minimistjs/minimist",
+      "role": "transitive"
+    },
+    {
+      "name": "mnemonist",
+      "version": "0.38.3",
+      "license": "MIT",
+      "homepage": "https://github.com/yomguithereal/mnemonist#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "homepage": "vercel/ms",
+      "role": "transitive"
+    },
+    {
+      "name": "nanoid",
+      "version": "3.3.18",
+      "license": "MIT",
+      "homepage": "ai/nanoid",
+      "role": "transitive"
+    },
+    {
+      "name": "napi-macros",
+      "version": "2.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/napi-macros",
+      "role": "transitive"
+    },
+    {
+      "name": "node-gyp-build",
+      "version": "4.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/prebuild/node-gyp-build",
+      "role": "transitive"
+    },
+    {
+      "name": "obliterator",
+      "version": "1.6.1",
+      "license": "MIT",
+      "homepage": "https://github.com/yomguithereal/obliterator#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "on-exit-leak-free",
+      "version": "2.1.2",
+      "license": "MIT",
+      "homepage": "https://github.com/mcollina/on-exit-or-gc#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "once",
+      "version": "1.4.0",
+      "license": "ISC",
+      "homepage": "git://github.com/isaacs/once",
+      "role": "transitive"
+    },
+    {
+      "name": "pathe",
+      "version": "1.1.2",
+      "license": "MIT",
+      "homepage": "unjs/pathe",
+      "role": "transitive"
+    },
+    {
+      "name": "pathval",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/chaijs/pathval",
+      "role": "transitive"
+    },
+    {
+      "name": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "homepage": "alexeyraspopov/picocolors",
+      "role": "transitive"
+    },
+    {
+      "name": "pino",
+      "version": "9.14.0",
+      "license": "MIT",
+      "homepage": "https://getpino.io",
+      "role": "transitive"
+    },
+    {
+      "name": "pino-abstract-transport",
+      "version": "2.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/pinojs/pino-abstract-transport#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "pino-std-serializers",
+      "version": "7.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/pinojs/pino-std-serializers#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "postcss",
+      "version": "8.5.26",
+      "license": "MIT",
+      "homepage": "https://postcss.org/",
+      "role": "transitive"
+    },
+    {
+      "name": "process-warning",
+      "version": "3.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fastify-warning#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "process-warning",
+      "version": "5.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/fastify-warning#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "proxy-addr",
+      "version": "2.0.7",
+      "license": "MIT",
+      "homepage": "jshttp/proxy-addr",
+      "role": "transitive"
+    },
+    {
+      "name": "prr",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/rvagg/prr",
+      "role": "transitive"
+    },
+    {
+      "name": "quick-format-unescaped",
+      "version": "4.0.4",
+      "license": "MIT",
+      "homepage": "https://github.com/davidmarkclements/quick-format#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "reachdown",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/vweevers/reachdown",
+      "role": "transitive"
+    },
+    {
+      "name": "readable-stream",
+      "version": "3.6.2",
+      "license": "MIT",
+      "homepage": "git://github.com/nodejs/readable-stream",
+      "role": "transitive"
+    },
+    {
+      "name": "real-require",
+      "version": "0.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/pinojs/real-require",
+      "role": "transitive"
+    },
+    {
+      "name": "require-from-string",
+      "version": "2.0.2",
+      "license": "MIT",
+      "homepage": "floatdrop/require-from-string",
+      "role": "transitive"
+    },
+    {
+      "name": "ret",
+      "version": "0.4.3",
+      "license": "MIT",
+      "homepage": "git://github.com/fent/ret.js.git",
+      "role": "transitive"
+    },
+    {
+      "name": "reusify",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mcollina/reusify#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "rfdc",
+      "version": "1.4.1",
+      "license": "MIT",
+      "homepage": "https://github.com/davidmarkclements/rfdc#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "rollup",
+      "version": "4.62.4",
+      "license": "MIT",
+      "homepage": "https://rollupjs.org/",
+      "role": "transitive"
+    },
+    {
+      "name": "safe-buffer",
+      "version": "5.2.1",
+      "license": "MIT",
+      "homepage": "https://github.com/feross/safe-buffer",
+      "role": "transitive"
+    },
+    {
+      "name": "safe-regex2",
+      "version": "3.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/fastify/safe-regex",
+      "role": "transitive"
+    },
+    {
+      "name": "safe-stable-stringify",
+      "version": "2.5.0",
+      "license": "MIT",
+      "homepage": "https://github.com/BridgeAR/safe-stable-stringify#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "secure-json-parse",
+      "version": "2.7.0",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/fastify/secure-json-parse#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC",
+      "homepage": "git+https://github.com/npm/node-semver.git",
+      "role": "transitive"
+    },
+    {
+      "name": "set-cookie-parser",
+      "version": "2.7.2",
+      "license": "MIT",
+      "homepage": "https://github.com/nfriedly/set-cookie-parser",
+      "role": "transitive"
+    },
+    {
+      "name": "siginfo",
+      "version": "2.0.0",
+      "license": "ISC",
+      "homepage": "https://github.com/emilbayes/siginfo#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "sonic-boom",
+      "version": "4.2.1",
+      "license": "MIT",
+      "homepage": "https://github.com/pinojs/sonic-boom#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "source-map-js",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/7rulnik/source-map-js",
+      "role": "transitive"
+    },
+    {
+      "name": "split2",
+      "version": "4.2.0",
+      "license": "ISC",
+      "homepage": "https://github.com/mcollina/split2.git",
+      "role": "transitive"
+    },
+    {
+      "name": "stackback",
+      "version": "0.0.2",
+      "license": "MIT",
+      "homepage": "git://github.com/shtylman/node-stackback.git",
+      "role": "transitive"
+    },
+    {
+      "name": "std-env",
+      "version": "3.10.0",
+      "license": "MIT",
+      "homepage": "unjs/std-env",
+      "role": "transitive"
+    },
+    {
+      "name": "string_decoder",
+      "version": "1.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/nodejs/string_decoder",
+      "role": "transitive"
+    },
+    {
+      "name": "subleveldown",
+      "version": "5.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/level/subleveldown",
+      "role": "transitive"
+    },
+    {
+      "name": "thread-stream",
+      "version": "3.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mcollina/thread-stream#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "tinybench",
+      "version": "2.9.0",
+      "license": "MIT",
+      "homepage": "tinylibs/tinybench",
+      "role": "transitive"
+    },
+    {
+      "name": "tinyexec",
+      "version": "0.3.2",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinyexec#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "tinypool",
+      "version": "1.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinypool#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "tinyrainbow",
+      "version": "1.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinyrainbow#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "tinyspy",
+      "version": "3.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinyspy#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "toad-cache",
+      "version": "3.7.4",
+      "license": "MIT",
+      "homepage": "https://github.com/kibertoad/toad-cache",
+      "role": "transitive"
+    },
+    {
+      "name": "tslib",
+      "version": "2.8.1",
+      "license": "0BSD",
+      "homepage": "https://www.typescriptlang.org/",
+      "role": "transitive"
+    },
+    {
+      "name": "tsx",
+      "version": "4.23.12",
+      "license": "MIT",
+      "homepage": "https://tsx.hirok.io",
+      "role": "development"
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "homepage": "https://www.typescriptlang.org/",
+      "role": "development"
+    },
+    {
+      "name": "undici-types",
+      "version": "6.21.0",
+      "license": "MIT",
+      "homepage": "https://undici.nodejs.org",
+      "role": "transitive"
+    },
+    {
+      "name": "util-deprecate",
+      "version": "1.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/util-deprecate",
+      "role": "transitive"
+    },
+    {
+      "name": "vite",
+      "version": "5.4.21",
+      "license": "MIT",
+      "homepage": "https://vite.dev",
+      "role": "transitive"
+    },
+    {
+      "name": "vite-node",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/blob/main/packages/vite-node#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "vitest",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest#readme",
+      "role": "development"
+    },
+    {
+      "name": "why-is-node-running",
+      "version": "2.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/why-is-node-running",
+      "role": "transitive"
+    },
+    {
+      "name": "wrappy",
+      "version": "1.0.2",
+      "license": "ISC",
+      "homepage": "https://github.com/npm/wrappy",
+      "role": "transitive"
+    },
+    {
+      "name": "xtend",
+      "version": "4.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/Raynos/xtend",
+      "role": "transitive"
+    },
+    {
+      "name": "yaml",
+      "version": "2.9.0",
+      "license": "ISC",
+      "homepage": "https://eemeli.org/yaml/",
+      "role": "runtime"
+    }
+  ]
+}

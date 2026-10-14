@@ -1,0 +1,110 @@
+# Destination: config/.env.example in nfc-development.
+#
+# README.md line 83 tells a new developer to run `cp config/.env.example config/.env` and
+# docs/DIRECTORY-GUIDE.md line 241 documents the file. It has never been committed, so the
+# documented setup path could not be followed by anyone.
+#
+# NEVER PUT A REAL VALUE IN THIS FILE. It is committed. Values live in config/.env, which
+# .gitignore excludes, and in the deployment environment.
+#
+# COMPLETENESS. Twenty seven environment variables are read from source under config/,
+# scripts/, src/api/, src/shared/ and src/web/, measured on 22 August 2026 rather than
+# recalled, and every one of them appears below. scripts/ci/assert-foundations.mjs
+# re-derives that set on every CI run and fails if a variable is read and not listed here,
+# so this file cannot silently fall behind the code. src/mobile is excluded from the scan
+# for the same reason it is excluded from the root tsconfig: it is out of scope.
+#
+# Two further variables exist and are deliberately not listed: REACT_APP_API_URL, read
+# only by src/mobile, and WEB_URL, read only by the two e2e files deleted in PR 6.
+#
+# A partial example is worse than none, because it reads as the complete list and the
+# omissions are then found one restart at a time.
+
+# ---------------------------------------------------------------------- runtime --
+NODE_ENV=development
+PORT=4000
+API_URL=http://localhost:4000
+CORS_ORIGIN=http://localhost:3000
+
+# -------------------------------------------------------------------------- AWS --
+# NOTE, and it is a defect rather than a setting: config/default.ts validateConfig()
+# THROWS in production unless both of these are set, and config/database.ts passes them
+# explicitly to the DynamoDB client rather than letting the SDK use an execution role.
+# The system as designed therefore cannot run without a long lived static key existing
+# somewhere, which is the exact class of credential that outlives a contractor
+# relationship. Recorded as D10 in the scaffold audit. The fix is an execution role, not
+# another key, and it is scheduled work rather than a line in this file.
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# --------------------------------------------------------------------- DynamoDB --
+# Two naming conventions coexist in this repository and they do not meet. config/ and
+# scripts/seed.ts create trevean-dev-spice-blends and similar through DYNAMODB_TABLE_PREFIX
+# on AWS SDK v3; src/api/models read spice-blends, recipes and nfc-scan-events by literal
+# name on AWS SDK v2. Setting the prefix does not reconcile them, and no combination of
+# these values makes the current code work end to end. Recorded as D4.
+DYNAMODB_TABLE_PREFIX=trevean-dev-
+DYNAMODB_ENDPOINT=http://localhost:8000
+DYNAMODB_BLEND_TABLE=spice-blends
+DYNAMODB_RECIPE_TABLE=recipes
+DYNAMODB_SCAN_TABLE=nfc-scan-events
+
+# ------------------------------------------------------------------------ Redis --
+# REDIS_URL and the REDIS_HOST/REDIS_PORT pair are two mechanisms for one connection,
+# belonging to two competing client implementations. Both are listed because both are read
+# from source. The recommendation on record is to delete Redis rather than configure it:
+# it is absent from the committed architecture, it sits on the beacon path, its 3600 s TTL
+# cannot meet the 300 s content freshness requirement, and with it unavailable
+# GET /api/v1/blends does not respond at all rather than degrading.
+REDIS_URL=redis://localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# -------------------------------------------------------------- auth and secrets --
+# API_KEY: if this is unset the auth middleware logs a warning and calls next(), so every
+# route is reachable unauthenticated. It fails open. Set it locally so that the failure
+# mode is not the default while it is being fixed.
+API_KEY=
+# JWT_SECRET: config/default.ts carries a self describing placeholder as its fallback and
+# throws in production if the placeholder survives. Nothing in the repository reads this
+# value, and no JWT library is declared.
+JWT_SECRET=
+
+# ------------------------------------------------------------------------- NFC --
+# NFC_CHIP_TYPE defaults to NTAG216 in config/default.ts. THAT DEFAULT IS WRONG.
+# The tag is an STMicroelectronics ST25TV02KC: NFC Forum Type 5, ISO 15693, 2 Kbit, which
+# is 256 bytes of EEPROM, with area based 64 bit password protection rather than lock bits.
+# It is not NTAG21x and not Type 2. The 888 byte and 840 byte figures elsewhere in this
+# repository are NTAG216 figures and are wrong by roughly 3.5 times.
+#
+# NFC_BASE_URL defaults to https://trevean.com/blend, which is not the domain or the path
+# the shipped tags carry. The tags carry https://treveanspice.com/t/{code}, fixed, on 1,000
+# units encoded on 24 July 2026. The tags cannot change, so the application does.
+NFC_CHIP_TYPE=ST25TV02KC
+NFC_BASE_URL=https://treveanspice.com/t
+
+# ------------------------------------------------------------ third party, unused --
+# Configuration slots with no code behind them. Listed because they are read from source.
+# Establish whose account each bills to before any value is put in it.
+SHOPIFY_API_KEY=
+SHOPIFY_API_SECRET=
+# Loading a third party analytics script before the page is readable is forbidden by the
+# architecture and by the performance budget. Nothing reads this token today. Settle the
+# intent before anyone sets it.
+MIXPANEL_TOKEN=
+
+# ----------------------------------------------------------------- feature flags --
+ENABLE_QR_FALLBACK=false
+ENABLE_BATCH_PROGRAMMING=false
+ENABLE_ANALYTICS=false
+
+# ------------------------------------------------------------------- web (Next) --
+# NEXT_PUBLIC_ variables are inlined into the client bundle at build time. Nothing secret
+# may be named here. NEXT_PUBLIC_API_URL has two different defaults in this repository,
+# one of them naming a GraphQL endpoint the API does not speak: src/web/next.config.js
+# says http://localhost:4000/graphql and src/web/lib/api-client.ts says
+# http://localhost:4000/api/v1. The API is Express REST. One of the two is wrong and the
+# correct value is the REST one.
+NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+NEXT_PUBLIC_BASE_PATH=

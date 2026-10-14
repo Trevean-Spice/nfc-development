@@ -1,0 +1,31 @@
+# Terraform working directories and provider binaries.
+.terraform/
+.terraform.tfstate.lock.info
+
+# State. Remote, in S3. A local state file in this repository is an accident,
+# and it is one that can contain resource identifiers and, if anyone ever puts
+# a secret in a variable, secrets.
+*.tfstate
+*.tfstate.*
+
+# Real variable values. The .example files are committed; these are not.
+terraform.tfvars
+*.auto.tfvars
+backend.hcl
+
+# Saved plans. They can contain variable values.
+*.tfplan
+
+# Crash logs.
+crash.log
+crash.*.log
+
+# Generated placeholder package.
+modules/compute/.build/
+
+# NOT ignored, deliberately:
+#   .terraform.lock.hcl   pins exact provider versions and checksums. Committed
+#                         is what makes "the same versions, six months from
+#                         now, on somebody else's laptop" a fact rather than a
+#                         hope, and it is part of what makes these deliverables
+#                         maintainable by a third party.

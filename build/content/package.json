@@ -1,0 +1,25 @@
+{
+  "name": "@trevean/content-fixtures",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trevean Spice tap-to-story content fixtures, placeholder convention, readiness reporting, DynamoDB seeding and placeholder imagery.",
+  "license": "LicenseRef-Trevean-Work-For-Hire",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "readiness": "node tools/content-readiness.mjs",
+    "readiness:json": "node tools/content-readiness.mjs --format json",
+    "readiness:report": "node tools/content-readiness.mjs --out reports/content-readiness-latest.txt",
+    "readiness:gate": "node tools/content-readiness.mjs --fail-on-placeholder",
+    "images": "node tools/generate-placeholder-images.mjs",
+    "images:check": "node tools/generate-placeholder-images.mjs --check",
+    "seed:dry": "node tools/seed-dynamodb.mjs --env local --endpoint-url http://localhost:8000 --dry-run",
+    "seed:local": "node tools/seed-dynamodb.mjs --env local --endpoint-url http://localhost:8000 --create-tables",
+    "validate": "node tools/validate-intake.mjs",
+    "test": "node tools/selftest.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

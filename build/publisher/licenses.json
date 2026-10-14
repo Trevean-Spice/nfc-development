@@ -1,0 +1,214 @@
+{
+  "package": "@trevean/publisher",
+  "installedPairs": 28,
+  "installedNames": 28,
+  "installedCopies": 28,
+  "resolvedByLockfile": 28,
+  "installedAtMoreThanOneVersion": [],
+  "byLicence": {
+    "Apache-2.0": 26,
+    "0BSD": 1,
+    "MIT": 1
+  },
+  "nonPermissive": [],
+  "copyleft": [],
+  "copyleftResolvedButNotInstalledHere": [],
+  "packages": [
+    {
+      "name": "@aws-sdk/checksums",
+      "version": "3.1000.29",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/checksums",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/client-cloudfront",
+      "version": "3.1127.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-cloudfront",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "version": "3.1127.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-s3",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-secrets-manager",
+      "version": "3.1127.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-secrets-manager",
+      "role": "runtime"
+    },
+    {
+      "name": "@aws-sdk/core",
+      "version": "3.977.9",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/core",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-env",
+      "version": "3.972.70",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-env",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-http",
+      "version": "3.972.72",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-http",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-ini",
+      "version": "3.973.15",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-ini",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-login",
+      "version": "3.972.77",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-login",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-node",
+      "version": "3.972.82",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-node",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-process",
+      "version": "3.972.70",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-process",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-sso",
+      "version": "3.973.14",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-sso",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/credential-provider-web-identity",
+      "version": "3.972.76",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/credential-provider-web-identity",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/middleware-sdk-s3",
+      "version": "3.972.75",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/middleware-sdk-s3",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/nested-clients",
+      "version": "3.997.44",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/nested-clients",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/signature-v4-multi-region",
+      "version": "3.996.46",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/signature-v4-multi-region",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/token-providers",
+      "version": "3.1116.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/token-providers",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/types",
+      "version": "3.974.5",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/types",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws-sdk/xml-builder",
+      "version": "3.972.40",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/xml-builder",
+      "role": "transitive"
+    },
+    {
+      "name": "@aws/lambda-invoke-store",
+      "version": "0.3.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/awslabs/aws-lambda-invoke-store",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/core",
+      "version": "3.33.3",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/core",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/credential-provider-imds",
+      "version": "4.5.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/credential-provider-imds",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/fetch-http-handler",
+      "version": "5.8.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/fetch-http-handler",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/node-http-handler",
+      "version": "4.12.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/node-http-handler",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/signature-v4",
+      "version": "5.7.3",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/signature-v4",
+      "role": "transitive"
+    },
+    {
+      "name": "@smithy/types",
+      "version": "4.18.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/types",
+      "role": "transitive"
+    },
+    {
+      "name": "bowser",
+      "version": "2.14.1",
+      "license": "MIT",
+      "homepage": "https://github.com/bowser-js/bowser",
+      "role": "transitive"
+    },
+    {
+      "name": "tslib",
+      "version": "2.8.1",
+      "license": "0BSD",
+      "homepage": "https://www.typescriptlang.org/",
+      "role": "transitive"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+# Destination: .npmrc at the root of nfc-development
+#
+# TEMPORARY. Delete this file in the pull request that removes src/mobile from the
+# workspaces array (PR 11).
+#
+# Why it exists. npm install on a clean checkout of this repository fails with ERESOLVE,
+# exit 1, verified twice during the August 2026 audit:
+#
+#   peer react@"^16.8" from @react-native-community/async-storage@1.12.1
+#   against react@18.3.1
+#
+# The conflict is entirely inside src/mobile, a workspace that is out of scope, does not
+# build, and has no native projects. Because npm installs workspaces together, that
+# conflict blocks the install for the web app and the API as well.
+#
+# Two ways to unblock it. Removing src/mobile from workspaces is the right one and it
+# needs Dan's agreement, so it cannot gate the lockfile. This file is the other one: it
+# makes the install deterministic today, in the repository, visibly, rather than living in
+# a command line flag that every developer and every CI job has to remember and that no
+# document mentions. The audit found the flag was needed and that neither README.md nor
+# CONTRIBUTING.md says so.
+#
+# The cost of this file is that peer dependency conflicts are not reported at install
+# time. That is acceptable for exactly as long as the only conflict is a deprecated
+# package in a workspace nobody builds, and not one day longer, which is why its deletion
+# is written into PR 11 rather than left to memory.
+legacy-peer-deps=true

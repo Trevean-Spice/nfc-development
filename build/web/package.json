@@ -1,0 +1,36 @@
+{
+  "name": "@trevean/consumer-blend-pages",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trevean Spice consumer blend pages. Pre-rendered per blend, zero JavaScript before readable, served from the edge cache.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "media": "node scripts/generate-media.mjs",
+    "content:fetch": "node scripts/fetch-content.mjs",
+    "prebuild": "node scripts/generate-media.mjs",
+    "build": "next build && node scripts/postbuild.mjs",
+    "verify": "node scripts/verify-output.mjs",
+    "serve": "node scripts/serve.mjs",
+    "measure": "node scripts/measure.mjs",
+    "screenshot": "node scripts/screenshot.mjs",
+    "sync:beacon": "node scripts/sync-beacon.mjs",
+    "licenses": "node scripts/licenses.mjs",
+    "dev": "next dev"
+  },
+  "dependencies": {
+    "next": "15.5.23",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.5",
+    "@types/react": "19.0.7",
+    "lighthouse": "12.8.2",
+    "sharp": "0.35.3",
+    "typescript": "5.7.3"
+  }
+}

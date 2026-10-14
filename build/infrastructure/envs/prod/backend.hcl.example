@@ -1,0 +1,14 @@
+# Copy to backend.hcl and run: terraform init -backend-config=backend.hcl
+#
+# PRODUCTION STATE LIVES IN TREVEAN'S ACCOUNT. See BOOTSTRAP.md.
+
+bucket       = "FILL IN: trevean-tfstate-<suffix>, in Trevean's account"
+key          = "trevean-spice-nfc/prod/terraform.tfstate"
+region       = "us-east-1"
+use_lockfile = true
+encrypt      = true
+
+# Optional but recommended in production: a customer managed key on the state
+# bucket, so that read access to state is revocable independently of read
+# access to S3.
+# kms_key_id = "FILL IN"

@@ -1,0 +1,22 @@
+{
+  "_comment": "Event source mapping FilterCriteria for the ScanEvents stream. Rollup items live in ScanEvents under the ROLLUP# namespace, so rollup writes appear in the same stream that triggers the consumer that produced them. Without this filter that is an infinite, self billing loop. INSERT only is not sufficient on its own: the first rollup write of a new day arrives as INSERT rather than MODIFY, so the pk prefix is load bearing too. The consumer applies the same rule again in process, so a mapping deployed without this cannot start the loop either. Source of truth is src/stream/filter.ts and a test asserts this file matches it.",
+  "FilterCriteria": {
+    "Filters": [
+      {
+        "Pattern": "{\"eventName\":[\"INSERT\"],\"dynamodb\":{\"Keys\":{\"pk\":{\"S\":[{\"prefix\":\"EVT#\"}]}}}}"
+      }
+    ]
+  },
+  "RecommendedEventSourceMapping": {
+    "StartingPosition": "TRIM_HORIZON",
+    "BatchSize": 500,
+    "MaximumBatchingWindowInSeconds": 5,
+    "BisectBatchOnFunctionError": false,
+    "MaximumRetryAttempts": 3,
+    "DestinationConfig": {
+      "OnFailure": {
+        "_comment": "Dead letter queue ARN. Bisect on error is disabled deliberately: a bisected batch has a different batch id, which the checkpoint would not recognise, and a batch split after a partial success is how double counting starts."
+      }
+    }
+  }
+}

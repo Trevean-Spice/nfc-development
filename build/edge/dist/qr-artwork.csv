@@ -1,0 +1,6 @@
+code,blendSlug,blendName,encodeInQr,resolvesTo,redirectStatus
+ps,persian-sunrise,Persian Sunrise,https://treveanspice.com/q/ps,/blend.html?blend=persian-sunrise&via=qr,307
+cs,caribbean-sunset,Caribbean Sunset,https://treveanspice.com/q/cs,/blend.html?blend=caribbean-sunset&via=qr,307
+sr,silk-road,The Silk Road,https://treveanspice.com/q/sr,/blend.html?blend=silk-road&via=qr,307
+nm,north-african-night-market,North African Night Market,https://treveanspice.com/q/nm,/blend.html?blend=north-african-night-market&via=qr,307
+kg,kyoto-garden,Kyoto Garden,https://treveanspice.com/q/kg,/blend.html?blend=kyoto-garden&via=qr,307

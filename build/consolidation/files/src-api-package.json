@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "Destination: src/api/package.json in nfc-development.",
+    "This file does not exist in the repository as inherited, while the root package.json",
+    "declares src/api as an npm workspace. npm tolerates that silently: the workspace is",
+    "never installed and nothing reports it. Verified on npm 10.8.2, which completes an",
+    "install against a declared but absent workspace without warning.",
+    "Dependencies are declared here rather than at the root because this is the manifest",
+    "that owns the files importing them. @aws-sdk/client-dynamodb and @aws-sdk/lib-dynamodb",
+    "are the two undeclared imports in config/ and scripts/seed.ts. aws-sdk v2 is retained",
+    "for now because src/api/models still imports it and removing it is a rewrite, not a",
+    "manifest edit; it is end of support and npm prints its deprecation on every install,",
+    "which is a reason to schedule the rewrite rather than to pretend the import is gone.",
+    "ioredis is retained on the same terms and is expected to be deleted outright when",
+    "Redis is removed, which is separate M3 work.",
+    "Remove this $comment key before committing. It is here so the reviewer of the pull",
+    "request does not have to reconstruct the reasoning."
+  ],
+  "name": "@trevean/api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "server.ts",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/lib-dynamodb": "^3.658.0",
+    "aws-sdk": "^2.1500.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.0",
+    "express": "^4.18.2",
+    "ioredis": "^5.3.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.15",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.0",
+    "@types/uuid": "^9.0.7",
+    "ts-node": "^10.9.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.0"
+  }
+}

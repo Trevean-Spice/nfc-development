@@ -1,0 +1,91 @@
+{
+  "$howToUse": [
+    "One file per blend. Copy this file, rename it to the blend slug, fill it in, and send it",
+    "with the image files in the same folder. Keep the folder structure and the file names.",
+    "",
+    "Check it before sending:  node tools/validate-intake.mjs <yourfile>.json",
+    "It reports every problem at once, in plain terms, and it takes about a second.",
+    "",
+    "Field by field guidance, lengths and image sizes: see the content intake specification.",
+    "Leave a value as null if you do not have it yet. Do not invent one, and do not delete",
+    "the key: a null tells us it is outstanding, a missing key tells us nothing.",
+    "",
+    "Nothing in this file is marketing copy we can write for you. Content writing,",
+    "photography and translation are outside our scope, so a blank here stays blank."
+  ],
+
+  "slug": "persian-sunrise",
+
+  "blend": {
+    "name": "Persian Sunrise",
+    "tagline": null,
+
+    "originCountry": null,
+    "originRegion": null,
+    "originCity": null,
+
+    "farm": {
+      "latitude": null,
+      "longitude": null,
+      "label": null
+    },
+
+    "storyBlocks": [
+      { "type": "heading", "text": "" },
+      { "type": "paragraph", "text": "" },
+      { "type": "paragraph", "text": "" },
+      { "type": "paragraph", "text": "" }
+    ],
+
+    "heroImageId": "images/hero.jpg",
+    "heroImageAlt": null,
+    "heroImageCredit": null,
+
+    "galleryImageIds": [],
+
+    "freshness": {
+      "harvestedOn": null,
+      "blendedOn": null,
+      "bestBefore": null,
+      "lotLabel": null
+    }
+  },
+
+  "grower": {
+    "name": null,
+    "farmName": null,
+    "country": null,
+    "region": null,
+    "bio": null,
+    "yearsFarming": null,
+    "portraitId": "images/grower-portrait.jpg",
+    "portraitAlt": null,
+    "portraitCredit": null,
+    "portraitConsentHeldBy": null,
+    "farm": {
+      "latitude": null,
+      "longitude": null
+    }
+  },
+
+  "recipes": [
+    {
+      "title": "",
+      "summary": "",
+      "servings": null,
+      "prepMinutes": null,
+      "cookMinutes": null,
+      "difficulty": null,
+      "ingredients": [
+        { "quantity": null, "unit": null, "item": "", "note": null },
+        { "quantity": null, "unit": null, "item": "", "note": null },
+        { "quantity": null, "unit": null, "item": "", "note": null }
+      ],
+      "steps": ["", ""],
+      "imageId": "images/recipe-01.jpg",
+      "imageAlt": null,
+      "imageCredit": null,
+      "sortOrder": 1
+    }
+  ]
+}

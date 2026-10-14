@@ -1,0 +1,89 @@
+{
+  "package": "trevean-spice-contract-tests",
+  "installedPairs": 10,
+  "installedNames": 10,
+  "installedCopies": 10,
+  "resolvedByLockfile": 10,
+  "installedAtMoreThanOneVersion": [],
+  "byLicence": {
+    "MIT": 7,
+    "Apache-2.0": 1,
+    "BSD-3-Clause": 1,
+    "ISC": 1
+  },
+  "nonPermissive": [],
+  "copyleft": [],
+  "copyleftResolvedButNotInstalledHere": [],
+  "packages": [
+    {
+      "name": "@types/node",
+      "version": "20.19.43",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+      "role": "development"
+    },
+    {
+      "name": "ajv",
+      "version": "8.20.0",
+      "license": "MIT",
+      "homepage": "https://ajv.js.org",
+      "role": "runtime"
+    },
+    {
+      "name": "ajv-formats",
+      "version": "3.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/ajv-validator/ajv-formats#readme",
+      "role": "runtime"
+    },
+    {
+      "name": "fast-deep-equal",
+      "version": "3.1.3",
+      "license": "MIT",
+      "homepage": "https://github.com/epoberezkin/fast-deep-equal#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "fast-uri",
+      "version": "3.1.5",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/fastify/fast-uri",
+      "role": "transitive"
+    },
+    {
+      "name": "json-schema-traverse",
+      "version": "1.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/epoberezkin/json-schema-traverse#readme",
+      "role": "transitive"
+    },
+    {
+      "name": "require-from-string",
+      "version": "2.0.2",
+      "license": "MIT",
+      "homepage": "floatdrop/require-from-string",
+      "role": "transitive"
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "homepage": "https://www.typescriptlang.org/",
+      "role": "development"
+    },
+    {
+      "name": "undici-types",
+      "version": "6.21.0",
+      "license": "MIT",
+      "homepage": "https://undici.nodejs.org",
+      "role": "transitive"
+    },
+    {
+      "name": "yaml",
+      "version": "2.9.0",
+      "license": "ISC",
+      "homepage": "https://eemeli.org/yaml/",
+      "role": "runtime"
+    }
+  ]
+}

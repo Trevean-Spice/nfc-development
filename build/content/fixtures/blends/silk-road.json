@@ -1,0 +1,99 @@
+{
+  "_fixture": {
+    "entity": "blend",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Seeded blend. Real content is not due for this blend at M2 per the Scope document, 'The five blends'. It still carries 250 encoded tags in the field, so its page has to render and has to be measured.",
+    "fields": {
+      "slug": "contractor_real",
+      "name": "client_real",
+      "tagCode": "contractor_real",
+      "launchTier": "contractor_real",
+      "status": "contractor_real",
+      "tagline": "placeholder_text",
+      "originCountry": "placeholder_null",
+      "originRegion": "client_real",
+      "originCity": "placeholder_null",
+      "farm.latitude": "placeholder_null",
+      "farm.longitude": "placeholder_null",
+      "farm.label": "placeholder_null",
+      "storyBlocks": "placeholder_text",
+      "heroImageId": "placeholder_media",
+      "galleryImageIds": "placeholder_null",
+      "freshness.harvestedOn": "placeholder_null",
+      "freshness.blendedOn": "placeholder_null",
+      "freshness.bestBefore": "placeholder_null",
+      "freshness.lotLabel": "placeholder_text",
+      "freshness.note": "contractor_real",
+      "growerId": "contractor_real",
+      "shopify.sku": "placeholder_null",
+      "shopify.productId": "placeholder_null",
+      "shopify.variantId": "placeholder_null",
+      "shopify.cartPermalinkUrl": "placeholder_null"
+    },
+    "notes": {
+      "originCountry": "OPEN ITEM FOR DAN. The client stated the origin as 'Central Asia', which is not a country, and originCountry in the frozen API contract is a single ISO 3166-1 alpha-2 code. Left null. Three options: name the one country the spices actually come from, accept a null country with the region shown alone, or change the contract to allow several origins. The third is a contract change and is not free."
+    }
+  },
+  "_clientFacts": {
+    "source": "Scope document, 'The five blends' and 'Tag code map'",
+    "spices": [
+      "cumin",
+      "coriander",
+      "fenugreek",
+      "turmeric"
+    ],
+    "originAsStatedByClient": "Central Asia",
+    "tagUnitsEncoded": 250
+  },
+  "blend": {
+    "slug": "silk-road",
+    "name": "The Silk Road",
+    "status": "published",
+    "tagline": "[PLACEHOLDER] TAGLINE PENDING, NOT REAL CONTENT. Trevean facts: cumin, coriander, fenugreek, turmeric; Central Asia.",
+    "launchTier": "seeded",
+    "tagCode": "sr",
+    "originCountry": null,
+    "originRegion": "Central Asia",
+    "originCity": null,
+    "farm": null,
+    "storyBlocks": [
+      {
+        "type": "heading",
+        "text": "[PLACEHOLDER] STORY HEADING PENDING, NOT REAL CONTENT"
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] SEEDED BLEND, ORIGIN STORY NOT WRITTEN, NOT REAL CONTENT. This blend carries 250 encoded tags, so its page is reachable from a real jar and is built and measured like any other. Its stated origin, Central Asia, is a region rather than a country and needs a decision. NOT REAL CONTENT. NOT REAL CONTENT."
+      }
+    ],
+    "heroImageId": "med_FAKEHRSR010000000000000000",
+    "galleryImageIds": [],
+    "freshness": {
+      "harvestedOn": null,
+      "blendedOn": null,
+      "bestBefore": null,
+      "lotLabel": "[PLACEHOLDER] LOT PENDING",
+      "note": "Freshness is stated per blend rather than per jar, because tag encoding is per SKU."
+    },
+    "growerId": "grw_FAKEGRSR010000000000000000",
+    "shopify": {
+      "productId": "7804403712103",
+      "variantId": "44647355252839",
+      "sku": null,
+      "cartPermalinkUrl": null
+    },
+    "recipeCount": 0,
+    "version": 1,
+    "publishedAt": "2026-08-17T09:00:00Z",
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z",
+    "updatedBy": "content-fixtures@serenelabs.io"
+  }
+}

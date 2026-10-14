@@ -1,0 +1,131 @@
+name: API contract tests
+
+# What this gates
+#
+# SOW Rev C section 5 makes "API contract tests pass" an explicit M2 acceptance criterion.
+# The API contract was frozen on 18 August 2026 so that two engineers could build against it
+# for seven weeks without talking to each other. A frozen contract with no executable
+# enforcement is a document, not a contract. This workflow is what makes the freeze real.
+#
+# Three jobs, three different questions:
+#
+#   contract-tests-stub  Is the contract self consistent and implementable? Runs on every
+#                        push and pull request, needs no network and no credentials.
+#   contract-tests-staging  Does the staging implementation obey it? Runs on a schedule and
+#                           on demand, needs credentials.
+#   contract-tests-production  Does production still obey it? Read only, writes disabled.
+#
+# To adopt this into the client nfc-development repository, see the README beside this
+# suite, section "Adopting this into nfc-development".
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # 07:00 UTC daily, so a drift between the two implementations is found in the morning
+    # rather than at 22:00 on 26 September.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which target to run against
+        required: true
+        default: stub
+        type: choice
+        options: [stub, staging, production]
+
+defaults:
+  run:
+    working-directory: build/contract-tests
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  contract-tests-stub:
+    name: Contract tests against the stub
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'stub'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: build/contract-tests/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Runs the whole suite against an in memory implementation of the frozen contract.
+      # This job answers a question no implementation can answer: is the specification
+      # itself consistent, and are its worked examples valid against its own schemas.
+      - name: Run the suite against the stub
+        run: npm run test:stub
+
+  contract-tests-staging:
+    name: Contract tests against staging
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: build/contract-tests/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Run the suite against staging
+        env:
+          CONTRACT_TEST_BASE_URL: https://api.staging.treveanspice.com
+          CONTRACT_TEST_PAGE_ORIGIN: https://staging.treveanspice.com
+          CONTRACT_TEST_TOKEN_ADMIN: ${{ secrets.CONTRACT_TEST_TOKEN_ADMIN }}
+          CONTRACT_TEST_TOKEN_EDITOR: ${{ secrets.CONTRACT_TEST_TOKEN_EDITOR }}
+          CONTRACT_TEST_TOKEN_VIEWER: ${{ secrets.CONTRACT_TEST_TOKEN_VIEWER }}
+          CONTRACT_TEST_ALLOW_WRITES: 'true'
+          # Measured from a GitHub runner, so client network time is inside the number.
+          # Reported rather than gated here; the gated measurement is taken in region.
+          CONTRACT_TEST_LATENCY_ENFORCE: 'false'
+        run: npm test
+
+  contract-tests-production:
+    name: Contract tests against production, read only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: build/contract-tests/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # CONTRACT_TEST_ALLOW_WRITES is false, so nothing is created, updated, published or
+      # archived. The tests that assert an anonymous caller is refused still run, because a
+      # request that is correctly refused changes nothing, and that is the check worth having
+      # against production more than anywhere else.
+      - name: Run the suite against production
+        env:
+          CONTRACT_TEST_BASE_URL: https://api.treveanspice.com
+          CONTRACT_TEST_PAGE_ORIGIN: https://treveanspice.com
+          CONTRACT_TEST_TOKEN_ADMIN: ${{ secrets.CONTRACT_TEST_TOKEN_ADMIN }}
+          CONTRACT_TEST_TOKEN_EDITOR: ${{ secrets.CONTRACT_TEST_TOKEN_EDITOR }}
+          CONTRACT_TEST_TOKEN_VIEWER: ${{ secrets.CONTRACT_TEST_TOKEN_VIEWER }}
+          CONTRACT_TEST_ALLOW_WRITES: 'false'
+          CONTRACT_TEST_LATENCY_ENFORCE: 'false'
+        run: npm test

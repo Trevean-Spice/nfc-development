@@ -1,0 +1,47 @@
+{
+  "_fixture": {
+    "entity": "grower",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "The grower profile is the most dangerous record in this data set. A fabricated grower with a name, a farm, a portrait and a coordinate is indistinguishable from a real one on the page, can ship, and misrepresents a real supply chain. Nothing here is invented. This record exists so the page shape, the portrait slot and the byte budget can be built and measured before content lands.",
+    "fields": {
+      "name": "placeholder_text",
+      "farmName": "placeholder_text",
+      "country": "placeholder_null",
+      "region": "placeholder_null",
+      "bio": "placeholder_text",
+      "yearsFarming": "placeholder_null",
+      "portraitId": "placeholder_media",
+      "farm.latitude": "placeholder_null",
+      "farm.longitude": "placeholder_null",
+      "blendSlugs": "contractor_real"
+    },
+    "notes": {
+      "country": "Left null even though the blend origin country is known. Where the blend is from is a fact about the spice. Where the grower is is a fact about a person we have not been told about.",
+      "portraitId": "The placeholder portrait is a generated image stamped PLACEHOLDER. A real portrait needs the subject written consent and a photographer credit, both of which are content intake items."
+    }
+  },
+  "grower": {
+    "growerId": "grw_FAKEGRCS010000000000000000",
+    "name": "[PLACEHOLDER] GROWER NAME PENDING, NOT REAL CONTENT",
+    "farmName": "[PLACEHOLDER] FARM OR COOPERATIVE NAME PENDING, NOT REAL CONTENT",
+    "country": null,
+    "region": null,
+    "bio": "[PLACEHOLDER] GROWER PROFILE COPY PENDING, NOT REAL CONTENT. Trevean to supply 600 to 900 characters about a real, named, consenting grower or cooperative. No name, no farm, no family, no number of years farming and no coordinates are invented anywhere in this record, because a grower profile that looks real can ship, can reach a customer, and would misrepresent a real supply chain. This block is padded to the length of the copy we are asking for, so the page weight below the fold is measured against something the size of the real thing rather than against a short stub. NOT REAL CONTENT. NOT REAL CONTENT. NOT REAL CONTENT.",
+    "yearsFarming": null,
+    "portraitId": "med_FAKEGPCS010000000000000000",
+    "farm": null,
+    "blendSlugs": [
+      "caribbean-sunset"
+    ],
+    "version": 1,
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z"
+  }
+}

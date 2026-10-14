@@ -1,0 +1,104 @@
+{
+  "_fixture": {
+    "entity": "shopify-admin-graphql-response",
+    "operation": "CatalogMirrorProducts",
+    "page": 1,
+    "simulated": true,
+    "generatedOn": "2026-08-22",
+    "generatedBy": "Serene Labs Inc, M4 Shopify integration deliverable",
+    "notForProduction": true,
+    "why": "SIMULATED, NOT RECORDED. There is no Shopify Plus store access, so no Admin API response has ever been received. This document is hand built to the documented Admin GraphQL response shape for the query in src/admin/queries.ts, including pageInfo and the extensions.cost throttle status. It proves that pagination, cost handling and mapping behave correctly on a response of this shape. It is not evidence about Trevean's catalog and no price, SKU or quantity in it is real.",
+    "deliberateVariety": "Page 1 carries an untracked variant, a two variant product, and a product that resolves by tag rather than handle, so the mapper's branches are exercised rather than only its happy path."
+  },
+  "data": {
+    "products": {
+      "pageInfo": { "hasNextPage": true, "endCursor": "eyJsYXN0X2lkIjoxfQ==" },
+      "nodes": [
+        {
+          "id": "gid://shopify/Product/7391043289601",
+          "handle": "persian-sunrise",
+          "title": "Persian Sunrise",
+          "status": "ACTIVE",
+          "tags": ["spice-blend", "launch"],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/41802938471233",
+                "sku": "TRV-PS-60G",
+                "position": 1,
+                "price": "24.00",
+                "compareAtPrice": null,
+                "inventoryQuantity": 118,
+                "inventoryPolicy": "DENY",
+                "availableForSale": true,
+                "inventoryItem": { "tracked": true }
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/7391043355137",
+          "handle": "caribbean-sunset",
+          "title": "Caribbean Sunset",
+          "status": "ACTIVE",
+          "tags": ["spice-blend", "launch"],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/41802938536769",
+                "sku": "TRV-CS-60G",
+                "position": 1,
+                "price": "22.00",
+                "compareAtPrice": "26.00",
+                "inventoryQuantity": 4,
+                "inventoryPolicy": "DENY",
+                "availableForSale": true,
+                "inventoryItem": { "tracked": true }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/41802938536770",
+                "sku": "TRV-CS-120G",
+                "position": 2,
+                "price": "38.00",
+                "compareAtPrice": null,
+                "inventoryQuantity": 20,
+                "inventoryPolicy": "DENY",
+                "availableForSale": true,
+                "inventoryItem": { "tracked": true }
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/7391043400000",
+          "handle": "trevean-tote-bag",
+          "title": "Trevean tote bag",
+          "status": "ACTIVE",
+          "tags": ["merch"],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/41802940000001",
+                "sku": "TRV-TOTE",
+                "position": 1,
+                "price": "18.00",
+                "compareAtPrice": null,
+                "inventoryQuantity": null,
+                "inventoryPolicy": "DENY",
+                "availableForSale": true,
+                "inventoryItem": { "tracked": false }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 152,
+      "actualQueryCost": 118,
+      "throttleStatus": { "maximumAvailable": 2000, "currentlyAvailable": 1882, "restoreRate": 100 }
+    }
+  }
+}

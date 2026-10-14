@@ -1,0 +1,20 @@
+{
+  "name": "@trevean/analytics-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trevean Spice analytics dashboard. Reads pre-aggregated rollups through the frozen M1 API contract. Never raw events, never a table scan.",
+  "license": "LicenseRef-Trevean-Work-For-Hire",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "local:up": "node tools/local-stack.mjs",
+    "test": "node --test test/unit/ test/live/",
+    "test:unit": "node --test test/unit/",
+    "test:live": "node --test test/live/",
+    "check:style": "node --test test/unit/house-style.test.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

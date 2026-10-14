@@ -1,0 +1,49 @@
+{
+  "name": "@trevean/tap-to-story-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trevean Spice tap-to-story REST API. Implements the frozen M1 API contract, version 1.0.0.",
+  "license": "LicenseRef-Trevean-Work-For-Hire",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "local:tables": "tsx scripts/create-tables.ts",
+    "local:seed": "tsx scripts/seed.ts",
+    "local:up": "tsx scripts/local-stack.ts",
+    "package:lambda": "node scripts/package-lambda.mjs",
+    "licences": "node scripts/licenses.mjs",
+    "licences:check": "node scripts/licenses.mjs --check",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/client-s3": "^3.658.0",
+    "@aws-sdk/client-secrets-manager": "^3.658.0",
+    "@aws-sdk/lib-dynamodb": "^3.658.0",
+    "@aws-sdk/s3-request-presigner": "^3.658.0",
+    "@aws-sdk/util-dynamodb": "^3.996.9",
+    "@fastify/aws-lambda": "^4.1.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "fastify": "^4.28.1",
+    "jose": "^5.9.3",
+    "yaml": "^2.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "dynalite": "^3.2.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.2"
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "_fixture": {
+    "entity": "blend",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Seeded blend. Real content is not due for this blend at M2 per the Scope document, 'The five blends'. It still carries 250 encoded tags in the field, so its page has to render and has to be measured, which is why it is seeded to full page shape rather than left empty.",
+    "fields": {
+      "slug": "contractor_real",
+      "name": "client_real",
+      "tagCode": "contractor_real",
+      "launchTier": "contractor_real",
+      "status": "contractor_real",
+      "tagline": "placeholder_text",
+      "originCountry": "client_real",
+      "originRegion": "placeholder_null",
+      "originCity": "client_real",
+      "farm.latitude": "placeholder_null",
+      "farm.longitude": "placeholder_null",
+      "farm.label": "placeholder_null",
+      "storyBlocks": "placeholder_text",
+      "heroImageId": "placeholder_media",
+      "galleryImageIds": "placeholder_null",
+      "freshness.harvestedOn": "placeholder_null",
+      "freshness.blendedOn": "placeholder_null",
+      "freshness.bestBefore": "placeholder_null",
+      "freshness.lotLabel": "placeholder_text",
+      "freshness.note": "contractor_real",
+      "growerId": "contractor_real",
+      "shopify.sku": "placeholder_null",
+      "shopify.productId": "placeholder_null",
+      "shopify.variantId": "placeholder_null",
+      "shopify.cartPermalinkUrl": "placeholder_null"
+    },
+    "notes": {
+      "originRegion": "The client stated 'Fez, Morocco'. The city is used as given. The administrative region is not stated and is left null rather than filled in from an atlas.",
+      "recipes": "Zero recipes. The 5 to 10 recipe carousel is a launch blend requirement; this blend is seeded."
+    }
+  },
+  "_clientFacts": {
+    "source": "Scope document, 'The five blends' and 'Tag code map'",
+    "spices": [
+      "Aleppo pepper",
+      "cumin",
+      "preserved lemon"
+    ],
+    "originAsStatedByClient": "Fez, Morocco",
+    "tagUnitsEncoded": 250
+  },
+  "blend": {
+    "slug": "north-african-night-market",
+    "name": "North African Night Market",
+    "status": "published",
+    "tagline": "[PLACEHOLDER] TAGLINE PENDING, NOT REAL CONTENT. Trevean facts: Aleppo pepper, cumin, preserved lemon; Fez, Morocco.",
+    "launchTier": "seeded",
+    "tagCode": "nm",
+    "originCountry": "MA",
+    "originRegion": null,
+    "originCity": "Fez",
+    "farm": null,
+    "storyBlocks": [
+      {
+        "type": "heading",
+        "text": "[PLACEHOLDER] STORY HEADING PENDING, NOT REAL CONTENT"
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] SEEDED BLEND, ORIGIN STORY NOT WRITTEN, NOT REAL CONTENT. This blend carries 250 encoded tags, so its page is reachable from a real jar and is built and measured like any other. Real copy is not due for it at M2 under the Scope document, 'The five blends'. NOT REAL CONTENT. NOT REAL CONTENT."
+      }
+    ],
+    "heroImageId": "med_FAKEHRNM010000000000000000",
+    "galleryImageIds": [],
+    "freshness": {
+      "harvestedOn": null,
+      "blendedOn": null,
+      "bestBefore": null,
+      "lotLabel": "[PLACEHOLDER] LOT PENDING",
+      "note": "Freshness is stated per blend rather than per jar, because tag encoding is per SKU."
+    },
+    "growerId": "grw_FAKEGRNM010000000000000000",
+    "shopify": {
+      "productId": "7804403646567",
+      "variantId": "44647378321511",
+      "sku": null,
+      "cartPermalinkUrl": null
+    },
+    "recipeCount": 0,
+    "version": 1,
+    "publishedAt": "2026-08-17T09:00:00Z",
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z",
+    "updatedBy": "content-fixtures@serenelabs.io"
+  }
+}

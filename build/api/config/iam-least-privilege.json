@@ -1,0 +1,87 @@
+{
+  "_comment": "Least privilege IAM for this API, expressed as the exact actions the code calls. Written here by the team that wrote the calls, for the infrastructure deliverable to apply. Two functions, two roles: the API and the rollup consumer. Nothing here grants Scan on any table, because there is no Scan in application code and granting it invites one.",
+  "apiFunctionPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "ContentAndTelemetryTables",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:BatchGetItem",
+          "dynamodb:Query",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/SpiceBlends",
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/SpiceBlends/index/*",
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/Recipes",
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/Recipes/index/*",
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/Growers",
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/Growers/index/*",
+          "arn:aws:dynamodb:REGION:ACCOUNT:table/ScanEvents"
+        ]
+      },
+      {
+        "Sid": "TagRecordsAreReadOnlyToTheApi",
+        "_comment": "The redirect table is a version controlled artifact. The API can read the mirror and must not be able to write it, at any role, including Admin.",
+        "Effect": "Allow",
+        "Action": ["dynamodb:GetItem", "dynamodb:BatchGetItem"],
+        "Resource": "arn:aws:dynamodb:REGION:ACCOUNT:table/NFCTags"
+      },
+      {
+        "Sid": "MediaUploadsOnly",
+        "_comment": "PutObject is needed to sign an upload URL, HeadObject to verify it arrived. No GetObject: the API never reads image bytes, CloudFront serves them.",
+        "Effect": "Allow",
+        "Action": ["s3:PutObject", "s3:HeadObject"],
+        "Resource": "arn:aws:s3:::MEDIA_BUCKET/incoming/*"
+      },
+      {
+        "Sid": "SecretsFromTheManagedStore",
+        "Effect": "Allow",
+        "Action": ["secretsmanager:GetSecretValue"],
+        "Resource": [
+          "arn:aws:secretsmanager:REGION:ACCOUNT:secret:trevean/api/shopify-webhook-secret-*",
+          "arn:aws:secretsmanager:REGION:ACCOUNT:secret:trevean/api/revalidation-secret-*"
+        ]
+      }
+    ]
+  },
+  "rollupConsumerPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "ReadTheStream",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:DescribeStream",
+          "dynamodb:GetRecords",
+          "dynamodb:GetShardIterator",
+          "dynamodb:ListStreams"
+        ],
+        "Resource": "arn:aws:dynamodb:REGION:ACCOUNT:table/ScanEvents/stream/*"
+      },
+      {
+        "Sid": "WriteRollupsAndCheckpointsOnly",
+        "_comment": "UpdateItem for the atomic ADD, PutItem for the batch checkpoint. No GetItem and no Query: the consumer never reads.",
+        "Effect": "Allow",
+        "Action": ["dynamodb:UpdateItem", "dynamodb:PutItem"],
+        "Resource": "arn:aws:dynamodb:REGION:ACCOUNT:table/ScanEvents"
+      },
+      {
+        "Sid": "DeadLetterQueue",
+        "Effect": "Allow",
+        "Action": ["sqs:SendMessage"],
+        "Resource": "arn:aws:sqs:REGION:ACCOUNT:trevean-rollup-dlq"
+      }
+    ]
+  },
+  "notGranted": [
+    "dynamodb:Scan on any table. There is no Scan in application code and a Scan here is a defect regardless of table size.",
+    "dynamodb:DeleteTable, CreateTable, UpdateTable. Table lifecycle belongs to infrastructure as code, not to a running function.",
+    "s3:GetObject. The API never reads image bytes.",
+    "Any write to NFCTags from the API function."
+  ]
+}

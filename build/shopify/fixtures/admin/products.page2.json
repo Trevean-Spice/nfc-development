@@ -1,0 +1,71 @@
+{
+  "_fixture": {
+    "entity": "shopify-admin-graphql-response",
+    "operation": "CatalogMirrorProducts",
+    "page": 2,
+    "simulated": true,
+    "generatedOn": "2026-08-22",
+    "generatedBy": "Serene Labs Inc, M4 Shopify integration deliverable",
+    "notForProduction": true,
+    "why": "SIMULATED, NOT RECORDED. See page 1. This page closes the cursor walk, carries a product that resolves by tag rather than by handle, carries an out of stock variant, and reports the throttle bucket below the configured floor so the cost aware wait is exercised.",
+    "kyotoGarden": "Absent on purpose. Kyoto Garden is not in this production tag run, so the sync reports it as a missing slug rather than inventing a product for it."
+  },
+  "data": {
+    "products": {
+      "pageInfo": { "hasNextPage": false, "endCursor": "eyJsYXN0X2lkIjoyfQ==" },
+      "nodes": [
+        {
+          "id": "gid://shopify/Product/7391043466673",
+          "handle": "the-silk-road-blend",
+          "title": "The Silk Road",
+          "status": "ACTIVE",
+          "tags": ["spice-blend", "silk-road"],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/41802938602305",
+                "sku": "TRV-SR-60G",
+                "position": 1,
+                "price": "21.50",
+                "compareAtPrice": null,
+                "inventoryQuantity": 0,
+                "inventoryPolicy": "DENY",
+                "availableForSale": false,
+                "inventoryItem": { "tracked": true }
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/7391043532209",
+          "handle": "north-african-night-market",
+          "title": "North African Night Market",
+          "status": "ACTIVE",
+          "tags": ["spice-blend"],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/41802938667841",
+                "sku": "TRV-NM-60G",
+                "position": 1,
+                "price": "23.995",
+                "compareAtPrice": null,
+                "inventoryQuantity": 61,
+                "inventoryPolicy": "CONTINUE",
+                "availableForSale": true,
+                "inventoryItem": { "tracked": true }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 152,
+      "actualQueryCost": 96,
+      "throttleStatus": { "maximumAvailable": 2000, "currentlyAvailable": 120, "restoreRate": 100 }
+    }
+  }
+}

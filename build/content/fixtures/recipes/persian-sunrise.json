@@ -1,0 +1,576 @@
+{
+  "_fixture": {
+    "entity": "recipe",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Recipes for a launch blend. The Scope document requires a carousel of 5 to 10 recipes per blend. 7 placeholder recipes exist so the carousel, its lazy loading and its share of the image budget are built and measured at the real count. Every quantity, time and serving figure is null rather than invented, because a plausible looking recipe is a recipe someone will cook.",
+    "recipeCount": 7,
+    "requiredRange": [
+      5,
+      10
+    ],
+    "appliesTo": "launch blend"
+  },
+  "blendSlug": "persian-sunrise",
+  "recipes": [
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS010000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 1 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS010000000000000000",
+        "sortOrder": 1,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    },
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS020000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 2 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS020000000000000000",
+        "sortOrder": 2,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    },
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS030000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 3 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS030000000000000000",
+        "sortOrder": 3,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    },
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS040000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 4 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS040000000000000000",
+        "sortOrder": 4,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    },
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS050000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 5 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS050000000000000000",
+        "sortOrder": 5,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    },
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS060000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 6 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS060000000000000000",
+        "sortOrder": 6,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    },
+    {
+      "_placeholder": {
+        "isPlaceholder": true,
+        "sentinel": "[PLACEHOLDER]",
+        "fields": {
+          "title": "placeholder_text",
+          "summary": "placeholder_text",
+          "servings": "placeholder_null",
+          "prepMinutes": "placeholder_null",
+          "cookMinutes": "placeholder_null",
+          "difficulty": "placeholder_null",
+          "ingredients": "placeholder_text",
+          "steps": "placeholder_text",
+          "imageId": "placeholder_media",
+          "sortOrder": "contractor_real",
+          "status": "contractor_real"
+        }
+      },
+      "recipe": {
+        "recipeId": "rcp_FAKERCPS070000000000000000",
+        "blendSlug": "persian-sunrise",
+        "title": "[PLACEHOLDER] RECIPE 7 OF 7 PENDING, NOT REAL CONTENT",
+        "summary": "[PLACEHOLDER] RECIPE SUMMARY PENDING, NOT REAL CONTENT. Trevean to supply 60 to 160 characters that read on a carousel card at 375 px. NOT REAL CONTENT.",
+        "servings": null,
+        "prepMinutes": null,
+        "cookMinutes": null,
+        "difficulty": null,
+        "ingredients": [
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 1 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 2 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 3 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 4 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 5 OF 6, NOT REAL CONTENT",
+            "note": null
+          },
+          {
+            "quantity": null,
+            "unit": null,
+            "item": "[PLACEHOLDER] INGREDIENT 6 OF 6, NOT REAL CONTENT",
+            "note": null
+          }
+        ],
+        "steps": [
+          "[PLACEHOLDER] METHOD STEP 1 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 2 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 3 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT.",
+          "[PLACEHOLDER] METHOD STEP 4 OF 4, NOT REAL CONTENT. Trevean to supply the real step here. The page numbers the steps, so the text must not carry its own number. NOT REAL CONTENT."
+        ],
+        "imageId": "med_FAKERCPS070000000000000000",
+        "sortOrder": 7,
+        "status": "published",
+        "version": 1,
+        "createdAt": "2026-08-17T09:00:00Z",
+        "updatedAt": "2026-08-17T09:00:00Z"
+      }
+    }
+  ]
+}

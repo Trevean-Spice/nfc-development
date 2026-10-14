@@ -1,0 +1,802 @@
+[
+  {
+    "source": "/t/ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/pS",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/pS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/PS",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/PS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/pS",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/pS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/PS",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/PS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/cS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/cS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/CS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/CS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/cS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/cS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/CS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/CS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/sr",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/sr/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Sr",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Sr/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/sR",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/sR/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/SR",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/SR/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/sr",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/sr/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Sr",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Sr/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/sR",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/sR/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/SR",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/SR/",
+    "destination": "/blend.html?blend=silk-road&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/nM",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/nM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/NM",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/NM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/nM",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/nM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/NM",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/NM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/Kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/kG",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/kG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/KG",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/t/KG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/Kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/kG",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/kG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/KG",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/T/KG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=nfc",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/pS",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/pS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/PS",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/PS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Ps",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Ps/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/pS",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/pS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/PS",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/PS/",
+    "destination": "/blend.html?blend=persian-sunrise&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/cS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/cS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/CS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/CS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Cs",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Cs/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/cS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/cS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/CS",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/CS/",
+    "destination": "/blend.html?blend=caribbean-sunset&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/sr",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/sr/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Sr",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Sr/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/sR",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/sR/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/SR",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/SR/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/sr",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/sr/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Sr",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Sr/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/sR",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/sR/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/SR",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/SR/",
+    "destination": "/blend.html?blend=silk-road&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/nM",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/nM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/NM",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/NM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Nm",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Nm/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/nM",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/nM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/NM",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/NM/",
+    "destination": "/blend.html?blend=north-african-night-market&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/Kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/kG",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/kG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/KG",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/q/KG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Kg",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/Kg/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/kG",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/kG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/KG",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  },
+  {
+    "source": "/Q/KG/",
+    "destination": "/blend.html?blend=kyoto-garden&via=qr",
+    "statusCode": 307
+  }
+]

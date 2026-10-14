@@ -1,0 +1,101 @@
+{
+  "_fixture": {
+    "entity": "blend",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Seeded blend, and the reserved fifth tag code. No tag in this production run carries kg, so no jar in a customer's hand reaches this page. It is held in draft rather than published for exactly that reason.",
+    "fields": {
+      "slug": "contractor_real",
+      "name": "client_real",
+      "tagCode": "contractor_real",
+      "launchTier": "contractor_real",
+      "status": "contractor_real",
+      "tagline": "placeholder_text",
+      "originCountry": "client_real",
+      "originRegion": "client_real",
+      "originCity": "client_real",
+      "farm.latitude": "placeholder_null",
+      "farm.longitude": "placeholder_null",
+      "farm.label": "placeholder_null",
+      "storyBlocks": "placeholder_text",
+      "heroImageId": "placeholder_media",
+      "galleryImageIds": "placeholder_null",
+      "freshness.harvestedOn": "placeholder_null",
+      "freshness.blendedOn": "placeholder_null",
+      "freshness.bestBefore": "placeholder_null",
+      "freshness.lotLabel": "placeholder_text",
+      "freshness.note": "contractor_real",
+      "growerId": "contractor_real",
+      "shopify.sku": "placeholder_null",
+      "shopify.productId": "placeholder_null",
+      "shopify.variantId": "placeholder_null",
+      "shopify.cartPermalinkUrl": "placeholder_null"
+    },
+    "notes": {
+      "status": "draft, not published. The Data model document section 7.6 leaves /t/kg behaviour while this blend is unpublished as an open decision for Dan: a 307 to a branded holding page is proposed rather than a 404.",
+      "originCity": "The client stated 'Kyoto, Japan'. Kyoto is both a prefecture and a city and the blend is named for the city, so both are recorded as stated."
+    }
+  },
+  "_clientFacts": {
+    "source": "Scope document, 'The five blends' and 'Tag code map'",
+    "spices": [
+      "sesame",
+      "nori",
+      "yuzu",
+      "green tea"
+    ],
+    "originAsStatedByClient": "Kyoto, Japan",
+    "tagUnitsEncoded": 0,
+    "tagRunNote": "Reserved, not encoded. No tag in this production run carries kg."
+  },
+  "blend": {
+    "slug": "kyoto-garden",
+    "name": "Kyoto Garden",
+    "status": "draft",
+    "tagline": "[PLACEHOLDER] TAGLINE PENDING, NOT REAL CONTENT. Trevean facts: sesame, nori, yuzu, green tea; Kyoto, Japan.",
+    "launchTier": "seeded",
+    "tagCode": "kg",
+    "originCountry": "JP",
+    "originRegion": "Kyoto",
+    "originCity": "Kyoto",
+    "farm": null,
+    "storyBlocks": [
+      {
+        "type": "heading",
+        "text": "[PLACEHOLDER] STORY HEADING PENDING, NOT REAL CONTENT"
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] SEEDED BLEND, ORIGIN STORY NOT WRITTEN, NOT REAL CONTENT. No tag in this production run carries the kg code, so this page is only reachable by typing the URL. It is held in draft until real content lands. NOT REAL CONTENT. NOT REAL CONTENT."
+      }
+    ],
+    "heroImageId": "med_FAKEHRKG010000000000000000",
+    "galleryImageIds": [],
+    "freshness": {
+      "harvestedOn": null,
+      "blendedOn": null,
+      "bestBefore": null,
+      "lotLabel": "[PLACEHOLDER] LOT PENDING",
+      "note": "Freshness is stated per blend rather than per jar, because tag encoding is per SKU."
+    },
+    "growerId": "grw_FAKEGRKG010000000000000000",
+    "shopify": {
+      "productId": "7804404236391",
+      "variantId": "44647354794087",
+      "sku": null,
+      "cartPermalinkUrl": null
+    },
+    "recipeCount": 0,
+    "version": 1,
+    "publishedAt": null,
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z",
+    "updatedBy": "content-fixtures@serenelabs.io"
+  }
+}

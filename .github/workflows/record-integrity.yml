@@ -1,0 +1,111 @@
+name: Record integrity
+
+# What this gates, and why a knowledge base needs CI at all.
+#
+# This repository is the record rather than the build, and its failure mode is not a
+# broken deployment. It is a document that is confidently wrong, sent to a client who
+# checks every number. Two of those have happened:
+#
+#   D45  A data correction landed in the code and in no document, so for seven days the
+#        tables said the tags were locked and the prose said they were not, including in
+#        two handover deliverables. Prose has no failing test, so nothing caught it.
+#
+#   D50  An entire day of work was dated one day into the future. The project rules have required
+#        a calendar check since August; the rule did not fail, nobody ran it. It was
+#        found by an unrelated email thread rather than by anything here.
+#
+# Both were caught late and by accident. This workflow is the part of that lesson that
+# can be automated: the checks that are cheap, deterministic and easy to forget.
+#
+# It deliberately does NOT try to validate the prose itself. Nothing here can tell you a
+# claim is false. It tells you a weekday does not match its date, which is the specific
+# error this project keeps making.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  weekdays:
+    name: Every weekday matches its date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No install step on purpose. The checker uses only node: builtins, so it cannot
+      # break because a dependency moved, and it runs in about a second on the whole tree.
+      - name: Check weekdays against a real calendar
+        run: node tools/check-weekdays.mjs
+
+  house-style:
+    name: Client facing drafts carry no dashes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Project rule: "No en dashes or em dashes. Use commas, colons, parentheses, full
+      # stops. This applies to every document and message." The rule exists because
+      # asterisks and dashes render literally in Upwork, and because a dash in a pasted
+      # message is the tell that it was not written by hand.
+      #
+      # SCOPED TO FILES THAT DECLARE THE CONVENTION, and the scoping is the point.
+      #
+      # The first version of this check ran over every correspondence file and flagged
+      # three from July and August. Those were false positives: older notes use "---" as
+      # an ordinary section break and are documents rather than Upwork pastes, so
+      # "everything below the first divider" is not their sendable body.
+      #
+      # A check that cries wolf on correct files gets switched off, which is worse than
+      # not having it. So it runs only where the internal note explicitly says the body
+      # below is "plain text with no markdown and no dash or hyphen characters". That
+      # sentence is the file opting in, and it is the same sentence a human reads before
+      # pasting.
+      - name: No markdown or dashes in paste ready message bodies
+        run: |
+          fail=0
+          checked=0
+          for f in correspondence/*.md; do
+            grep -q "plain text with no markdown and no dash" "$f" || continue
+            body=$(awk '/^---$/{f=1;next} f' "$f")
+            [ -z "$body" ] && continue
+            checked=$((checked + 1))
+
+            # EN AND EM DASHES ARE ALWAYS WRONG. They are punctuation, the house rule
+            # names them specifically, and no technical value contains one.
+            dashes=$(printf '%s' "$body" | grep -o -- '[–—]' | wc -l | tr -d ' ')
+            if [ "$dashes" != "0" ]; then
+              echo "::error file=$f::$dashes en or em dash(es) in the sendable body"
+              fail=1
+            fi
+
+            # HYPHENS ARE ONLY WRONG WHEN USED AS PUNCTUATION.
+            #
+            # The first scoped version of this flagged every hyphen and immediately
+            # failed on "Trevean-NFC-Development", "/admin/sign-in", a password and
+            # "acm-validations.aws". Those are identifiers that MUST be exact: breaking
+            # them to satisfy a style rule would send the client a URL that does not
+            # work. The rule is about dashes standing in for commas and colons, so that
+            # is what is detected: a hyphen with a space on at least one side, or a
+            # doubled hyphen. A hyphen inside a word is left alone.
+            punct=$(printf '%s' "$body" | grep -o -E '( - |--| -[A-Za-z]|[A-Za-z]- )' | wc -l | tr -d ' ')
+            if [ "$punct" != "0" ]; then
+              echo "::error file=$f::$punct hyphen(s) used as punctuation in the sendable body"
+              fail=1
+            fi
+            md=$(printf '%s' "$body" | grep -o -- '[*#`]' | wc -l | tr -d ' ')
+            if [ "$md" != "0" ]; then
+              echo "::error file=$f::$md markdown character(s) in the sendable body, which render literally in Upwork"
+              fail=1
+            fi
+          done
+          if [ "$fail" = "0" ]; then echo "OK. $checked paste ready message body(ies) checked, all clean."; fi
+          exit $fail

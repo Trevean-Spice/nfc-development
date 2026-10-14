@@ -1,0 +1,48 @@
+# Destination: .gitignore at the root of nfc-development
+#
+# There is no root .gitignore in this repository. There are 37 files of exactly 2 bytes
+# whose only purpose is to force an empty directory into git, one of which is named
+# config/,gitignore with a leading comma. The missing root file is why a 552 MB
+# node_modules directory is not excluded from anybody's working tree.
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# Test and coverage output
+coverage/
+jest-results.json
+
+# Performance budget CI, per the M1 adoption guide
+.lighthouseci/
+.lhci/
+.lhci-report/
+budget-artifacts/
+LICENCES.generated.md
+
+# Environment. Never commit a real value. config/.env.example is committed and is the
+# only file in this family that may be.
+.env
+.env.*
+!.env.example
+config/.env
+config/.env.*
+!config/.env.example
+
+# Service worker artifacts written into the version-controlled public/ directory at build
+# time by next-pwa. Build output does not belong in source.
+src/web/public/sw.js
+src/web/public/workbox-*.js
+src/web/public/worker-*.js
+
+# Editor and operating system
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

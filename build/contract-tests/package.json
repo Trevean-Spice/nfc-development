@@ -1,0 +1,30 @@
+{
+  "name": "trevean-spice-contract-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Executable enforcement of the frozen Trevean Spice tap-to-story API contract. Driven by the OpenAPI 3.1 document, runnable against any base URL.",
+  "license": "LicenseRef-Trevean-Work-For-Hire",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "stub": "npm run build && node dist/stub/run.js",
+    "test": "npm run build && node --test dist/tests/index.js",
+    "test:stub": "npm run build && node dist/scripts/run-against-stub.js",
+    "test:staging": "npm run build && node dist/tests/index.js",
+    "licences": "node scripts/licenses.mjs",
+    "licences:check": "node scripts/licenses.mjs --check"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.9.2"
+  }
+}

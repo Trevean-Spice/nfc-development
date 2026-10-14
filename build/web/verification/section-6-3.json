@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-08-27T19:50:53.693Z",
+  "foldHeightPx": 640,
+  "foldHeightSource": "Per-page byte and speed budget, section 4.3. Marked TO CONFIRM by measurement on the section 6.4 matrix handsets rather than from spec sheets, and still unconfirmed.",
+  "findings": [
+    {
+      "ok": true,
+      "gates": true,
+      "label": "origin story heading is above the 640 px fold at 375 px",
+      "detail": "heading ends at 454 px"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "release layout: the whole opening paragraph is above the 640 px fold at 375 px",
+      "detail": "paragraph ends at 624 px, 9 lines, 16 px of margin"
+    },
+    {
+      "ok": false,
+      "gates": false,
+      "label": "with the placeholder banner present: the whole opening paragraph is above the 640 px fold",
+      "detail": "paragraph ends at 695 px, banner costs 71 px"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "the placeholder banner is rendered and positioned",
+      "detail": "71 px tall"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "recipes are reachable within 2 taps",
+      "detail": "1 tap on the jump row, which is above the fold"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "every content section is reachable within 3 taps with no instruction",
+      "detail": "jump row offers #story #grower #freshness #recipes #reorder"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "the jump row itself is above the 640 px fold",
+      "detail": "ends at 312 px"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "no horizontal overflow at 360 px",
+      "detail": "scrollWidth exceeds clientWidth by 0 px"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "no horizontal overflow at 375 px",
+      "detail": "scrollWidth exceeds clientWidth by 0 px"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "no horizontal overflow at 428 px",
+      "detail": "scrollWidth exceeds clientWidth by 0 px"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "the offline page is branded and not blank",
+      "detail": "318 characters of copy"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "the unresolved blend page is branded and not blank",
+      "detail": "487 characters of copy"
+    },
+    {
+      "ok": true,
+      "gates": true,
+      "label": "the unknown tag code page is branded and not blank",
+      "detail": "307 characters of copy"
+    }
+  ]
+}

@@ -1,0 +1,646 @@
+{
+  "med_FAKEHRPS010000000000000000": {
+    "mediaId": "med_FAKEHRPS010000000000000000",
+    "kind": "hero",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the persian sunrise hero photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 92160,
+    "intrinsicWidth": 1280,
+    "intrinsicHeight": 955,
+    "largestWidth": 1280,
+    "largestHeight": 955,
+    "fallbackSrc": "/media/persian-sunrise/hero-900.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/hero-640.avif 640w, /media/persian-sunrise/hero-900.avif 900w, /media/persian-sunrise/hero-1280.avif 1280w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/hero-640.webp 640w, /media/persian-sunrise/hero-900.webp 900w, /media/persian-sunrise/hero-1280.webp 1280w"
+      }
+    ]
+  },
+  "med_FAKEFMPS010000000000000000": {
+    "mediaId": "med_FAKEFMPS010000000000000000",
+    "kind": "farm_map",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the persian sunrise farm map. No coordinates have been supplied and none are invented. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 40960,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 400,
+    "largestWidth": 640,
+    "largestHeight": 400,
+    "fallbackSrc": "/media/persian-sunrise/map-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/map-320.avif 320w, /media/persian-sunrise/map-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/map-320.webp 320w, /media/persian-sunrise/map-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEHRCS010000000000000000": {
+    "mediaId": "med_FAKEHRCS010000000000000000",
+    "kind": "hero",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the caribbean sunset hero photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 92160,
+    "intrinsicWidth": 1280,
+    "intrinsicHeight": 955,
+    "largestWidth": 1280,
+    "largestHeight": 955,
+    "fallbackSrc": "/media/caribbean-sunset/hero-900.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/hero-640.avif 640w, /media/caribbean-sunset/hero-900.avif 900w, /media/caribbean-sunset/hero-1280.avif 1280w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/hero-640.webp 640w, /media/caribbean-sunset/hero-900.webp 900w, /media/caribbean-sunset/hero-1280.webp 1280w"
+      }
+    ]
+  },
+  "med_FAKEFMCS010000000000000000": {
+    "mediaId": "med_FAKEFMCS010000000000000000",
+    "kind": "farm_map",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the caribbean sunset farm map. No coordinates have been supplied and none are invented. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 40960,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 400,
+    "largestWidth": 640,
+    "largestHeight": 400,
+    "fallbackSrc": "/media/caribbean-sunset/map-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/map-320.avif 320w, /media/caribbean-sunset/map-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/map-320.webp 320w, /media/caribbean-sunset/map-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEHRNM010000000000000000": {
+    "mediaId": "med_FAKEHRNM010000000000000000",
+    "kind": "hero",
+    "blendSlug": "north-african-night-market",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the north african night market hero photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 92160,
+    "intrinsicWidth": 1280,
+    "intrinsicHeight": 955,
+    "largestWidth": 1280,
+    "largestHeight": 955,
+    "fallbackSrc": "/media/north-african-night-market/hero-900.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/north-african-night-market/hero-640.avif 640w, /media/north-african-night-market/hero-900.avif 900w, /media/north-african-night-market/hero-1280.avif 1280w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/north-african-night-market/hero-640.webp 640w, /media/north-african-night-market/hero-900.webp 900w, /media/north-african-night-market/hero-1280.webp 1280w"
+      }
+    ]
+  },
+  "med_FAKEFMNM010000000000000000": {
+    "mediaId": "med_FAKEFMNM010000000000000000",
+    "kind": "farm_map",
+    "blendSlug": "north-african-night-market",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the north african night market farm map. No coordinates have been supplied and none are invented. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 40960,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 400,
+    "largestWidth": 640,
+    "largestHeight": 400,
+    "fallbackSrc": "/media/north-african-night-market/map-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/north-african-night-market/map-320.avif 320w, /media/north-african-night-market/map-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/north-african-night-market/map-320.webp 320w, /media/north-african-night-market/map-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEHRSR010000000000000000": {
+    "mediaId": "med_FAKEHRSR010000000000000000",
+    "kind": "hero",
+    "blendSlug": "silk-road",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the silk road hero photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 92160,
+    "intrinsicWidth": 1280,
+    "intrinsicHeight": 955,
+    "largestWidth": 1280,
+    "largestHeight": 955,
+    "fallbackSrc": "/media/silk-road/hero-900.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/silk-road/hero-640.avif 640w, /media/silk-road/hero-900.avif 900w, /media/silk-road/hero-1280.avif 1280w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/silk-road/hero-640.webp 640w, /media/silk-road/hero-900.webp 900w, /media/silk-road/hero-1280.webp 1280w"
+      }
+    ]
+  },
+  "med_FAKEFMSR010000000000000000": {
+    "mediaId": "med_FAKEFMSR010000000000000000",
+    "kind": "farm_map",
+    "blendSlug": "silk-road",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the silk road farm map. No coordinates have been supplied and none are invented. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 40960,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 400,
+    "largestWidth": 640,
+    "largestHeight": 400,
+    "fallbackSrc": "/media/silk-road/map-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/silk-road/map-320.avif 320w, /media/silk-road/map-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/silk-road/map-320.webp 320w, /media/silk-road/map-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEHRKG010000000000000000": {
+    "mediaId": "med_FAKEHRKG010000000000000000",
+    "kind": "hero",
+    "blendSlug": "kyoto-garden",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the kyoto garden hero photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 92160,
+    "intrinsicWidth": 1280,
+    "intrinsicHeight": 955,
+    "largestWidth": 1280,
+    "largestHeight": 955,
+    "fallbackSrc": "/media/kyoto-garden/hero-900.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/kyoto-garden/hero-640.avif 640w, /media/kyoto-garden/hero-900.avif 900w, /media/kyoto-garden/hero-1280.avif 1280w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/kyoto-garden/hero-640.webp 640w, /media/kyoto-garden/hero-900.webp 900w, /media/kyoto-garden/hero-1280.webp 1280w"
+      }
+    ]
+  },
+  "med_FAKEFMKG010000000000000000": {
+    "mediaId": "med_FAKEFMKG010000000000000000",
+    "kind": "farm_map",
+    "blendSlug": "kyoto-garden",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for the kyoto garden farm map. No coordinates have been supplied and none are invented. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 40960,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 400,
+    "largestWidth": 640,
+    "largestHeight": 400,
+    "fallbackSrc": "/media/kyoto-garden/map-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/kyoto-garden/map-320.avif 320w, /media/kyoto-garden/map-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/kyoto-garden/map-320.webp 320w, /media/kyoto-garden/map-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEGPPS010000000000000000": {
+    "mediaId": "med_FAKEGPPS010000000000000000",
+    "kind": "grower_portrait",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a grower portrait. There is no grower on file for persian sunrise. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 81920,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 640,
+    "largestWidth": 640,
+    "largestHeight": 640,
+    "fallbackSrc": "/media/persian-sunrise/grower-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/grower-320.avif 320w, /media/persian-sunrise/grower-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/grower-320.webp 320w, /media/persian-sunrise/grower-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEGPCS010000000000000000": {
+    "mediaId": "med_FAKEGPCS010000000000000000",
+    "kind": "grower_portrait",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a grower portrait. There is no grower on file for caribbean sunset. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 81920,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 640,
+    "largestWidth": 640,
+    "largestHeight": 640,
+    "fallbackSrc": "/media/caribbean-sunset/grower-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/grower-320.avif 320w, /media/caribbean-sunset/grower-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/grower-320.webp 320w, /media/caribbean-sunset/grower-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEGPNM010000000000000000": {
+    "mediaId": "med_FAKEGPNM010000000000000000",
+    "kind": "grower_portrait",
+    "blendSlug": "north-african-night-market",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a grower portrait. There is no grower on file for north african night market. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 81920,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 640,
+    "largestWidth": 640,
+    "largestHeight": 640,
+    "fallbackSrc": "/media/north-african-night-market/grower-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/north-african-night-market/grower-320.avif 320w, /media/north-african-night-market/grower-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/north-african-night-market/grower-320.webp 320w, /media/north-african-night-market/grower-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEGPSR010000000000000000": {
+    "mediaId": "med_FAKEGPSR010000000000000000",
+    "kind": "grower_portrait",
+    "blendSlug": "silk-road",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a grower portrait. There is no grower on file for silk road. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 81920,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 640,
+    "largestWidth": 640,
+    "largestHeight": 640,
+    "fallbackSrc": "/media/silk-road/grower-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/silk-road/grower-320.avif 320w, /media/silk-road/grower-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/silk-road/grower-320.webp 320w, /media/silk-road/grower-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKEGPKG010000000000000000": {
+    "mediaId": "med_FAKEGPKG010000000000000000",
+    "kind": "grower_portrait",
+    "blendSlug": "kyoto-garden",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a grower portrait. There is no grower on file for kyoto garden. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 81920,
+    "intrinsicWidth": 640,
+    "intrinsicHeight": 640,
+    "largestWidth": 640,
+    "largestHeight": 640,
+    "fallbackSrc": "/media/kyoto-garden/grower-320.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/kyoto-garden/grower-320.avif 320w, /media/kyoto-garden/grower-640.avif 640w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/kyoto-garden/grower-320.webp 320w, /media/kyoto-garden/grower-640.webp 640w"
+      }
+    ]
+  },
+  "med_FAKERCPS010000000000000000": {
+    "mediaId": "med_FAKERCPS010000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-01-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-01-300.avif 300w, /media/persian-sunrise/recipe-01-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-01-300.webp 300w, /media/persian-sunrise/recipe-01-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCPS020000000000000000": {
+    "mediaId": "med_FAKERCPS020000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-02-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-02-300.avif 300w, /media/persian-sunrise/recipe-02-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-02-300.webp 300w, /media/persian-sunrise/recipe-02-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCPS030000000000000000": {
+    "mediaId": "med_FAKERCPS030000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-03-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-03-300.avif 300w, /media/persian-sunrise/recipe-03-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-03-300.webp 300w, /media/persian-sunrise/recipe-03-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCPS040000000000000000": {
+    "mediaId": "med_FAKERCPS040000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-04-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-04-300.avif 300w, /media/persian-sunrise/recipe-04-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-04-300.webp 300w, /media/persian-sunrise/recipe-04-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCPS050000000000000000": {
+    "mediaId": "med_FAKERCPS050000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-05-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-05-300.avif 300w, /media/persian-sunrise/recipe-05-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-05-300.webp 300w, /media/persian-sunrise/recipe-05-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCPS060000000000000000": {
+    "mediaId": "med_FAKERCPS060000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-06-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-06-300.avif 300w, /media/persian-sunrise/recipe-06-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-06-300.webp 300w, /media/persian-sunrise/recipe-06-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCPS070000000000000000": {
+    "mediaId": "med_FAKERCPS070000000000000000",
+    "kind": "recipe",
+    "blendSlug": "persian-sunrise",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a persian sunrise recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/persian-sunrise/recipe-07-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/persian-sunrise/recipe-07-300.avif 300w, /media/persian-sunrise/recipe-07-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/persian-sunrise/recipe-07-300.webp 300w, /media/persian-sunrise/recipe-07-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCCS010000000000000000": {
+    "mediaId": "med_FAKERCCS010000000000000000",
+    "kind": "recipe",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a caribbean sunset recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/caribbean-sunset/recipe-01-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/recipe-01-300.avif 300w, /media/caribbean-sunset/recipe-01-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/recipe-01-300.webp 300w, /media/caribbean-sunset/recipe-01-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCCS020000000000000000": {
+    "mediaId": "med_FAKERCCS020000000000000000",
+    "kind": "recipe",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a caribbean sunset recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/caribbean-sunset/recipe-02-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/recipe-02-300.avif 300w, /media/caribbean-sunset/recipe-02-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/recipe-02-300.webp 300w, /media/caribbean-sunset/recipe-02-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCCS030000000000000000": {
+    "mediaId": "med_FAKERCCS030000000000000000",
+    "kind": "recipe",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a caribbean sunset recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/caribbean-sunset/recipe-03-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/recipe-03-300.avif 300w, /media/caribbean-sunset/recipe-03-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/recipe-03-300.webp 300w, /media/caribbean-sunset/recipe-03-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCCS040000000000000000": {
+    "mediaId": "med_FAKERCCS040000000000000000",
+    "kind": "recipe",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a caribbean sunset recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/caribbean-sunset/recipe-04-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/recipe-04-300.avif 300w, /media/caribbean-sunset/recipe-04-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/recipe-04-300.webp 300w, /media/caribbean-sunset/recipe-04-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCCS050000000000000000": {
+    "mediaId": "med_FAKERCCS050000000000000000",
+    "kind": "recipe",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a caribbean sunset recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/caribbean-sunset/recipe-05-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/recipe-05-300.avif 300w, /media/caribbean-sunset/recipe-05-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/recipe-05-300.webp 300w, /media/caribbean-sunset/recipe-05-600.webp 600w"
+      }
+    ]
+  },
+  "med_FAKERCCS060000000000000000": {
+    "mediaId": "med_FAKERCCS060000000000000000",
+    "kind": "recipe",
+    "blendSlug": "caribbean-sunset",
+    "alt": "[PLACEHOLDER] Generated placeholder standing in for a caribbean sunset recipe photograph. NOT REAL CONTENT.",
+    "placeholder": true,
+    "masterBytes": 38912,
+    "intrinsicWidth": 600,
+    "intrinsicHeight": 450,
+    "largestWidth": 600,
+    "largestHeight": 450,
+    "fallbackSrc": "/media/caribbean-sunset/recipe-06-300.webp",
+    "sources": [
+      {
+        "type": "image/avif",
+        "srcset": "/media/caribbean-sunset/recipe-06-300.avif 300w, /media/caribbean-sunset/recipe-06-600.avif 600w"
+      },
+      {
+        "type": "image/webp",
+        "srcset": "/media/caribbean-sunset/recipe-06-300.webp 300w, /media/caribbean-sunset/recipe-06-600.webp 600w"
+      }
+    ]
+  }
+}

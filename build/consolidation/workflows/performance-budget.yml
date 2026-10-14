@@ -1,0 +1,403 @@
+# Trevean Spice NFC. Per-page byte and speed budget, enforced.
+#
+# Adapted from the M1 deliverable "Per-page byte and speed budget", CI package, for the
+# nfc-development repository. A commit that exceeds the budget fails this workflow and
+# does not merge. That is the deliverable, not the report.
+#
+# Two measurements, each taken on the path its criterion actually names:
+#
+#   tap     /t/{code} with the 307 inside the measurement, throttled at the design point
+#           (150 ms RTT, 4 Mbps, 4x CPU). Gates the byte and request budget. Decision D11:
+#           the clock starts on the first navigation, not the second. This is a regression
+#           tripwire. It is NOT evidence of the contractual 2.0 s, which is measured on
+#           real handsets by the measurement harness at the M2 gate, run by Trevean staff.
+#
+#   direct  the blend page on its own, Lighthouse default mobile throttling, so the score
+#           is comparable to any other Lighthouse run. Gates section 6.2's
+#           "Performance score >= 90 on landing pages".
+#
+# WHAT CHANGED FROM THE M1 PACKAGE, AND WHY
+#
+#   1. node-version-file: .nvmrc rather than a literal '22'. One version for the whole
+#      repository. The budget scripts declare node >=20 and .nvmrc pins 20.
+#
+#   2. BUDGET_HTML_DIRS is now a confirmed value rather than a guess. This repository is
+#      Next.js 14 Pages Router and a real build on 19 August 2026 wrote five pre-rendered
+#      blend pages to src/web/.next/server/pages/blend/. The "TO CONFIRM IN AUDIT" marker
+#      in the M1 package is discharged.
+#
+#   3. The tap-path job is ADVISORY on adoption, and it is armed automatically. There is
+#      no /t/{code} route in this repository: the redirect, the redirect table, the two
+#      letter codes and the via parameter return zero matches repository wide, and the
+#      redirect lives in the canonical edge package. Gating on a route that does not exist
+#      would make this workflow permanently red for a reason no pull request can fix, and
+#      a permanently red check is one people learn to ignore. So the tap job reports.
+#      To stop that becoming permanent, the job PROBES for the redirect first and FAILS if
+#      the redirect exists while the gate is still advisory. The advisory therefore cannot
+#      outlive the reason for it. See the "Arm the gate" step.
+#
+#   4. The direct-phase job gates from day one, and budget.json's urls.directPages must be
+#      set to the route shape this repository SERVES before it can. As shipped in the M1
+#      package that list is /blend.html?blend={slug}&via=nfc, which is the shape the tags
+#      reach and the shape this repository does not serve. Measured against a real build on
+#      25 August 2026 with the application running:
+#
+#        GET /blend.html?blend=persian-sunrise&via=nfc  ->  404
+#        GET /blend.html?blend=caribbean-sunset&via=nfc ->  404
+#        GET /blend/persian-sunrise                     ->  200
+#        GET /blend/silk-road                           ->  200
+#
+#      So PR 10 sets urls.directPages to /blend/persian-sunrise and /blend/caribbean-sunset
+#      and changes nothing else in the file. The exact edit is in the consolidation plan,
+#      PR 10. Without it the two gating jobs fail at "Assert the measured URLs are real
+#      pages" on the day they are marked required, which no author can fix inside a diff.
+#      The document measured is the same pre-rendered document either way; when the rewrite
+#      or the CDN rule closes the route-shape gap, the list moves back to /blend.html and no
+#      number in budget.json changes.
+#
+#   5. npm run start is added to the root package.json in this consolidation. The root
+#      manifest as inherited has no start script at all, so the M1 package's start step
+#      would have failed on adoption.
+
+name: Performance budget
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-budget-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUDGET_BASE_URL: http://localhost:3000
+  # CONFIRMED against a real build of this repository, 19 August 2026. Next.js 14,
+  # Pages Router, five blend pages pre-rendered. Not a guess.
+  BUDGET_HTML_DIRS: src/web/.next/server/pages
+  # Deliberately NOT set: BUDGET_STATIC_OPTIONAL. If the static check reports no
+  # pre-rendered HTML, that is a finding about the rendering strategy, not a
+  # configuration detail, and it must fail rather than warn.
+
+jobs:
+  # -------------------------------------------------------------- static budget --
+  # Gating from day one. Fast, deterministic, no browser, and it catches the sharpest
+  # cliff in the budget: the HTML document must fit the initial congestion window so it
+  # arrives in one round trip.
+  #
+  # An earlier version of this comment said to expect this job RED on first adoption, for
+  # two reasons: zero bytes of inlined critical CSS against a 9 KB allowance, and one
+  # render-blocking stylesheet. That was written rather than run, and running it says
+  # otherwise. On a real build with PRs 1 to 10 applied, 25 August 2026:
+  #
+  #   Checking 8 pre-rendered page(s).
+  #   PASS  HTML, Brotli q11    3.1 KB / 14.0 KB   blend/persian-sunrise.html
+  #   PASS  inline CSS, raw     0.0 KB /  9.0 KB   blend/persian-sunrise.html
+  #   WARN  1 apparently render-blocking <link rel="stylesheet">   (on all 8 pages)
+  #   Static budget met across 8 page(s).
+  #   exit 0
+  #
+  # The 9 KB inline CSS allowance is a CEILING, so zero bytes passes it, and the blocking
+  # stylesheet is a warning here by design because only Lighthouse can tell a blocking
+  # stylesheet from one the browser defers. Both remain real defects (D13) and both are
+  # caught by the direct-phase job's Lighthouse assertion, not by this one. This job is
+  # green on adoption and it is still a gate: it fails on an HTML document over 14 KB
+  # Brotli, on inlined CSS over 9 KB, on a third-party font host, and on finding no
+  # pre-rendered HTML at all.
+  budget-static:
+    name: Static budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Static budget (HTML weight, inline CSS, font hosts)
+        run: node scripts/check-static-budget.mjs
+
+  # ------------------------------------------------------------------ tap phase --
+  budget-tap:
+    name: Tap-path budget at ${{ matrix.viewport }} px (advisory until the redirect exists)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: ['375', '428']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Record Chrome version
+        run: google-chrome --version || chromium --version
+
+      - name: Build
+        run: npm run build
+
+      - name: Start the application
+        run: |
+          npm run start &
+          echo $! > .server.pid
+          for i in $(seq 1 60); do
+            if curl -sSf -o /dev/null "$BUDGET_BASE_URL" 2>/dev/null; then
+              echo "Server responding after ${i}s."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not respond within 60s at $BUDGET_BASE_URL."
+          exit 1
+
+      # THE ARMING STEP. This job carries continue-on-error because /t/ps does not exist
+      # in this repository yet. The moment it does, the advisory has to end, and nobody
+      # should have to remember. If the redirect answers, this step fails the step and
+      # prints the exact edit, and because it runs before the measurement the failure is
+      # unambiguous.
+      - name: Arm the gate if the redirect now exists
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BUDGET_BASE_URL/t/ps" || echo "000")
+          echo "GET /t/ps returned $code"
+          if [ "$code" = "307" ]; then
+            echo ""
+            echo "FAIL: /t/ps now answers 307, so the tap-path budget is measurable and"
+            echo "this job must stop being advisory."
+            echo ""
+            echo "Fix, in one pull request:"
+            echo "  1. remove 'continue-on-error: true' from the budget-tap job"
+            echo "  2. make 'Tap-path budget at 375 px' and 'at 428 px' required status"
+            echo "     checks on the default branch"
+            echo ""
+            echo "The byte and request budget is a contractual gate from M2 to handoff."
+            echo "It was advisory only because there was no redirect to measure."
+            exit 1
+          fi
+          if [ "$code" = "301" ] || [ "$code" = "308" ]; then
+            echo ""
+            echo "FAIL: /t/ps answered $code, which is permanent."
+            echo "The redirect must be 307. A permanent redirect on a thousand shipped"
+            echo "tags removes the ability to repoint a blend by editing the redirect"
+            echo "table, which is the entire reason the redirect exists."
+            exit 1
+          fi
+          echo "No redirect yet. Tap-path measurement is advisory this run."
+
+      - name: Generate config, tap path
+        run: node scripts/make-lhci-config.mjs --phase tap --viewport ${{ matrix.viewport }} --out .lhci/tap.json
+
+      - name: Collect, tap path
+        run: npx lhci collect --config=.lhci/tap.json
+
+      - name: Assert byte and request budget (contractual gate)
+        run: node scripts/check-budget.mjs --lhr-dir .lighthouseci --phase tap --viewport ${{ matrix.viewport }}
+
+      - name: Assert tap-path metrics (regression tripwire, not acceptance)
+        run: npx lhci assert --config=.lhci/tap.json
+
+      - name: Archive tap-path results
+        if: always()
+        run: |
+          mkdir -p budget-artifacts/tap-${{ matrix.viewport }}
+          cp -f .lighthouseci/*.json .lighthouseci/*.html budget-artifacts/tap-${{ matrix.viewport }}/ 2>/dev/null || true
+          rm -rf .lighthouseci
+
+      - name: Stop the application
+        if: always()
+        run: kill "$(cat .server.pid)" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: budget-tap-${{ matrix.viewport }}
+          path: budget-artifacts/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # --------------------------------------------------------------- direct phase --
+  # Gating from day one. Lighthouse default mobile throttling, so the score is comparable
+  # to any other Lighthouse run anywhere. This is the only phase whose score may be
+  # quoted.
+  budget-direct:
+    name: Budget at ${{ matrix.viewport }} px
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: ['375', '428']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Record Chrome version
+        run: google-chrome --version || chromium --version
+
+      - name: Build
+        run: npm run build
+
+      - name: Start the application
+        run: |
+          npm run start &
+          echo $! > .server.pid
+          for i in $(seq 1 60); do
+            if curl -sSf -o /dev/null "$BUDGET_BASE_URL" 2>/dev/null; then
+              echo "Server responding after ${i}s."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not respond within 60s at $BUDGET_BASE_URL."
+          exit 1
+
+      # A 404 measures beautifully and means nothing. budget.json names the URLs; this
+      # step proves each one is a real page before Lighthouse is given a chance to score
+      # one.
+      - name: Assert the measured URLs are real pages
+        run: |
+          fail=0
+          for u in $(node -e "const b=require('./budget.json');console.log(b.urls.directPages.join(' '))"); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$BUDGET_BASE_URL$u" || echo "000")
+            echo "GET $u -> $code"
+            if [ "$code" != "200" ]; then fail=1; fi
+          done
+          if [ "$fail" = "1" ]; then
+            echo ""
+            echo "FAIL: at least one URL in budget.json urls.directPages is not a 200."
+            echo "A Lighthouse score taken against a 404 page is a green build that"
+            echo "certifies nothing. Fix the URL list or fix the route; do not proceed."
+            exit 1
+          fi
+
+      - name: Generate config, direct page
+        run: node scripts/make-lhci-config.mjs --phase direct --viewport ${{ matrix.viewport }} --out .lhci/direct.json
+
+      - name: Collect, direct page
+        run: npx lhci collect --config=.lhci/direct.json
+
+      - name: Assert whole-page budget
+        run: node scripts/check-budget.mjs --lhr-dir .lighthouseci --phase direct --viewport ${{ matrix.viewport }}
+
+      - name: Assert Lighthouse performance score at or above 90
+        run: npx lhci assert --config=.lhci/direct.json
+
+      - name: Archive direct-page results
+        if: always()
+        run: |
+          mkdir -p budget-artifacts/direct-${{ matrix.viewport }}
+          cp -f .lighthouseci/*.json .lighthouseci/*.html budget-artifacts/direct-${{ matrix.viewport }}/ 2>/dev/null || true
+
+      - name: Stop the application
+        if: always()
+        run: kill "$(cat .server.pid)" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: budget-direct-${{ matrix.viewport }}
+          path: budget-artifacts/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ------------------------------------------------------------ advisory 360 px --
+  # Section 6.2 requires responsiveness across 375 to 428 px. The Galaxy S23 is on the
+  # section 6.4 acceptance matrix and, at its default display-size setting, appears to
+  # report a CSS viewport narrower than 375 px. This job collects the data either way so
+  # the question is answered with a measurement rather than an argument. It does not gate
+  # a merge until Dan rules on the floor.
+  advisory-360:
+    name: Advisory at 360 px (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Start the application
+        run: |
+          npm run start &
+          echo $! > .server.pid
+          for i in $(seq 1 60); do
+            if curl -sSf -o /dev/null "$BUDGET_BASE_URL" 2>/dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "Server did not respond within 60s."
+          exit 1
+
+      - name: Generate config, 360 px
+        run: node scripts/make-lhci-config.mjs --phase direct --viewport 360 --out .lhci/advisory.json
+
+      - run: npx lhci collect --config=.lhci/advisory.json
+
+      - name: Report only
+        run: node scripts/check-budget.mjs --lhr-dir .lighthouseci --phase direct --viewport 360
+
+      - name: Stop the application
+        if: always()
+        run: kill "$(cat .server.pid)" 2>/dev/null || true
+
+  # ------------------------------------------------------------------- licences --
+  # SOW section 7: every reused library must be listed explicitly and licensed to Trevean
+  # to run and maintain the product indefinitely. Generated on every build so it is
+  # current at handoff rather than reconstructed at handoff, which is the avoidable
+  # problem the obligation was written to prevent.
+  licences:
+    name: Background-IP licence list
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate licence list
+        run: node scripts/licenses.mjs --out LICENCES.generated.md --check
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: background-ip-licences
+          path: LICENCES.generated.md
+          retention-days: 90
+          if-no-files-found: ignore

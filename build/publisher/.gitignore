@@ -1,0 +1,6 @@
+node_modules/
+
+# The stand in site bucket. Everything in it is produced by a publish and is
+# the local equivalent of an S3 bucket's contents, which is not a thing that
+# belongs in version control.
+.local-site/

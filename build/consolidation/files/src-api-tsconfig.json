@@ -1,0 +1,26 @@
+{
+  "//": [
+    "Destination: src/api/tsconfig.json in nfc-development.",
+    "Referenced by the root package.json build:api script (tsc -p src/api/tsconfig.json)",
+    "and by scripts/build.sh. It has never existed, so npm run build has never succeeded.",
+    "Extends the root so the path aliases and strictness are declared once. Note that this",
+    "project emits to dist/api, which is one of the two directories scripts/deploy.sh",
+    "consumes and scripts/build.sh has never produced. Producing it here does not make",
+    "deploy.sh usable: that script also requires a Lambda function, a CloudFormation stack",
+    "and an S3 bucket that are declared nowhere, and it runs against whatever ambient AWS",
+    "credentials the operator happens to hold. See PR 2 in the consolidation plan.",
+    "TypeScript ignores a top level key named // in tsconfig files, so this block is legal",
+    "and may be left in place."
+  ],
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../../dist/api",
+    "types": ["node"],
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "../../dist"]
+}

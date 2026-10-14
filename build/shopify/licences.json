@@ -1,0 +1,332 @@
+{
+  "generatedAt": "2026-08-22T21:13:57.818Z",
+  "runtime": [],
+  "direct": [
+    {
+      "name": "@types/node",
+      "version": "20.19.43",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node"
+    },
+    {
+      "name": "ajv",
+      "version": "8.20.0",
+      "license": "MIT",
+      "homepage": "https://ajv.js.org"
+    },
+    {
+      "name": "ajv-formats",
+      "version": "3.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/ajv-validator/ajv-formats#readme"
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "homepage": "https://www.typescriptlang.org/"
+    },
+    {
+      "name": "vitest",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest#readme"
+    },
+    {
+      "name": "yaml",
+      "version": "2.9.0",
+      "license": "ISC",
+      "homepage": "https://eemeli.org/yaml/"
+    }
+  ],
+  "transitive": [
+    {
+      "name": "@esbuild/win32-x64",
+      "version": "0.21.5",
+      "license": "MIT",
+      "homepage": "git+https://github.com/evanw/esbuild.git"
+    },
+    {
+      "name": "@jridgewell/sourcemap-codec",
+      "version": "1.5.5",
+      "license": "MIT",
+      "homepage": "https://github.com/jridgewell/sourcemaps/tree/main/packages/sourcemap-codec"
+    },
+    {
+      "name": "@rollup/rollup-win32-x64-gnu",
+      "version": "4.62.5",
+      "license": "MIT",
+      "homepage": "https://rollupjs.org/"
+    },
+    {
+      "name": "@rollup/rollup-win32-x64-msvc",
+      "version": "4.62.5",
+      "license": "MIT",
+      "homepage": "https://rollupjs.org/"
+    },
+    {
+      "name": "@types/estree",
+      "version": "1.0.9",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/estree"
+    },
+    {
+      "name": "@vitest/expect",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/expect#readme"
+    },
+    {
+      "name": "@vitest/mocker",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/mocker#readme"
+    },
+    {
+      "name": "@vitest/pretty-format",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/utils#readme"
+    },
+    {
+      "name": "@vitest/runner",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/runner#readme"
+    },
+    {
+      "name": "@vitest/snapshot",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/snapshot#readme"
+    },
+    {
+      "name": "@vitest/spy",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/spy#readme"
+    },
+    {
+      "name": "@vitest/utils",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/utils#readme"
+    },
+    {
+      "name": "assertion-error",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "git@github.com:chaijs/assertion-error.git"
+    },
+    {
+      "name": "cac",
+      "version": "6.7.14",
+      "license": "MIT",
+      "homepage": "egoist/cac"
+    },
+    {
+      "name": "chai",
+      "version": "5.3.3",
+      "license": "MIT",
+      "homepage": "http://chaijs.com"
+    },
+    {
+      "name": "check-error",
+      "version": "2.1.3",
+      "license": "MIT",
+      "homepage": "git+ssh://git@github.com/chaijs/check-error.git"
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "homepage": "git://github.com/debug-js/debug.git"
+    },
+    {
+      "name": "deep-eql",
+      "version": "5.0.2",
+      "license": "MIT",
+      "homepage": "git@github.com:chaijs/deep-eql.git"
+    },
+    {
+      "name": "es-module-lexer",
+      "version": "1.7.0",
+      "license": "MIT",
+      "homepage": "https://github.com/guybedford/es-module-lexer#readme"
+    },
+    {
+      "name": "esbuild",
+      "version": "0.21.5",
+      "license": "MIT",
+      "homepage": "git+https://github.com/evanw/esbuild.git"
+    },
+    {
+      "name": "estree-walker",
+      "version": "3.0.3",
+      "license": "MIT",
+      "homepage": "https://github.com/Rich-Harris/estree-walker"
+    },
+    {
+      "name": "expect-type",
+      "version": "1.4.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/mmkal/expect-type#readme"
+    },
+    {
+      "name": "fast-deep-equal",
+      "version": "3.1.3",
+      "license": "MIT",
+      "homepage": "https://github.com/epoberezkin/fast-deep-equal#readme"
+    },
+    {
+      "name": "fast-uri",
+      "version": "3.1.5",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/fastify/fast-uri"
+    },
+    {
+      "name": "json-schema-traverse",
+      "version": "1.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/epoberezkin/json-schema-traverse#readme"
+    },
+    {
+      "name": "loupe",
+      "version": "3.2.1",
+      "license": "MIT",
+      "homepage": "https://github.com/chaijs/loupe"
+    },
+    {
+      "name": "magic-string",
+      "version": "0.30.21",
+      "license": "MIT",
+      "homepage": "git+https://github.com/Rich-Harris/magic-string.git"
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "homepage": "vercel/ms"
+    },
+    {
+      "name": "nanoid",
+      "version": "3.3.18",
+      "license": "MIT",
+      "homepage": "ai/nanoid"
+    },
+    {
+      "name": "pathe",
+      "version": "1.1.2",
+      "license": "MIT",
+      "homepage": "unjs/pathe"
+    },
+    {
+      "name": "pathval",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/chaijs/pathval"
+    },
+    {
+      "name": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "homepage": "alexeyraspopov/picocolors"
+    },
+    {
+      "name": "postcss",
+      "version": "8.5.26",
+      "license": "MIT",
+      "homepage": "https://postcss.org/"
+    },
+    {
+      "name": "require-from-string",
+      "version": "2.0.2",
+      "license": "MIT",
+      "homepage": "floatdrop/require-from-string"
+    },
+    {
+      "name": "rollup",
+      "version": "4.62.5",
+      "license": "MIT",
+      "homepage": "https://rollupjs.org/"
+    },
+    {
+      "name": "siginfo",
+      "version": "2.0.0",
+      "license": "ISC",
+      "homepage": "https://github.com/emilbayes/siginfo#readme"
+    },
+    {
+      "name": "source-map-js",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/7rulnik/source-map-js"
+    },
+    {
+      "name": "stackback",
+      "version": "0.0.2",
+      "license": "MIT",
+      "homepage": "git://github.com/shtylman/node-stackback.git"
+    },
+    {
+      "name": "std-env",
+      "version": "3.10.0",
+      "license": "MIT",
+      "homepage": "unjs/std-env"
+    },
+    {
+      "name": "tinybench",
+      "version": "2.9.0",
+      "license": "MIT",
+      "homepage": "tinylibs/tinybench"
+    },
+    {
+      "name": "tinyexec",
+      "version": "0.3.2",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinyexec#readme"
+    },
+    {
+      "name": "tinypool",
+      "version": "1.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinypool#readme"
+    },
+    {
+      "name": "tinyrainbow",
+      "version": "1.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinyrainbow#readme"
+    },
+    {
+      "name": "tinyspy",
+      "version": "3.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/tinylibs/tinyspy#readme"
+    },
+    {
+      "name": "undici-types",
+      "version": "6.21.0",
+      "license": "MIT",
+      "homepage": "https://undici.nodejs.org"
+    },
+    {
+      "name": "vite",
+      "version": "5.4.21",
+      "license": "MIT",
+      "homepage": "https://vite.dev"
+    },
+    {
+      "name": "vite-node",
+      "version": "2.1.9",
+      "license": "MIT",
+      "homepage": "https://github.com/vitest-dev/vitest/blob/main/packages/vite-node#readme"
+    },
+    {
+      "name": "why-is-node-running",
+      "version": "2.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/why-is-node-running"
+    }
+  ]
+}

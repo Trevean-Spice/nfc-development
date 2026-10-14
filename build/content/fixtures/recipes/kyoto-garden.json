@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "entity": "recipe",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Seeded blend. No recipes. The 5 to 10 recipe carousel is a launch blend requirement under the Scope document, so this file records zero rather than inventing filler.",
+    "recipeCount": 0,
+    "requiredRange": [
+      5,
+      10
+    ],
+    "appliesTo": "seeded blend, not required at M2"
+  },
+  "blendSlug": "kyoto-garden",
+  "recipes": []
+}

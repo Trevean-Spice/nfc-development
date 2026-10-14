@@ -1,0 +1,148 @@
+/*
+ * Preview styling.
+ *
+ * A faithful reproduction of the consumer page's shape and of the placeholder render
+ * contract, which is the half of the preview that must not be softer than the real page:
+ *
+ *   1. A page built from a record carrying placeholder content shows a sticky, undismissable
+ *      banner. Not behind a flag, not dismissible, and it paints with the first text rather
+ *      than after it, because a banner that paints late is a banner a screenshot can miss.
+ *   2. A null placeholder renders its slot with a pending marker rather than collapsing.
+ *      A collapsed slot makes the layout smaller than the real page, which makes the
+ *      measurement a lie.
+ *   3. A control that cannot work yet is disabled and labelled, never hidden and never
+ *      pointed somewhere plausible.
+ *
+ * This file styles a preview inside an admin tool. It is not the consumer page's stylesheet
+ * and it is not counted against the consumer page's critical CSS budget.
+ */
+
+:root {
+  --ink: #1a1816;
+  --muted: #6a6560;
+  --line: #e6e1d9;
+  --accent: #7a4b1e;
+  --placeholder-hazard: #ff008c;
+  --placeholder-paper: #fff4fa;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+.placeholder-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--placeholder-hazard);
+  color: #fff;
+  font: 700 13px/1.35 system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+.placeholder-banner b { display: block; font-size: 15px; text-transform: uppercase; }
+
+.is-placeholder {
+  outline: 2px dashed var(--placeholder-hazard);
+  outline-offset: 2px;
+  background: var(--placeholder-paper);
+}
+
+.pending {
+  display: block;
+  color: #8a0050;
+  background: var(--placeholder-paper);
+  border: 1px dashed var(--placeholder-hazard);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.masthead { padding: 16px 18px 8px; }
+.masthead .brand { margin: 0; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.masthead h1 { margin: 4px 0; font-size: 30px; line-height: 1.1; }
+.masthead .origin { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+
+.hero { margin: 12px 0 0; }
+.hero .shot, .hero .slot { width: 100%; }
+
+.slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: repeating-linear-gradient(45deg, #f7f4ef, #f7f4ef 10px, #efe9e0 10px, #efe9e0 20px);
+  border: 1px dashed var(--placeholder-hazard);
+  color: #8a0050;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.shot { display: block; object-fit: cover; }
+
+.jump {
+  display: flex;
+  gap: 6px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.jump a {
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--ink);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.jump a.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.wrap { padding: 16px 18px; }
+.wrap h2 { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.wrap p { margin: 0 0 10px; }
+
+.grower { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; }
+.grower .shot, .grower .slot { width: 96px; border-radius: 50%; }
+.grower h3 { margin: 0; font-size: 17px; }
+
+.map { margin: 14px 0 0; }
+.map figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+.time { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.time li { border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.time h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.time .when { margin: 4px 0 0; font-size: 14px; font-weight: 600; }
+.lot { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+.rail { list-style: none; display: flex; gap: 12px; overflow-x: auto; margin: 0; padding: 0 0 8px; }
+.card { min-width: 220px; max-width: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.card .shot, .card .slot { width: 100%; border-radius: 5px; }
+.card .num { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 8px 0 2px; }
+.card h3 { font-size: 15px; }
+.card .meta { font-size: 12px; color: var(--muted); }
+
+.buy { border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.buy .price { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
+.btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.btn.disabled { background: #ddd7cf; color: #7a736b; cursor: not-allowed; }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+.foot { padding: 20px 18px 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.hint { color: var(--muted); font-size: 13px; }

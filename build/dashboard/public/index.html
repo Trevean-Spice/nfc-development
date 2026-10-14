@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Scan analytics, Trevean Spice</title>
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="icon" href="data:,">
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to the numbers</a>
+    <header class="masthead">
+      <div class="masthead-inner">
+        <p class="wordmark">Trevean Spice</p>
+        <h1>Scan analytics</h1>
+        <p class="subtitle">
+          Read from pre-aggregated rollups. This page never reads a raw scan event and never
+          scans a table, which is why it answers as quickly at ten million scans as at ten.
+        </p>
+      </div>
+    </header>
+    <div id="controls" class="controls" role="region" aria-label="Filters"></div>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <main id="main" class="main" tabindex="-1"></main>
+    <footer class="footer">
+      <p>
+        Trevean Spice tap to story platform. Analytics read through the frozen API contract,
+        version 1.0.0, operation adminGetScanTimeSeries.
+      </p>
+    </footer>
+    <script type="module" src="./app.js"></script>
+    <noscript>
+      <p class="status">
+        This page builds its charts in the browser and needs JavaScript. It is an internal
+        admin tool rather than a consumer page, so the no script budget that governs the
+        blend pages does not apply here.
+      </p>
+    </noscript>
+  </body>
+</html>

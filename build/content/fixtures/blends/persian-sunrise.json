@@ -1,0 +1,123 @@
+{
+  "_fixture": {
+    "entity": "blend",
+    "conventionVersion": 1,
+    "generatedOn": "2026-08-17",
+    "generatedBy": "Serene Labs Inc, content fixtures deliverable",
+    "notForProduction": true
+  },
+  "_placeholder": {
+    "isPlaceholder": true,
+    "sentinel": "[PLACEHOLDER]",
+    "reason": "Content for the two launch blends was due Friday 14 August 2026 and has not been received as of Monday 17 August 2026. Content writing, photography and translation are outside the contractor's scope per the Scope document, 'Out of scope, deferred not dropped'. Nothing in this record about a person, a place, a date or a price is invented.",
+    "fields": {
+      "slug": "contractor_real",
+      "name": "client_real",
+      "tagCode": "contractor_real",
+      "launchTier": "contractor_real",
+      "status": "contractor_real",
+      "tagline": "placeholder_text",
+      "originCountry": "placeholder_null",
+      "originRegion": "placeholder_null",
+      "originCity": "placeholder_null",
+      "farm.latitude": "placeholder_null",
+      "farm.longitude": "placeholder_null",
+      "farm.label": "placeholder_null",
+      "storyBlocks": "placeholder_text",
+      "heroImageId": "placeholder_media",
+      "galleryImageIds": "placeholder_null",
+      "freshness.harvestedOn": "placeholder_null",
+      "freshness.blendedOn": "placeholder_null",
+      "freshness.bestBefore": "placeholder_null",
+      "freshness.lotLabel": "placeholder_text",
+      "freshness.note": "contractor_real",
+      "growerId": "contractor_real",
+      "shopify.sku": "placeholder_null",
+      "shopify.productId": "placeholder_null",
+      "shopify.variantId": "placeholder_null",
+      "shopify.cartPermalinkUrl": "placeholder_null"
+    },
+    "notes": {
+      "originCountry": "Was IR until 5 September 2026 and rendered as 'Isfahan, Iran' in the page masthead. Nulled because the blend contains no Iranian ingredient and 'Decision log' D29 records that the blend page must not repeat the printed label's provenance. This field held the exact claim D29 forbids, for nine days after D29 was written.",
+      "originRegion": "Was Isfahan. Nulled with originCountry, and for the same reason.",
+      "originCity": "The client stated 'Isfahan, Iran'. Isfahan is both a province and a city, so which one is meant is not ours to decide. It was left null rather than assumed even before the origin fields were nulled outright.",
+      "farm.latitude": "A fabricated coordinate is the most dangerous placeholder in this data set, because it renders as a pin on a map and reads as a fact. Left null. The page renders the map slot with a placeholder raster instead.",
+      "shopify.sku": "Waiting on Shopify Plus store access. Until the variant id exists there is no cart permalink and the reorder button cannot work."
+    }
+  },
+  "_clientFacts": {
+    "$comment": "Facts supplied by Trevean. These are real and are used as given. Recorded separately so a copywriter has them in one place and so nothing in this file has to be reverse engineered from placeholder prose.",
+    "source": "Blend production specification v1.2, 27 August 2026, which supersedes the Scope document for composition",
+    "$sourceComment": "This was the Scope document until 5 September 2026. The specification corrected it in the client's own words: the Scope list 'omitted cinnamon, which is half the blend by weight, and it led with saffron, which is one part in a thousand'. The old list survived here for nine days after the correction and rendered on the deployed page, leading with the one part in a thousand and omitting the half. Order below is by weight, descending.",
+    "spices": [
+      "Ceylon cinnamon",
+      "green cardamom",
+      "Omani dried lime",
+      "rose petals",
+      "saffron"
+    ],
+    "composition": {
+      "$comment": "Percentages by weight, from the specification's table. Held here because an ingredient order is only defensible if the weights behind it are written down next to it.",
+      "Ceylon cinnamon": 50,
+      "green cardamom": 25,
+      "Omani dried lime": 20,
+      "rose petals": 4.9,
+      "saffron": 0.1
+    },
+    "originAsStatedByClient": "Isfahan, Iran",
+    "$originComment": "Recorded as what the client said and NOT to be rendered. The specification is explicit that the saffron is Spanish, the cinnamon Ceylonese and the lime Omani, so the blend contains no Iranian ingredient, while the printed label still names a grower at Kashan area coordinates. See 'Decision log', D29 and D39.",
+    "tagUnitsEncoded": 250
+  },
+  "blend": {
+    "slug": "persian-sunrise",
+    "name": "Persian Sunrise",
+    "status": "published",
+    "tagline": "[PLACEHOLDER] TAGLINE PENDING, NOT REAL CONTENT. Trevean facts: Ceylon cinnamon, green cardamom, Omani dried lime, rose petals, saffron. Origin deliberately absent, see the notes in this file.",
+    "launchTier": "real",
+    "tagCode": "ps",
+    "originCountry": null,
+    "originRegion": null,
+    "originCity": null,
+    "farm": null,
+    "storyBlocks": [
+      {
+        "type": "heading",
+        "text": "[PLACEHOLDER] STORY HEADING PENDING, NOT REAL CONTENT"
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] ORIGIN STORY PARAGRAPH 1 OF 3, NOT REAL CONTENT. Trevean to supply 320 to 480 characters of real copy here. This block is padded to the length we are asking for, so the document byte budget and the above the fold layout are measured against something the size of the real thing rather than against a short stub. NOT REAL CONTENT. NOT REAL CONTENT."
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] ORIGIN STORY PARAGRAPH 2 OF 3, NOT REAL CONTENT. Trevean to supply 320 to 480 characters of real copy here. The Acceptance criteria document section 6.3 requires the origin story visible without scrolling, so paragraph 1 has to read as a complete opening on its own and this one continues it. NOT REAL CONTENT. NOT REAL CONTENT."
+      },
+      {
+        "type": "paragraph",
+        "text": "[PLACEHOLDER] ORIGIN STORY PARAGRAPH 3 OF 3, NOT REAL CONTENT. Trevean to supply 320 to 480 characters of real copy here. No claim about a grower, a harvest, a farm or a family appears anywhere in this fixture, because a fabricated one that looks real can ship and reach a customer. NOT REAL CONTENT. NOT REAL CONTENT."
+      }
+    ],
+    "heroImageId": "med_FAKEHRPS010000000000000000",
+    "galleryImageIds": [],
+    "freshness": {
+      "harvestedOn": null,
+      "blendedOn": null,
+      "bestBefore": null,
+      "lotLabel": "[PLACEHOLDER] LOT PENDING",
+      "note": "Freshness is stated per blend rather than per jar, because tag encoding is per SKU."
+    },
+    "growerId": "grw_FAKEGRPS010000000000000000",
+    "shopify": {
+      "productId": "7804403548263",
+      "variantId": "44647379337319",
+      "sku": null,
+      "cartPermalinkUrl": null
+    },
+    "recipeCount": 7,
+    "version": 1,
+    "publishedAt": "2026-08-17T09:00:00Z",
+    "createdAt": "2026-08-17T09:00:00Z",
+    "updatedAt": "2026-08-17T09:00:00Z",
+    "updatedBy": "content-fixtures@serenelabs.io"
+  }
+}

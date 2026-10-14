@@ -1,0 +1,1309 @@
+{
+  "generatedAt": "2026-08-18T01:49:45.157Z",
+  "direct": [
+    {
+      "name": "@types/node",
+      "version": "22.10.5",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node"
+    },
+    {
+      "name": "@types/react",
+      "version": "19.0.7",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react"
+    },
+    {
+      "name": "lighthouse",
+      "version": "12.8.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/GoogleChrome/lighthouse#readme"
+    },
+    {
+      "name": "next",
+      "version": "15.5.23",
+      "license": "MIT",
+      "homepage": "https://nextjs.org"
+    },
+    {
+      "name": "react",
+      "version": "19.2.8",
+      "license": "MIT",
+      "homepage": "https://react.dev/"
+    },
+    {
+      "name": "react-dom",
+      "version": "19.2.8",
+      "license": "MIT",
+      "homepage": "https://react.dev/"
+    },
+    {
+      "name": "sharp",
+      "version": "0.35.3",
+      "license": "Apache-2.0",
+      "homepage": "https://sharp.pixelplumbing.com"
+    },
+    {
+      "name": "typescript",
+      "version": "5.7.3",
+      "license": "Apache-2.0",
+      "homepage": "https://www.typescriptlang.org/"
+    }
+  ],
+  "transitive": [
+    {
+      "name": "@emnapi/runtime",
+      "version": "1.11.3",
+      "license": "MIT",
+      "homepage": "https://github.com/toyobayashi/emnapi#readme"
+    },
+    {
+      "name": "@formatjs/ecma402-abstract",
+      "version": "2.3.6",
+      "license": "MIT",
+      "homepage": "https://github.com/formatjs/formatjs"
+    },
+    {
+      "name": "@formatjs/fast-memoize",
+      "version": "2.2.7",
+      "license": "MIT",
+      "homepage": "https://github.com/formatjs/formatjs#readme"
+    },
+    {
+      "name": "@formatjs/icu-messageformat-parser",
+      "version": "2.11.4",
+      "license": "MIT",
+      "homepage": "https://github.com/formatjs/formatjs.git"
+    },
+    {
+      "name": "@formatjs/icu-skeleton-parser",
+      "version": "1.8.16",
+      "license": "MIT",
+      "homepage": "https://github.com/formatjs/formatjs.git"
+    },
+    {
+      "name": "@formatjs/intl-localematcher",
+      "version": "0.6.2",
+      "license": "MIT",
+      "homepage": "https://github.com/formatjs/formatjs#readme"
+    },
+    {
+      "name": "@img/colour",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "git+https://github.com/lovell/colour.git"
+    },
+    {
+      "name": "@img/sharp-wasm32",
+      "version": "0.35.3",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "homepage": "https://sharp.pixelplumbing.com"
+    },
+    {
+      "name": "@img/sharp-win32-x64",
+      "version": "0.34.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "homepage": "https://sharp.pixelplumbing.com"
+    },
+    {
+      "name": "@next/env",
+      "version": "15.5.23",
+      "license": "MIT",
+      "homepage": "https://github.com/vercel/next.js"
+    },
+    {
+      "name": "@next/swc-win32-x64-msvc",
+      "version": "15.5.23",
+      "license": "MIT",
+      "homepage": "https://github.com/vercel/next.js"
+    },
+    {
+      "name": "@opentelemetry/api",
+      "version": "1.9.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/api"
+    },
+    {
+      "name": "@opentelemetry/api-logs",
+      "version": "0.57.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/api-logs"
+    },
+    {
+      "name": "@opentelemetry/context-async-hooks",
+      "version": "1.30.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-context-async-hooks"
+    },
+    {
+      "name": "@opentelemetry/core",
+      "version": "1.30.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core"
+    },
+    {
+      "name": "@opentelemetry/instrumentation",
+      "version": "0.57.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-amqplib",
+      "version": "0.46.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-amqplib#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-connect",
+      "version": "0.43.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-connect#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-dataloader",
+      "version": "0.16.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-dataloader#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-express",
+      "version": "0.47.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-express#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-fs",
+      "version": "0.19.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-fs#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-generic-pool",
+      "version": "0.43.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-generic-pool#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-graphql",
+      "version": "0.47.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-graphql#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-hapi",
+      "version": "0.45.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-hapi#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-http",
+      "version": "0.57.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/experimental/packages/opentelemetry-instrumentation-http"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-ioredis",
+      "version": "0.47.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-ioredis#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-kafkajs",
+      "version": "0.7.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-kafkajs#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-knex",
+      "version": "0.44.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-knex#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-koa",
+      "version": "0.47.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-koa#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-lru-memoizer",
+      "version": "0.44.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-lru-memoizer#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-mongodb",
+      "version": "0.52.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-mongodb#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-mongoose",
+      "version": "0.46.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-mongoose#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-mysql",
+      "version": "0.45.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-mysql#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-mysql2",
+      "version": "0.45.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-mysql2#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-pg",
+      "version": "0.51.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-pg#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-redis-4",
+      "version": "0.46.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/opentelemetry-instrumentation-redis-4#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-tedious",
+      "version": "0.18.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-tedious#readme"
+    },
+    {
+      "name": "@opentelemetry/instrumentation-undici",
+      "version": "0.10.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/plugins/node/instrumentation-undici"
+    },
+    {
+      "name": "@opentelemetry/redis-common",
+      "version": "0.36.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/redis-common#readme"
+    },
+    {
+      "name": "@opentelemetry/resources",
+      "version": "1.30.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-resources"
+    },
+    {
+      "name": "@opentelemetry/sdk-trace-base",
+      "version": "1.30.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-base"
+    },
+    {
+      "name": "@opentelemetry/semantic-conventions",
+      "version": "1.43.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js/tree/main/semantic-conventions"
+    },
+    {
+      "name": "@opentelemetry/sql-common",
+      "version": "0.40.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/sql-common#readme"
+    },
+    {
+      "name": "@paulirish/trace_engine",
+      "version": "0.0.59",
+      "license": "BSD-3-Clause",
+      "homepage": ""
+    },
+    {
+      "name": "@prisma/instrumentation",
+      "version": "6.11.1",
+      "license": "Apache-2.0",
+      "homepage": "https://www.prisma.io"
+    },
+    {
+      "name": "@puppeteer/browsers",
+      "version": "2.13.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/puppeteer/puppeteer/tree/main/packages/browsers"
+    },
+    {
+      "name": "@sentry/core",
+      "version": "9.47.1",
+      "license": "MIT",
+      "homepage": "https://github.com/getsentry/sentry-javascript/tree/master/packages/core"
+    },
+    {
+      "name": "@sentry/node",
+      "version": "9.47.1",
+      "license": "MIT",
+      "homepage": "https://github.com/getsentry/sentry-javascript/tree/master/packages/node"
+    },
+    {
+      "name": "@sentry/node-core",
+      "version": "9.47.1",
+      "license": "MIT",
+      "homepage": "https://github.com/getsentry/sentry-javascript/tree/master/packages/node-core"
+    },
+    {
+      "name": "@sentry/opentelemetry",
+      "version": "9.47.1",
+      "license": "MIT",
+      "homepage": "https://github.com/getsentry/sentry-javascript/tree/master/packages/opentelemetry"
+    },
+    {
+      "name": "@swc/helpers",
+      "version": "0.5.15",
+      "license": "Apache-2.0",
+      "homepage": "https://swc.rs"
+    },
+    {
+      "name": "@tootallnate/quickjs-emscripten",
+      "version": "0.23.0",
+      "license": "MIT",
+      "homepage": "https://github.com/justjake/quickjs-emscripten"
+    },
+    {
+      "name": "@types/connect",
+      "version": "3.4.38",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/connect"
+    },
+    {
+      "name": "@types/mysql",
+      "version": "2.15.26",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mysql"
+    },
+    {
+      "name": "@types/pg",
+      "version": "8.6.1",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pg"
+    },
+    {
+      "name": "@types/pg-pool",
+      "version": "2.0.6",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pg-pool"
+    },
+    {
+      "name": "@types/shimmer",
+      "version": "1.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/shimmer"
+    },
+    {
+      "name": "@types/tedious",
+      "version": "4.0.14",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/tedious"
+    },
+    {
+      "name": "@types/yauzl",
+      "version": "2.10.3",
+      "license": "MIT",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/yauzl"
+    },
+    {
+      "name": "acorn",
+      "version": "8.18.0",
+      "license": "MIT",
+      "homepage": "https://github.com/acornjs/acorn"
+    },
+    {
+      "name": "acorn-import-attributes",
+      "version": "1.9.5",
+      "license": "MIT",
+      "homepage": "https://github.com/xtuc/acorn-import-attributes"
+    },
+    {
+      "name": "agent-base",
+      "version": "7.1.4",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "ansi-colors",
+      "version": "4.1.3",
+      "license": "MIT",
+      "homepage": "https://github.com/doowb/ansi-colors"
+    },
+    {
+      "name": "ansi-regex",
+      "version": "5.0.1",
+      "license": "MIT",
+      "homepage": "chalk/ansi-regex"
+    },
+    {
+      "name": "ansi-styles",
+      "version": "4.3.0",
+      "license": "MIT",
+      "homepage": "chalk/ansi-styles"
+    },
+    {
+      "name": "ast-types",
+      "version": "0.13.4",
+      "license": "MIT",
+      "homepage": "http://github.com/benjamn/ast-types"
+    },
+    {
+      "name": "atomically",
+      "version": "2.1.1",
+      "license": "MIT",
+      "homepage": "github:fabiospampinato/atomically"
+    },
+    {
+      "name": "axe-core",
+      "version": "4.13.0",
+      "license": "MPL-2.0",
+      "homepage": "https://www.deque.com/axe/"
+    },
+    {
+      "name": "b4a",
+      "version": "1.8.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/b4a#readme"
+    },
+    {
+      "name": "balanced-match",
+      "version": "1.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/juliangruber/balanced-match"
+    },
+    {
+      "name": "bare-events",
+      "version": "2.9.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/bare-events#readme"
+    },
+    {
+      "name": "bare-fs",
+      "version": "4.8.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/bare-fs#readme"
+    },
+    {
+      "name": "bare-path",
+      "version": "3.1.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/bare-path#readme"
+    },
+    {
+      "name": "bare-stream",
+      "version": "2.13.3",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/bare-stream#readme"
+    },
+    {
+      "name": "bare-url",
+      "version": "2.5.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/bare-url"
+    },
+    {
+      "name": "basic-ftp",
+      "version": "5.3.1",
+      "license": "MIT",
+      "homepage": "https://github.com/patrickjuchli/basic-ftp.git"
+    },
+    {
+      "name": "brace-expansion",
+      "version": "2.1.4",
+      "license": "MIT",
+      "homepage": "https://github.com/juliangruber/brace-expansion"
+    },
+    {
+      "name": "buffer-crc32",
+      "version": "0.2.13",
+      "license": "MIT",
+      "homepage": "https://github.com/brianloveswords/buffer-crc32"
+    },
+    {
+      "name": "caniuse-lite",
+      "version": "1.0.30001809",
+      "license": "CC-BY-4.0",
+      "homepage": "browserslist/caniuse-lite"
+    },
+    {
+      "name": "chrome-launcher",
+      "version": "1.2.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/GoogleChrome/chrome-launcher/"
+    },
+    {
+      "name": "chromium-bidi",
+      "version": "14.0.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/GoogleChromeLabs/chromium-bidi.git"
+    },
+    {
+      "name": "cjs-module-lexer",
+      "version": "1.4.3",
+      "license": "MIT",
+      "homepage": "https://github.com/nodejs/cjs-module-lexer#readme"
+    },
+    {
+      "name": "client-only",
+      "version": "0.0.1",
+      "license": "MIT",
+      "homepage": "https://reactjs.org/"
+    },
+    {
+      "name": "cliui",
+      "version": "8.0.1",
+      "license": "ISC",
+      "homepage": "yargs/cliui"
+    },
+    {
+      "name": "color-convert",
+      "version": "2.0.1",
+      "license": "MIT",
+      "homepage": "Qix-/color-convert"
+    },
+    {
+      "name": "color-name",
+      "version": "1.1.4",
+      "license": "MIT",
+      "homepage": "https://github.com/colorjs/color-name"
+    },
+    {
+      "name": "configstore",
+      "version": "7.1.0",
+      "license": "BSD-2-Clause",
+      "homepage": "sindresorhus/configstore"
+    },
+    {
+      "name": "csp_evaluator",
+      "version": "1.1.5",
+      "license": "Apache-2.0",
+      "homepage": "https://csp-evaluator.withgoogle.com/"
+    },
+    {
+      "name": "csstype",
+      "version": "3.2.3",
+      "license": "MIT",
+      "homepage": "https://github.com/frenic/csstype"
+    },
+    {
+      "name": "data-uri-to-buffer",
+      "version": "6.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "homepage": "git://github.com/debug-js/debug.git"
+    },
+    {
+      "name": "decimal.js",
+      "version": "10.6.0",
+      "license": "MIT",
+      "homepage": "https://github.com/MikeMcl/decimal.js.git"
+    },
+    {
+      "name": "define-lazy-prop",
+      "version": "2.0.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/define-lazy-prop"
+    },
+    {
+      "name": "degenerator",
+      "version": "5.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0",
+      "homepage": "git://github.com/lovell/detect-libc.git"
+    },
+    {
+      "name": "devtools-protocol",
+      "version": "0.0.1608973",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/ChromeDevTools/devtools-protocol"
+    },
+    {
+      "name": "dot-prop",
+      "version": "9.0.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/dot-prop"
+    },
+    {
+      "name": "emoji-regex",
+      "version": "8.0.0",
+      "license": "MIT",
+      "homepage": "https://mths.be/emoji-regex"
+    },
+    {
+      "name": "end-of-stream",
+      "version": "1.4.5",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/end-of-stream"
+    },
+    {
+      "name": "enquirer",
+      "version": "2.4.1",
+      "license": "MIT",
+      "homepage": "https://github.com/enquirer/enquirer"
+    },
+    {
+      "name": "es-errors",
+      "version": "1.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/ljharb/es-errors#readme"
+    },
+    {
+      "name": "escalade",
+      "version": "3.2.0",
+      "license": "MIT",
+      "homepage": "lukeed/escalade"
+    },
+    {
+      "name": "escape-string-regexp",
+      "version": "4.0.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/escape-string-regexp"
+    },
+    {
+      "name": "escodegen",
+      "version": "2.1.0",
+      "license": "BSD-2-Clause",
+      "homepage": "http://github.com/estools/escodegen"
+    },
+    {
+      "name": "esprima",
+      "version": "4.0.1",
+      "license": "BSD-2-Clause",
+      "homepage": "http://esprima.org"
+    },
+    {
+      "name": "estraverse",
+      "version": "5.3.0",
+      "license": "BSD-2-Clause",
+      "homepage": "https://github.com/estools/estraverse"
+    },
+    {
+      "name": "esutils",
+      "version": "2.0.3",
+      "license": "BSD-2-Clause",
+      "homepage": "https://github.com/estools/esutils"
+    },
+    {
+      "name": "events-universal",
+      "version": "1.0.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/events-universal#readme"
+    },
+    {
+      "name": "extract-zip",
+      "version": "2.0.1",
+      "license": "BSD-2-Clause",
+      "homepage": "maxogden/extract-zip"
+    },
+    {
+      "name": "fast-fifo",
+      "version": "1.3.2",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/fast-fifo"
+    },
+    {
+      "name": "fd-slicer",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "git://github.com/andrewrk/node-fd-slicer.git"
+    },
+    {
+      "name": "forwarded-parse",
+      "version": "2.1.2",
+      "license": "MIT",
+      "homepage": "https://github.com/lpinca/forwarded-parse"
+    },
+    {
+      "name": "function-bind",
+      "version": "1.1.2",
+      "license": "MIT",
+      "homepage": "https://github.com/Raynos/function-bind"
+    },
+    {
+      "name": "get-caller-file",
+      "version": "2.0.5",
+      "license": "ISC",
+      "homepage": "https://github.com/stefanpenner/get-caller-file#readme"
+    },
+    {
+      "name": "get-stream",
+      "version": "5.2.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/get-stream"
+    },
+    {
+      "name": "get-uri",
+      "version": "6.0.5",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "graceful-fs",
+      "version": "4.2.11",
+      "license": "ISC",
+      "homepage": "https://github.com/isaacs/node-graceful-fs"
+    },
+    {
+      "name": "hasown",
+      "version": "2.0.4",
+      "license": "MIT",
+      "homepage": "https://github.com/inspect-js/hasOwn#readme"
+    },
+    {
+      "name": "http-link-header",
+      "version": "1.1.4",
+      "license": "MIT",
+      "homepage": "https://codeberg.org/jhermsmeier/node-http-link-header"
+    },
+    {
+      "name": "http-proxy-agent",
+      "version": "7.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "https-proxy-agent",
+      "version": "7.0.6",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "image-ssim",
+      "version": "0.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/darosh/image-ssim-js/issues"
+    },
+    {
+      "name": "import-in-the-middle",
+      "version": "1.15.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/nodejs/import-in-the-middle#readme"
+    },
+    {
+      "name": "intl-messageformat",
+      "version": "10.7.18",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/formatjs/formatjs"
+    },
+    {
+      "name": "ip-address",
+      "version": "10.5.0",
+      "license": "MIT",
+      "homepage": "https://github.com/beaugunderson/ip-address.git"
+    },
+    {
+      "name": "is-core-module",
+      "version": "2.16.2",
+      "license": "MIT",
+      "homepage": "https://github.com/inspect-js/is-core-module"
+    },
+    {
+      "name": "is-docker",
+      "version": "2.2.1",
+      "license": "MIT",
+      "homepage": "sindresorhus/is-docker"
+    },
+    {
+      "name": "is-fullwidth-code-point",
+      "version": "3.0.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/is-fullwidth-code-point"
+    },
+    {
+      "name": "is-wsl",
+      "version": "2.2.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/is-wsl"
+    },
+    {
+      "name": "jpeg-js",
+      "version": "0.4.4",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/eugeneware/jpeg-js"
+    },
+    {
+      "name": "js-library-detector",
+      "version": "6.7.0",
+      "license": "MIT",
+      "homepage": "https://github.com/johnmichel/Library-Detector-for-Chrome#readme"
+    },
+    {
+      "name": "legacy-javascript",
+      "version": "0.0.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/GoogleChrome/lighthouse#readme"
+    },
+    {
+      "name": "lighthouse-logger",
+      "version": "2.0.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/GoogleChrome/lighthouse.git"
+    },
+    {
+      "name": "lighthouse-stack-packs",
+      "version": "1.12.2",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/GoogleChrome/lighthouse-stack-packs#readme"
+    },
+    {
+      "name": "lodash-es",
+      "version": "4.18.1",
+      "license": "MIT",
+      "homepage": "https://lodash.com/custom-builds"
+    },
+    {
+      "name": "lookup-closest-locale",
+      "version": "6.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/format-message/format-message/tree/master/packages/lookup-closest-locale"
+    },
+    {
+      "name": "lru-cache",
+      "version": "7.18.3",
+      "license": "ISC",
+      "homepage": "git://github.com/isaacs/node-lru-cache.git"
+    },
+    {
+      "name": "marky",
+      "version": "1.3.0",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/nolanlawson/marky#readme"
+    },
+    {
+      "name": "metaviewport-parser",
+      "version": "0.3.0",
+      "license": "MIT",
+      "homepage": "https://github.com/dontcallmedom/metaviewport-parser.git"
+    },
+    {
+      "name": "minimatch",
+      "version": "9.0.9",
+      "license": "ISC",
+      "homepage": "git://github.com/isaacs/minimatch.git"
+    },
+    {
+      "name": "mitt",
+      "version": "3.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/developit/mitt"
+    },
+    {
+      "name": "module-details-from-path",
+      "version": "1.0.4",
+      "license": "MIT",
+      "homepage": "https://github.com/watson/module-details-from-path#readme"
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "homepage": "vercel/ms"
+    },
+    {
+      "name": "nanoid",
+      "version": "3.3.18",
+      "license": "MIT",
+      "homepage": "ai/nanoid"
+    },
+    {
+      "name": "netmask",
+      "version": "2.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/rs/node-netmask"
+    },
+    {
+      "name": "once",
+      "version": "1.4.0",
+      "license": "ISC",
+      "homepage": "git://github.com/isaacs/once"
+    },
+    {
+      "name": "open",
+      "version": "8.4.2",
+      "license": "MIT",
+      "homepage": "sindresorhus/open"
+    },
+    {
+      "name": "pac-proxy-agent",
+      "version": "7.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "pac-resolver",
+      "version": "7.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "parse-cache-control",
+      "version": "1.0.1",
+      "license": "BSD",
+      "homepage": "https://github.com/roryf/parse-cache-control.git"
+    },
+    {
+      "name": "path-parse",
+      "version": "1.0.7",
+      "license": "MIT",
+      "homepage": "https://github.com/jbgutierrez/path-parse#readme"
+    },
+    {
+      "name": "pend",
+      "version": "1.2.0",
+      "license": "MIT",
+      "homepage": "git://github.com/andrewrk/node-pend.git"
+    },
+    {
+      "name": "pg-int8",
+      "version": "1.0.1",
+      "license": "ISC",
+      "homepage": "https://github.com/charmander/pg-int8"
+    },
+    {
+      "name": "pg-protocol",
+      "version": "1.16.0",
+      "license": "MIT",
+      "homepage": "git://github.com/brianc/node-postgres.git"
+    },
+    {
+      "name": "pg-types",
+      "version": "2.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/brianc/node-pg-types"
+    },
+    {
+      "name": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "homepage": "alexeyraspopov/picocolors"
+    },
+    {
+      "name": "postcss",
+      "version": "8.4.31",
+      "license": "MIT",
+      "homepage": "https://postcss.org/"
+    },
+    {
+      "name": "postgres-array",
+      "version": "2.0.0",
+      "license": "MIT",
+      "homepage": "bendrucker/postgres-array"
+    },
+    {
+      "name": "postgres-bytea",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "bendrucker/postgres-bytea"
+    },
+    {
+      "name": "postgres-date",
+      "version": "1.0.7",
+      "license": "MIT",
+      "homepage": "bendrucker/postgres-date"
+    },
+    {
+      "name": "postgres-interval",
+      "version": "1.2.0",
+      "license": "MIT",
+      "homepage": "bendrucker/postgres-interval"
+    },
+    {
+      "name": "progress",
+      "version": "2.0.3",
+      "license": "MIT",
+      "homepage": "git://github.com/visionmedia/node-progress"
+    },
+    {
+      "name": "proxy-agent",
+      "version": "6.5.0",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "proxy-from-env",
+      "version": "1.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/Rob--W/proxy-from-env#readme"
+    },
+    {
+      "name": "pump",
+      "version": "3.0.4",
+      "license": "MIT",
+      "homepage": "git://github.com/mafintosh/pump.git"
+    },
+    {
+      "name": "puppeteer-core",
+      "version": "24.43.1",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/puppeteer/puppeteer/tree/main/packages/puppeteer-core"
+    },
+    {
+      "name": "require-directory",
+      "version": "2.1.1",
+      "license": "MIT",
+      "homepage": "https://github.com/troygoode/node-require-directory/"
+    },
+    {
+      "name": "require-in-the-middle",
+      "version": "7.5.2",
+      "license": "MIT",
+      "homepage": "https://github.com/nodejs/require-in-the-middle#readme"
+    },
+    {
+      "name": "resolve",
+      "version": "1.22.12",
+      "license": "MIT",
+      "homepage": "ssh://github.com/browserify/resolve.git"
+    },
+    {
+      "name": "robots-parser",
+      "version": "3.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/samclarke/robots-parser"
+    },
+    {
+      "name": "scheduler",
+      "version": "0.27.0",
+      "license": "MIT",
+      "homepage": "https://react.dev/"
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC",
+      "homepage": "git+https://github.com/npm/node-semver.git"
+    },
+    {
+      "name": "shimmer",
+      "version": "1.2.1",
+      "license": "BSD-2-Clause",
+      "homepage": "https://github.com/othiym23/shimmer.git"
+    },
+    {
+      "name": "smart-buffer",
+      "version": "4.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/JoshGlazebrook/smart-buffer/"
+    },
+    {
+      "name": "socks",
+      "version": "2.8.9",
+      "license": "MIT",
+      "homepage": "https://github.com/JoshGlazebrook/socks/"
+    },
+    {
+      "name": "socks-proxy-agent",
+      "version": "8.0.5",
+      "license": "MIT",
+      "homepage": "https://github.com/TooTallNate/proxy-agents.git"
+    },
+    {
+      "name": "source-map",
+      "version": "0.6.1",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/mozilla/source-map"
+    },
+    {
+      "name": "source-map-js",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/7rulnik/source-map-js"
+    },
+    {
+      "name": "speedline-core",
+      "version": "1.4.3",
+      "license": "MIT",
+      "homepage": "https://github.com/paulirish/speedline"
+    },
+    {
+      "name": "streamx",
+      "version": "2.28.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/streamx"
+    },
+    {
+      "name": "string-width",
+      "version": "4.2.3",
+      "license": "MIT",
+      "homepage": "sindresorhus/string-width"
+    },
+    {
+      "name": "strip-ansi",
+      "version": "6.0.1",
+      "license": "MIT",
+      "homepage": "chalk/strip-ansi"
+    },
+    {
+      "name": "stubborn-fs",
+      "version": "2.0.0",
+      "license": "MIT",
+      "homepage": "github:fabiospampinato/stubborn-fs"
+    },
+    {
+      "name": "stubborn-utils",
+      "version": "1.0.2",
+      "license": "MIT",
+      "homepage": "github:fabiospampinato/stubborn-utils"
+    },
+    {
+      "name": "styled-jsx",
+      "version": "5.1.6",
+      "license": "MIT",
+      "homepage": "vercel/styled-jsx"
+    },
+    {
+      "name": "supports-preserve-symlinks-flag",
+      "version": "1.0.0",
+      "license": "MIT",
+      "homepage": "https://github.com/inspect-js/node-supports-preserve-symlinks-flag#readme"
+    },
+    {
+      "name": "tar-fs",
+      "version": "3.1.3",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/tar-fs"
+    },
+    {
+      "name": "tar-stream",
+      "version": "3.2.0",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/tar-stream"
+    },
+    {
+      "name": "teex",
+      "version": "1.0.1",
+      "license": "MIT",
+      "homepage": "https://github.com/mafintosh/teex"
+    },
+    {
+      "name": "text-decoder",
+      "version": "1.2.7",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/holepunchto/text-decoder#readme"
+    },
+    {
+      "name": "third-party-web",
+      "version": "0.27.0",
+      "license": "MIT",
+      "homepage": "https://github.com/patrickhulce/third-party-web.git"
+    },
+    {
+      "name": "tldts-core",
+      "version": "7.4.10",
+      "license": "MIT",
+      "homepage": "https://github.com/remusao/tldts#readme"
+    },
+    {
+      "name": "tldts-icann",
+      "version": "7.4.10",
+      "license": "MIT",
+      "homepage": "https://github.com/remusao/tldts#readme"
+    },
+    {
+      "name": "tslib",
+      "version": "2.8.1",
+      "license": "0BSD",
+      "homepage": "https://www.typescriptlang.org/"
+    },
+    {
+      "name": "type-fest",
+      "version": "4.41.0",
+      "license": "(MIT OR CC0-1.0)",
+      "homepage": "sindresorhus/type-fest"
+    },
+    {
+      "name": "typed-query-selector",
+      "version": "2.12.2",
+      "license": "MIT",
+      "homepage": "g-plane/typed-query-selector"
+    },
+    {
+      "name": "undici-types",
+      "version": "6.20.0",
+      "license": "MIT",
+      "homepage": "https://undici.nodejs.org"
+    },
+    {
+      "name": "webdriver-bidi-protocol",
+      "version": "0.4.1",
+      "license": "Apache-2.0",
+      "homepage": "git+https://github.com/GoogleChromeLabs/webdriver-bidi-protocol.git"
+    },
+    {
+      "name": "when-exit",
+      "version": "2.1.5",
+      "license": "MIT",
+      "homepage": "github:fabiospampinato/when-exit"
+    },
+    {
+      "name": "wrap-ansi",
+      "version": "7.0.0",
+      "license": "MIT",
+      "homepage": "chalk/wrap-ansi"
+    },
+    {
+      "name": "wrappy",
+      "version": "1.0.2",
+      "license": "ISC",
+      "homepage": "https://github.com/npm/wrappy"
+    },
+    {
+      "name": "ws",
+      "version": "7.5.13",
+      "license": "MIT",
+      "homepage": "https://github.com/websockets/ws"
+    },
+    {
+      "name": "xdg-basedir",
+      "version": "5.1.0",
+      "license": "MIT",
+      "homepage": "sindresorhus/xdg-basedir"
+    },
+    {
+      "name": "xtend",
+      "version": "4.0.2",
+      "license": "MIT",
+      "homepage": "https://github.com/Raynos/xtend"
+    },
+    {
+      "name": "y18n",
+      "version": "5.0.8",
+      "license": "ISC",
+      "homepage": "https://github.com/yargs/y18n"
+    },
+    {
+      "name": "yargs",
+      "version": "17.7.3",
+      "license": "MIT",
+      "homepage": "https://yargs.js.org/"
+    },
+    {
+      "name": "yargs-parser",
+      "version": "21.1.1",
+      "license": "ISC",
+      "homepage": "https://github.com/yargs/yargs-parser.git"
+    },
+    {
+      "name": "yauzl",
+      "version": "2.10.0",
+      "license": "MIT",
+      "homepage": "https://github.com/thejoshwolfe/yauzl"
+    },
+    {
+      "name": "zod",
+      "version": "3.25.76",
+      "license": "MIT",
+      "homepage": "https://zod.dev"
+    }
+  ]
+}

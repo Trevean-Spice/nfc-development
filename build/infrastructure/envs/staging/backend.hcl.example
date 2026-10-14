@@ -1,0 +1,22 @@
+# Copy to backend.hcl (not committed) and initialise with:
+#
+#   terraform init -backend-config=backend.hcl
+#
+# The bucket is created by the bootstrap in BOOTSTRAP.md, outside this
+# configuration, because a configuration cannot create the bucket that holds
+# its own state.
+
+bucket = "FILL IN: serene-labs-tfstate-<suffix>"
+key    = "trevean-spice-nfc/staging/terraform.tfstate"
+region = "us-east-1"
+
+# Native S3 state locking. Terraform 1.10 and later hold a lock file in the
+# same bucket, which removes the DynamoDB lock table entirely: one less
+# resource, one less thing to forget at handover, and one less thing whose
+# absence silently disables locking.
+use_lockfile = true
+
+encrypt = true
+
+# Optional. Set if the state bucket uses a customer managed key.
+# kms_key_id = "FILL IN"

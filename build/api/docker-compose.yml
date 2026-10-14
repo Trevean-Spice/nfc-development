@@ -1,0 +1,22 @@
+services:
+  # DynamoDB Local. Closer to the real thing than the in process server the test suite
+  # uses, and the one to develop against if Docker is available. Nothing in src/ changes
+  # between the two: the only difference is what DYNAMODB_ENDPOINT points at.
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.2
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports:
+      - "8000:8000"
+
+  # Optional S3 compatible storage, so the presigned upload and the completion check can be
+  # exercised end to end without an AWS account. Leave it out and media uploads still work:
+  # presigning is local computation, and the completion check is skipped in the local stage.
+  s3:
+    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: local
+      MINIO_ROOT_PASSWORD: locallocal
+    ports:
+      - "9000:9000"
+      - "9001:9001"

@@ -1,0 +1,349 @@
+==============================================================================
+TREVEAN SPICE NFC, CONTENT READINESS REPORT
+==============================================================================
+As of                      2026-08-17
+Client content was due     2026-08-14  (3 days ago)
+M2 gate                    2026-08-28  (11 days away)
+Blends                     5
+Content fields tracked     340
+Still placeholder          278
+Of those, blocking publish 178
+
+Outstanding by owner:
+  Trevean        228 fields
+  Shopify        40 fields
+  Serene Labs    10 fields
+
+------------------------------------------------------------------------------
+PER BLEND
+------------------------------------------------------------------------------
+blend                        tier    status     real  placeholder  blocking
+persian-sunrise              real    published    17           95        53
+caribbean-sunset             real    published    15           87        49
+north-african-night-market   seeded  published    10           32        25
+silk-road                    seeded  published     9           33        26
+kyoto-garden                 seeded  draft        11           31        25
+
+------------------------------------------------------------------------------
+Persian Sunrise  (/t/ps, real, 95 of 112 fields still placeholder)
+------------------------------------------------------------------------------
+  blend:
+    tagline                        PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    originCity                     PLACEHOLDER, held null   Trevean      
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.label                     PLACEHOLDER, held null   Trevean      
+    storyBlocks                    PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    storyBlocks[].text             PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    heroImageId                    PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    galleryImageIds                PLACEHOLDER, held null   Trevean      
+    freshness.harvestedOn          PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.blendedOn            PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.bestBefore           PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.lotLabel             PLACEHOLDER text         Trevean      
+    shopify.sku                    PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.productId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.variantId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.cartPermalinkUrl       PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  grower:
+    name                           PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    farmName                       PLACEHOLDER text         Trevean      
+    country                        PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    region                         PLACEHOLDER, held null   Trevean      
+    bio                            PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    yearsFarming                   PLACEHOLDER, held null   Trevean      
+    portraitId                     PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+  recipe (all 7):
+    title x7                       PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    summary x7                     PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    servings x7                    PLACEHOLDER, held null   Trevean      
+    prepMinutes x7                 PLACEHOLDER, held null   Trevean      
+    cookMinutes x7                 PLACEHOLDER, held null   Trevean      
+    difficulty x7                  PLACEHOLDER, held null   Trevean      
+    ingredients x7                 PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    steps x7                       PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    imageId x7                     PLACEHOLDER image        Trevean      
+  catalog:
+    sku                            PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyProductId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyVariantId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    price                          PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    available                      PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    cartPermalinkUrl               PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  recipes: 7 of 5 to 10 required
+  imagery: 10 placeholder assets, 487424 bytes of a 614400 byte page budget, hero 1280x955 at 92160 bytes (budget 92160)
+
+------------------------------------------------------------------------------
+Caribbean Sunset  (/t/cs, real, 87 of 102 fields still placeholder)
+------------------------------------------------------------------------------
+  blend:
+    tagline                        PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    originRegion                   PLACEHOLDER, held null   Trevean      
+    originCity                     PLACEHOLDER, held null   Trevean      
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.label                     PLACEHOLDER, held null   Trevean      
+    storyBlocks                    PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    storyBlocks[].text             PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    heroImageId                    PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    galleryImageIds                PLACEHOLDER, held null   Trevean      
+    freshness.harvestedOn          PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.blendedOn            PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.bestBefore           PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.lotLabel             PLACEHOLDER text         Trevean      
+    shopify.sku                    PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.productId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.variantId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.cartPermalinkUrl       PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  grower:
+    name                           PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    farmName                       PLACEHOLDER text         Trevean      
+    country                        PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    region                         PLACEHOLDER, held null   Trevean      
+    bio                            PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    yearsFarming                   PLACEHOLDER, held null   Trevean      
+    portraitId                     PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+  recipe (all 6):
+    title x6                       PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    summary x6                     PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    servings x6                    PLACEHOLDER, held null   Trevean      
+    prepMinutes x6                 PLACEHOLDER, held null   Trevean      
+    cookMinutes x6                 PLACEHOLDER, held null   Trevean      
+    difficulty x6                  PLACEHOLDER, held null   Trevean      
+    ingredients x6                 PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    steps x6                       PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    imageId x6                     PLACEHOLDER image        Trevean      
+  catalog:
+    sku                            PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyProductId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyVariantId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    price                          PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    available                      PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    cartPermalinkUrl               PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  recipes: 6 of 5 to 10 required
+  imagery: 9 placeholder assets, 448512 bytes of a 614400 byte page budget, hero 1280x955 at 92160 bytes (budget 92160)
+
+------------------------------------------------------------------------------
+North African Night Market  (/t/nm, seeded, 32 of 42 fields still placeholder)
+------------------------------------------------------------------------------
+  blend:
+    tagline                        PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    originRegion                   PLACEHOLDER, held null   Trevean      
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.label                     PLACEHOLDER, held null   Trevean      
+    storyBlocks                    PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    storyBlocks[].text             PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    heroImageId                    PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    galleryImageIds                PLACEHOLDER, held null   Trevean      
+    freshness.harvestedOn          PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.blendedOn            PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.bestBefore           PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.lotLabel             PLACEHOLDER text         Trevean      
+    shopify.sku                    PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.productId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.variantId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.cartPermalinkUrl       PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  grower:
+    name                           PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    farmName                       PLACEHOLDER text         Trevean      
+    country                        PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    region                         PLACEHOLDER, held null   Trevean      
+    bio                            PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    yearsFarming                   PLACEHOLDER, held null   Trevean      
+    portraitId                     PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+  catalog:
+    sku                            PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyProductId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyVariantId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    price                          PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    available                      PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    cartPermalinkUrl               PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  recipes: 0 of 5 to 10 required, not required for a seeded blend
+  imagery: 3 placeholder assets, 215040 bytes of a 614400 byte page budget, hero 1280x955 at 92160 bytes (budget 92160)
+
+------------------------------------------------------------------------------
+The Silk Road  (/t/sr, seeded, 33 of 42 fields still placeholder)
+------------------------------------------------------------------------------
+  blend:
+    tagline                        PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    originCountry                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    originCity                     PLACEHOLDER, held null   Trevean      
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.label                     PLACEHOLDER, held null   Trevean      
+    storyBlocks                    PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    storyBlocks[].text             PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    heroImageId                    PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    galleryImageIds                PLACEHOLDER, held null   Trevean      
+    freshness.harvestedOn          PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.blendedOn            PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.bestBefore           PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.lotLabel             PLACEHOLDER text         Trevean      
+    shopify.sku                    PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.productId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.variantId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.cartPermalinkUrl       PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  grower:
+    name                           PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    farmName                       PLACEHOLDER text         Trevean      
+    country                        PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    region                         PLACEHOLDER, held null   Trevean      
+    bio                            PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    yearsFarming                   PLACEHOLDER, held null   Trevean      
+    portraitId                     PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+  catalog:
+    sku                            PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyProductId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyVariantId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    price                          PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    available                      PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    cartPermalinkUrl               PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  recipes: 0 of 5 to 10 required, not required for a seeded blend
+  imagery: 3 placeholder assets, 215040 bytes of a 614400 byte page budget, hero 1280x955 at 92160 bytes (budget 92160)
+
+------------------------------------------------------------------------------
+Kyoto Garden  (/t/kg, seeded, 31 of 42 fields still placeholder)
+------------------------------------------------------------------------------
+  blend:
+    tagline                        PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.label                     PLACEHOLDER, held null   Trevean      
+    storyBlocks                    PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    storyBlocks[].text             PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    heroImageId                    PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    galleryImageIds                PLACEHOLDER, held null   Trevean      
+    freshness.harvestedOn          PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.blendedOn            PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.bestBefore           PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    freshness.lotLabel             PLACEHOLDER text         Trevean      
+    shopify.sku                    PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.productId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.variantId              PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopify.cartPermalinkUrl       PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  grower:
+    name                           PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    farmName                       PLACEHOLDER text         Trevean      
+    country                        PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    region                         PLACEHOLDER, held null   Trevean      
+    bio                            PLACEHOLDER text         Trevean      BLOCKS PUBLISH
+    yearsFarming                   PLACEHOLDER, held null   Trevean      
+    portraitId                     PLACEHOLDER image        Trevean      BLOCKS PUBLISH
+    farm.latitude                  PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+    farm.longitude                 PLACEHOLDER, held null   Trevean      BLOCKS PUBLISH
+  catalog:
+    sku                            PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyProductId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    shopifyVariantId               PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    price                          PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    available                      PLACEHOLDER, held null   Shopify      BLOCKS PUBLISH
+    cartPermalinkUrl               PLACEHOLDER, held null   Serene Labs  BLOCKS PUBLISH
+  recipes: 0 of 5 to 10 required, not required for a seeded blend
+  imagery: 3 placeholder assets, 215040 bytes of a 614400 byte page budget, hero 1280x955 at 92160 bytes (budget 92160)
+
+------------------------------------------------------------------------------
+WHAT WE NEED, CONSOLIDATED
+------------------------------------------------------------------------------
+  [Trevean] blend.tagline  (5 blends)  BLOCKS PUBLISH
+      Tagline: One line under the blend name. Renders above the fold at 375 px, so 120 characters is the practical ceiling even though the contract allows 200.
+  [Trevean] blend.originCity  (3 blends)
+      Origin city: City or town. Omit rather than guess.
+  [Trevean] blend.farm.latitude  (5 blends)  BLOCKS PUBLISH
+      Farm latitude: Decimal degrees, 4 decimal places. Coarse enough not to identify a private address, per the API contract. Never invented: see the placeholder convention.
+  [Trevean] blend.farm.longitude  (5 blends)  BLOCKS PUBLISH
+      Farm longitude: Decimal degrees, 4 decimal places.
+  [Trevean] blend.farm.label  (5 blends)
+      Farm map label: What the pin says. For example a district name, not a street address.
+  [Trevean] blend.storyBlocks  (5 blends)  BLOCKS PUBLISH
+      Origin story: One heading plus 2 to 5 paragraphs. Block types are heading, paragraph and quote only: no HTML. The first paragraph must read as a complete opening on its own, because the Acceptance criteria document section 6.3 requires the origin story visible without scrolling.
+  [Trevean] blend.storyBlocks[].text  (5 blends)  BLOCKS PUBLISH
+      Story block text: Per paragraph. Heading blocks 20 to 60 characters.
+  [Trevean] blend.heroImageId  (5 blends)  BLOCKS PUBLISH
+      Hero photograph: See the image specification. 1280 by 955, 90 KB after our processing, single subject, shallow depth of field.
+  [Trevean] blend.galleryImageIds  (5 blends)
+      Gallery photographs: Below the fold, lazy loaded, counts against the 600 KB whole page image budget. Send as many or as few as you like.
+  [Trevean] blend.freshness.harvestedOn  (5 blends)  BLOCKS PUBLISH
+      Harvest date: YYYY-MM-DD. A provenance claim: never invented, left null until supplied.
+  [Trevean] blend.freshness.blendedOn  (5 blends)  BLOCKS PUBLISH
+      Blend date: YYYY-MM-DD.
+  [Trevean] blend.freshness.bestBefore  (5 blends)  BLOCKS PUBLISH
+      Best before: YYYY-MM-DD. A food safety claim.
+  [Trevean] blend.freshness.lotLabel  (5 blends)
+      Lot label: Printed lot reference. Freshness is per blend, not per jar: tag encoding is per SKU so per lot attribution is impossible.
+  [Shopify] blend.shopify.sku  (5 blends)  BLOCKS PUBLISH
+      Shopify SKU: From the store. Needed before the reorder button can work.
+  [Shopify] blend.shopify.productId  (5 blends)  BLOCKS PUBLISH
+      Shopify product id: gid://shopify/Product/...
+  [Shopify] blend.shopify.variantId  (5 blends)  BLOCKS PUBLISH
+      Shopify variant id: gid://shopify/ProductVariant/... The cart permalink is built from it.
+  [Trevean] blend.originRegion  (2 blends)
+      Origin region: Province, state or named region as Trevean wants it printed.
+  [Trevean] blend.originCountry  (1 blend)  BLOCKS PUBLISH
+      Origin country: Two letter ISO 3166-1 code. One code only: a blend whose stated origin spans several countries cannot be expressed in this field and needs a decision.
+  [Trevean] grower.name  (5 blends)  BLOCKS PUBLISH
+      Grower name: A real person or cooperative, with their consent to be named and photographed. Never invented.
+  [Trevean] grower.farmName  (5 blends)
+      Farm or cooperative name: As it should be printed.
+  [Trevean] grower.country  (5 blends)  BLOCKS PUBLISH
+      Grower country: Two letter ISO 3166-1 code.
+  [Trevean] grower.region  (5 blends)
+      Grower region: Province or named region.
+  [Trevean] grower.bio  (5 blends)  BLOCKS PUBLISH
+      Grower profile copy: Below the fold. 600 to 900 characters reads as a profile rather than a caption and stays inside the page weight budget.
+  [Trevean] grower.yearsFarming  (5 blends)
+      Years farming: A claim about a real person. Never invented, left null until supplied.
+  [Trevean] grower.portraitId  (5 blends)  BLOCKS PUBLISH
+      Grower portrait: See the image specification. 640 by 640, 80 KB after processing. Requires the subject's written consent.
+  [Trevean] grower.farm.latitude  (5 blends)  BLOCKS PUBLISH
+      Farm latitude: Decimal degrees. Never invented.
+  [Trevean] grower.farm.longitude  (5 blends)  BLOCKS PUBLISH
+      Farm longitude: Decimal degrees.
+  [Trevean] recipe.title  (2 blends)  BLOCKS PUBLISH
+      Recipe title: Reads on one or two lines in a carousel card at 375 px.
+  [Trevean] recipe.summary  (2 blends)  BLOCKS PUBLISH
+      Recipe summary: One or two sentences on the card.
+  [Trevean] recipe.servings  (2 blends)
+      Servings: Whole number.
+  [Trevean] recipe.prepMinutes  (2 blends)
+      Prep minutes: Whole minutes.
+  [Trevean] recipe.cookMinutes  (2 blends)
+      Cook minutes: Whole minutes.
+  [Trevean] recipe.difficulty  (2 blends)
+      Difficulty: One of easy, medium, hard.
+  [Trevean] recipe.ingredients  (2 blends)  BLOCKS PUBLISH
+      Ingredients: Each line is quantity, unit, item and an optional note, supplied as four separate values rather than one string, so the page can format them and a future translation does not have to parse English.
+  [Trevean] recipe.steps  (2 blends)  BLOCKS PUBLISH
+      Method steps: One step per entry, up to 800 characters each. No numbering in the text: the page numbers them.
+  [Trevean] recipe.imageId  (2 blends)
+      Recipe photograph: See the image specification. 600 by 450, 38 KB after processing. Optional, but a carousel of ten cards with no photographs is a weaker page than one with them.
+  [Shopify] catalog.sku  (5 blends)  BLOCKS PUBLISH
+      SKU: Mirrored from the store on a schedule and on product update webhooks.
+  [Shopify] catalog.shopifyProductId  (5 blends)  BLOCKS PUBLISH
+      Product id: Mirrored.
+  [Shopify] catalog.shopifyVariantId  (5 blends)  BLOCKS PUBLISH
+      Variant id: Mirrored.
+  [Shopify] catalog.price  (5 blends)  BLOCKS PUBLISH
+      Price: Integer minor units plus an ISO 4217 code. Never invented: a wrong price shown to a customer is worse than no price.
+  [Shopify] catalog.available  (5 blends)  BLOCKS PUBLISH
+      Available: Mirrored.
+
+------------------------------------------------------------------------------
+INTEGRITY CHECKS
+------------------------------------------------------------------------------
+  All fixtures carry a placeholder state for every field in the specification,
+  every placeholder string carries the sentinel, every string is inside its
+  contract length, recipe counts agree with the fixtures, and every blend is
+  inside the whole page image budget.
+
+==============================================================================
+PLACEHOLDER CONTENT PRESENT. This data set must not be seeded to production.
+==============================================================================

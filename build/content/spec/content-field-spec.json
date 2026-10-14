@@ -1,0 +1,174 @@
+{
+  "$comment": [
+    "Trevean Spice NFC. Content field specification.",
+    "The single source of truth for: what a complete blend page needs, who owns each field,",
+    "what shape and length it has to be, and whether it blocks publish.",
+    "Three tools read this file and nothing else defines these facts twice:",
+    "  tools/content-readiness.mjs  reports which fields are still placeholder,",
+    "  tools/validate-intake.mjs    checks a client submission before we accept it,",
+    "  CONTENT-INTAKE-SPECIFICATION.md is written from it by hand and must agree with it.",
+    "Field types, lengths and enums are taken from the frozen M1 API contract, version 1.0.0.",
+    "Where this file and that contract disagree, the contract governs and this file is a bug."
+  ],
+
+  "conventionVersion": 1,
+  "sentinel": "[PLACEHOLDER]",
+  "secondaryMarker": "NOT REAL CONTENT",
+  "asOf": "2026-08-22",
+  "contentDueFromClient": "2026-08-14",
+  "gateDate": "2026-08-31",
+  "gateDateIsConditional": true,
+  "gateDateNote": "The M2 gate is no longer a fixed date. It moves day for day from Friday 21 August 2026, because five client dependencies missed that date. 2026-08-31 is the EARLIEST achievable, if everything lands Monday 24 August 2026. Each further working day of client silence moves it one further working day. See the M2 plan, section 3.1.",
+
+  "owners": {
+    "Trevean": "Trevean Spice supplies it. Content writing, photography and translation are outside the contractor's scope per the Scope document, 'Out of scope, deferred not dropped'.",
+    "Shopify": "Read from Trevean's Shopify Plus store once store access is provided. Not authored by anyone.",
+    "Serene Labs": "The contractor authors it. Structural, factual or derived, never editorial about the supply chain."
+  },
+
+  "states": {
+    "client_real": "Supplied by Trevean and used verbatim. Complete.",
+    "contractor_real": "Authored by Serene Labs, factually correct, complete. Structural links and system statements only.",
+    "placeholder_text": "A string carrying the sentinel. Renders as an obvious placeholder on the page.",
+    "placeholder_null": "Deliberately null. A fabricated value here would be a false claim about a real supply chain, so no value is invented. Dates, coordinates, prices, counts of years.",
+    "placeholder_media": "Points at a generated placeholder asset that is stamped PLACEHOLDER, sized and weighted to the performance budget.",
+    "not_applicable": "Does not apply to this record."
+  },
+
+  "entities": {
+
+    "blend": {
+      "label": "Blend",
+      "fields": [
+        { "path": "slug", "label": "Slug", "owner": "Serene Labs", "type": "enum", "requiredForPublish": true, "guidance": "Fixed by the redirect table. Not editable: a thousand encoded tags resolve through it." },
+        { "path": "name", "label": "Blend name", "owner": "Trevean", "type": "string", "maxLength": 120, "requiredForPublish": true, "guidance": "Supplied. The five names are in the Scope document, 'The five blends'." },
+        { "path": "tagCode", "label": "Tag code", "owner": "Serene Labs", "type": "enum", "requiredForPublish": true, "guidance": "Fixed by the redirect table." },
+        { "path": "launchTier", "label": "Launch tier", "owner": "Serene Labs", "type": "enum", "requiredForPublish": true, "guidance": "real for the two launch blends, seeded for the other three." },
+        { "path": "tagline", "label": "Tagline", "owner": "Trevean", "type": "string", "maxLength": 200, "targetMin": 40, "targetMax": 120, "requiredForPublish": true, "guidance": "One line under the blend name. Renders above the fold at 375 px, so 120 characters is the practical ceiling even though the contract allows 200." },
+        { "path": "originCountry", "label": "Origin country", "owner": "Trevean", "type": "iso3166-alpha2", "requiredForPublish": true, "guidance": "Two letter ISO 3166-1 code. One code only: a blend whose stated origin spans several countries cannot be expressed in this field and needs a decision." },
+        { "path": "originRegion", "label": "Origin region", "owner": "Trevean", "type": "string", "maxLength": 120, "requiredForPublish": false, "guidance": "Province, state or named region as Trevean wants it printed." },
+        { "path": "originCity", "label": "Origin city", "owner": "Trevean", "type": "string", "maxLength": 120, "requiredForPublish": false, "guidance": "City or town. Omit rather than guess." },
+        { "path": "farm.latitude", "label": "Farm latitude", "owner": "Trevean", "type": "number", "requiredForPublish": true, "guidance": "Decimal degrees, 4 decimal places. Coarse enough not to identify a private address, per the API contract. Never invented: see the placeholder convention." },
+        { "path": "farm.longitude", "label": "Farm longitude", "owner": "Trevean", "type": "number", "requiredForPublish": true, "guidance": "Decimal degrees, 4 decimal places." },
+        { "path": "farm.label", "label": "Farm map label", "owner": "Trevean", "type": "string", "maxLength": 200, "requiredForPublish": false, "guidance": "What the pin says. For example a district name, not a street address." },
+        { "path": "storyBlocks", "label": "Origin story", "owner": "Trevean", "type": "blocks", "minItems": 3, "maxItems": 8, "requiredForPublish": true, "guidance": "One heading plus 2 to 5 paragraphs. Block types are heading, paragraph and quote only: no HTML. The first paragraph must read as a complete opening on its own, because the Acceptance criteria document section 6.3 requires the origin story visible without scrolling." },
+        { "path": "storyBlocks[].text", "label": "Story block text", "owner": "Trevean", "type": "string", "maxLength": 2000, "targetMin": 320, "targetMax": 480, "requiredForPublish": true, "guidance": "Per paragraph. Heading blocks 20 to 60 characters." },
+        { "path": "heroImageId", "label": "Hero photograph", "owner": "Trevean", "type": "media", "mediaKind": "hero", "requiredForPublish": true, "guidance": "See the image specification. 1280 by 955, 90 KB after our processing, single subject, shallow depth of field." },
+        { "path": "galleryImageIds", "label": "Gallery photographs", "owner": "Trevean", "type": "media[]", "mediaKind": "gallery", "maxItems": 20, "requiredForPublish": false, "guidance": "Below the fold, lazy loaded, counts against the 600 KB whole page image budget. Send as many or as few as you like." },
+        { "path": "freshness.harvestedOn", "label": "Harvest date", "owner": "Trevean", "type": "date", "requiredForPublish": true, "guidance": "YYYY-MM-DD. A provenance claim: never invented, left null until supplied." },
+        { "path": "freshness.blendedOn", "label": "Blend date", "owner": "Trevean", "type": "date", "requiredForPublish": true, "guidance": "YYYY-MM-DD." },
+        { "path": "freshness.bestBefore", "label": "Best before", "owner": "Trevean", "type": "date", "requiredForPublish": true, "guidance": "YYYY-MM-DD. A food safety claim." },
+        { "path": "freshness.lotLabel", "label": "Lot label", "owner": "Trevean", "type": "string", "maxLength": 40, "requiredForPublish": false, "guidance": "Printed lot reference. Freshness is per blend, not per jar: tag encoding is per SKU so per lot attribution is impossible." },
+        { "path": "freshness.note", "label": "Freshness note", "owner": "Serene Labs", "type": "string", "maxLength": 300, "requiredForPublish": false, "guidance": "A statement about how the system works, not about the spice. Authored by us and correct as written." },
+        { "path": "growerId", "label": "Grower link", "owner": "Serene Labs", "type": "id", "requiredForPublish": true, "guidance": "Structural link. The grower record behind it is a separate entity with its own fields." },
+        { "path": "shopify.sku", "label": "Shopify SKU", "owner": "Shopify", "type": "string", "maxLength": 64, "requiredForPublish": true, "guidance": "From the store. Needed before the reorder button can work." },
+        { "path": "shopify.productId", "label": "Shopify product id", "owner": "Shopify", "type": "string", "requiredForPublish": true, "guidance": "gid://shopify/Product/..." },
+        { "path": "shopify.variantId", "label": "Shopify variant id", "owner": "Shopify", "type": "string", "requiredForPublish": true, "guidance": "gid://shopify/ProductVariant/... The cart permalink is built from it." },
+        { "path": "shopify.cartPermalinkUrl", "label": "Cart permalink", "owner": "Serene Labs", "type": "url", "requiredForPublish": true, "guidance": "Derived from the variant id. Static URL, zero API calls, and it is the whole one tap reorder mechanism." }
+      ]
+    },
+
+    "grower": {
+      "label": "Grower",
+      "fields": [
+        { "path": "name", "label": "Grower name", "owner": "Trevean", "type": "string", "maxLength": 160, "requiredForPublish": true, "guidance": "A real person or cooperative, with their consent to be named and photographed. Never invented." },
+        { "path": "farmName", "label": "Farm or cooperative name", "owner": "Trevean", "type": "string", "maxLength": 160, "requiredForPublish": false, "guidance": "As it should be printed." },
+        { "path": "country", "label": "Grower country", "owner": "Trevean", "type": "iso3166-alpha2", "requiredForPublish": true, "guidance": "Two letter ISO 3166-1 code." },
+        { "path": "region", "label": "Grower region", "owner": "Trevean", "type": "string", "maxLength": 120, "requiredForPublish": false, "guidance": "Province or named region." },
+        { "path": "bio", "label": "Grower profile copy", "owner": "Trevean", "type": "string", "maxLength": 4000, "targetMin": 600, "targetMax": 900, "requiredForPublish": true, "guidance": "Below the fold. 600 to 900 characters reads as a profile rather than a caption and stays inside the page weight budget." },
+        { "path": "yearsFarming", "label": "Years farming", "owner": "Trevean", "type": "integer", "min": 0, "max": 120, "requiredForPublish": false, "guidance": "A claim about a real person. Never invented, left null until supplied." },
+        { "path": "portraitId", "label": "Grower portrait", "owner": "Trevean", "type": "media", "mediaKind": "grower_portrait", "requiredForPublish": true, "guidance": "See the image specification. 640 by 640, 80 KB after processing. Requires the subject's written consent." },
+        { "path": "farm.latitude", "label": "Farm latitude", "owner": "Trevean", "type": "number", "requiredForPublish": true, "guidance": "Decimal degrees. Never invented." },
+        { "path": "farm.longitude", "label": "Farm longitude", "owner": "Trevean", "type": "number", "requiredForPublish": true, "guidance": "Decimal degrees." },
+        { "path": "blendSlugs", "label": "Blends supplied", "owner": "Serene Labs", "type": "enum[]", "requiredForPublish": true, "guidance": "Structural back pointer. Maintained by us, used to work out what needs republishing after a grower edit." }
+      ]
+    },
+
+    "recipe": {
+      "label": "Recipe",
+      "perBlendMin": 5,
+      "perBlendMax": 10,
+      "appliesToLaunchTier": ["real"],
+      "fields": [
+        { "path": "title", "label": "Recipe title", "owner": "Trevean", "type": "string", "maxLength": 160, "targetMin": 20, "targetMax": 60, "requiredForPublish": true, "guidance": "Reads on one or two lines in a carousel card at 375 px." },
+        { "path": "summary", "label": "Recipe summary", "owner": "Trevean", "type": "string", "maxLength": 400, "targetMin": 60, "targetMax": 160, "requiredForPublish": true, "guidance": "One or two sentences on the card." },
+        { "path": "servings", "label": "Servings", "owner": "Trevean", "type": "integer", "min": 1, "requiredForPublish": false, "guidance": "Whole number." },
+        { "path": "prepMinutes", "label": "Prep minutes", "owner": "Trevean", "type": "integer", "min": 0, "requiredForPublish": false, "guidance": "Whole minutes." },
+        { "path": "cookMinutes", "label": "Cook minutes", "owner": "Trevean", "type": "integer", "min": 0, "requiredForPublish": false, "guidance": "Whole minutes." },
+        { "path": "difficulty", "label": "Difficulty", "owner": "Trevean", "type": "enum", "enum": ["easy", "medium", "hard"], "requiredForPublish": false, "guidance": "One of easy, medium, hard." },
+        { "path": "ingredients", "label": "Ingredients", "owner": "Trevean", "type": "list", "minItems": 3, "maxItems": 40, "requiredForPublish": true, "guidance": "Each line is quantity, unit, item and an optional note, supplied as four separate values rather than one string, so the page can format them and a future translation does not have to parse English." },
+        { "path": "steps", "label": "Method steps", "owner": "Trevean", "type": "list", "minItems": 2, "maxItems": 30, "requiredForPublish": true, "guidance": "One step per entry, up to 800 characters each. No numbering in the text: the page numbers them." },
+        { "path": "imageId", "label": "Recipe photograph", "owner": "Trevean", "type": "media", "mediaKind": "recipe", "requiredForPublish": false, "guidance": "See the image specification. 600 by 450, 38 KB after processing. Optional, but a carousel of ten cards with no photographs is a weaker page than one with them." },
+        { "path": "sortOrder", "label": "Carousel position", "owner": "Trevean", "type": "integer", "min": 0, "requiredForPublish": true, "guidance": "Which order the carousel runs in. We will default to submission order if none is given." }
+      ]
+    },
+
+    "catalog": {
+      "label": "Shopify catalog mirror",
+      "fields": [
+        { "path": "sku", "label": "SKU", "owner": "Shopify", "type": "string", "maxLength": 64, "requiredForPublish": true, "guidance": "Mirrored from the store on a schedule and on product update webhooks." },
+        { "path": "shopifyProductId", "label": "Product id", "owner": "Shopify", "type": "string", "requiredForPublish": true, "guidance": "Mirrored." },
+        { "path": "shopifyVariantId", "label": "Variant id", "owner": "Shopify", "type": "string", "requiredForPublish": true, "guidance": "Mirrored." },
+        { "path": "price", "label": "Price", "owner": "Shopify", "type": "money", "requiredForPublish": true, "guidance": "Integer minor units plus an ISO 4217 code. Never invented: a wrong price shown to a customer is worse than no price." },
+        { "path": "available", "label": "Available", "owner": "Shopify", "type": "boolean", "requiredForPublish": true, "guidance": "Mirrored." },
+        { "path": "inventoryStatus", "label": "Inventory status", "owner": "Shopify", "type": "enum", "enum": ["in_stock", "low_stock", "out_of_stock", "unknown"], "requiredForPublish": true, "guidance": "unknown is a legitimate value when the mirror is stale. It is not an error." },
+        { "path": "cartPermalinkUrl", "label": "Cart permalink", "owner": "Serene Labs", "type": "url", "requiredForPublish": true, "guidance": "Derived from the variant id." }
+      ]
+    },
+
+    "media": {
+      "label": "Media asset",
+      "fields": [
+        { "path": "file", "label": "Source file", "owner": "Trevean", "type": "file", "requiredForPublish": true, "guidance": "See the image specification for dimensions, format and maximum source size." },
+        { "path": "alt", "label": "Alternative text", "owner": "Trevean", "type": "string", "maxLength": 300, "targetMin": 40, "targetMax": 140, "requiredForPublish": true, "guidance": "Describes the photograph for someone who cannot see it. Required before an image can appear on a published page." },
+        { "path": "credit", "label": "Photographer credit and licence", "owner": "Trevean", "type": "string", "maxLength": 300, "requiredForPublish": true, "guidance": "Who shot it and on what terms. Needed for the background IP list, and for a portrait, confirmation that the subject consented." }
+      ]
+    }
+  },
+
+  "imageSpecification": {
+    "$comment": "Every number here is derived from the M1 performance budget deliverable and its budget.json. Changing one is a change to a contractual gate.",
+    "deliveredFormat": ["image/jpeg", "image/png", "image/webp", "image/avif"],
+    "maximumSourceBytes": 26214400,
+    "colourSpace": "sRGB",
+    "servedFormats": ["avif", "webp"],
+    "kinds": {
+      "hero": {
+        "servedWidth": 1280,
+        "servedHeight": 955,
+        "servedMaxBytes": 92160,
+        "aspectRatio": "1.34:1",
+        "minimumSourceWidth": 2560,
+        "onTapPath": true,
+        "note": "The largest variant served. 90 KB is a hard cap from the performance budget: the byte cap is fixed and the photograph is chosen to fit it, not the other way round. Art direction: single subject, shallow depth of field, large simple shapes. Avoid flat lit full frame high detail texture, which is the worst case both for compression and for a 375 px screen."
+      },
+      "grower_portrait": {
+        "servedWidth": 640,
+        "servedHeight": 640,
+        "servedMaxBytes": 81920,
+        "aspectRatio": "1:1",
+        "minimumSourceWidth": 1280,
+        "onTapPath": false,
+        "note": "Below the fold, lazy loaded. Requires the subject's written consent."
+      },
+      "recipe": {
+        "servedWidth": 600,
+        "servedHeight": 450,
+        "servedMaxBytes": 38912,
+        "aspectRatio": "4:3",
+        "minimumSourceWidth": 1200,
+        "onTapPath": false,
+        "note": "38 KB is what makes ten recipe cards fit inside the 600 KB whole page image budget alongside the hero, the portrait and the farm map."
+      },
+      "farm_map": {
+        "servedWidth": 640,
+        "servedHeight": 400,
+        "servedMaxBytes": 40960,
+        "aspectRatio": "1.6:1",
+        "onTapPath": false,
+        "generatedBy": "Serene Labs",
+        "note": "A static raster generated from the farm coordinates, not an interactive map SDK. A mapping library is 200 to 800 KB of JavaScript, which exceeds the entire deferred JavaScript budget. This is a build asset, not one of the four MediaKind values in the frozen API contract."
+      }
+    }
+  }
+}
