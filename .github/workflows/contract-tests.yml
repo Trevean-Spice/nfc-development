@@ -19,13 +19,9 @@ name: API contract tests
 # suite, section "Adopting this into nfc-development".
 
 on:
-  push:
-    branches: [main, master]
+  # pull_request and workflow_dispatch only: the shared Actions minutes run out on push and
+  # daily schedules (2026-10-14). Run the drift check by hand with workflow_dispatch.
   pull_request:
-  schedule:
-    # 07:00 UTC daily, so a drift between the two implementations is found in the morning
-    # rather than at 22:00 on 26 September.
-    - cron: '0 7 * * *'
   workflow_dispatch:
     inputs:
       target:
@@ -34,6 +30,10 @@ on:
         default: stub
         type: choice
         options: [stub, staging, production]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
