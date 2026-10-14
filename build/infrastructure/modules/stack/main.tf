@@ -226,6 +226,9 @@ module "compute" {
   tags                 = local.tags
   shopify_store_domain = var.shopify_store_domain
 
+  catalog_sync_dry_run             = var.catalog_sync_dry_run
+  catalog_sync_schedule_expression = var.catalog_sync_schedule_expression
+
   table_arns             = module.data.table_arns
   table_names            = module.data.table_names
   scan_events_stream_arn = module.data.scan_events_stream_arn

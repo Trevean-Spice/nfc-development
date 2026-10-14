@@ -7,6 +7,7 @@
  * throw on unexpected data: it degrades a field to null and records a warning.
  */
 
+import { canonicalVariantGid } from '../ids.js';
 import { toMoney } from '../money.js';
 import { buildReorderPermalink, type AttributionMode } from '../permalink.js';
 import type { CatalogMirrorRecord, InventoryStatus } from '../types.js';
@@ -47,6 +48,11 @@ export function mapProductToMirror(input: NormalisedProduct, options: MapOptions
   const variant = selectVariant(product, options);
 
   if (!variant) warnings.push(`Product for ${options.slug} carries no variants, so there is nothing to reorder.`);
+  if (options.preferredVariantId && variant && variant.gid !== canonicalVariantGid(options.preferredVariantId)) {
+    warnings.push(
+      `Variant ${options.preferredVariantId} is no longer on the product for ${options.slug}. Selected ${variant.gid ?? 'none'} instead.`,
+    );
+  }
   if (options.preferredSku && variant && variant.sku !== options.preferredSku) {
     warnings.push(
       `Preferred SKU ${options.preferredSku} was not found on the product for ${options.slug}. Fell back to the first variant by position.`,
@@ -68,7 +74,19 @@ export function mapProductToMirror(input: NormalisedProduct, options: MapOptions
     );
   }
 
-  const available = variant?.available ?? null;
+  // A product that is not ACTIVE cannot be bought, whatever its variants say about stock.
+  // Shopify sends ACTIVE, DRAFT or ARCHIVED (lower case on REST). Variant level signals
+  // ignore publication, so without this a draft blend is mirrored as in stock and the page
+  // renders a working reorder button into a checkout that refuses. That happened for real
+  // in the API's inline webhook handler and was fixed there on 17 September 2026 (D58);
+  // this is the same rule in the one mapper both the sync and the webhook path share.
+  // Absent status falls through, because absent means an older payload, not a draft.
+  const notActive = typeof product.status === 'string' && product.status.toLowerCase() !== 'active';
+  if (notActive) {
+    warnings.push(`Product for ${options.slug} has status ${product.status}, so it is mirrored as not purchasable.`);
+  }
+
+  const available = notActive ? false : (variant?.available ?? null);
   const lowStockThreshold = options.lowStockThreshold === undefined ? null : options.lowStockThreshold;
 
   let cartPermalinkUrl: string | null = null;

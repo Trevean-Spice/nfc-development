@@ -224,3 +224,15 @@ variable "shopify_store_domain" {
   type        = string
   default     = ""
 }
+
+variable "catalog_sync_dry_run" {
+  description = "true makes catalog_sync log intended writes and write nothing. Set false only after a live dry run has been read. See build/shopify/CATALOG-SYNC-DEPLOY.md."
+  type        = bool
+  default     = true
+}
+
+variable "catalog_sync_schedule_expression" {
+  description = "EventBridge schedule for catalog_sync, for example \"rate(1 hour)\". Null creates no schedule."
+  type        = string
+  default     = null
+}

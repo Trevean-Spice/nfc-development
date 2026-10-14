@@ -198,7 +198,23 @@ locals {
       description = "Shopify Admin API catalog mirror, on a schedule and on product-update webhooks. Keeps Shopify latency outside the 2.0 second budget."
       memory      = 512
       timeout     = 300
-      environment = {}
+
+      # Read by build/shopify/src/lambda/catalogSyncHandler.ts, added Wednesday
+      # 14 October 2026 when the function got real code. The admin domain is
+      # SHOPIFY_STORE_DOMAIN from common_env, the permanent myshopify host (D64).
+      #
+      # The token secret is named by ARN, which Secrets Manager accepts as a
+      # SecretId and which is exactly the resource the policy below grants.
+      # Empty when the secrets module has no such secret, and the handler then
+      # falls back to trevean/{env}/shopify-admin-api-token.
+      #
+      # Anything but "false" is a dry run: the function reads, plans and logs
+      # and writes nothing. The handler defaults to a dry run when this is unset
+      # too, so code deployed ahead of this setting cannot write.
+      environment = {
+        SHOPIFY_ADMIN_TOKEN_SECRET_NAME = lookup(var.secret_arns, "shopify-admin-api-token", "")
+        CATALOG_SYNC_DRY_RUN            = var.catalog_sync_dry_run ? "true" : "false"
+      }
     }
 
     shopify_webhook = {
@@ -908,6 +924,44 @@ resource "aws_iam_role_policy" "catalog_sync" {
   name   = "catalog-sync"
   role   = aws_iam_role.function["catalog_sync"].id
   policy = data.aws_iam_policy_document.catalog_sync.json
+}
+
+# The schedule. Absent until catalog_sync_schedule_expression is set, which is
+# deliberately a separate step from deploying the code: the first run against
+# the live store is a dry run invoked by hand and read by a person, and only
+# then does anything run on its own. See build/shopify/CATALOG-SYNC-DEPLOY.md.
+#
+# Unqualified function ARN, so the schedule runs whatever code was last
+# deployed. A failed run throws, and Lambda's asynchronous retry runs it again;
+# a run is idempotent, so a retry costs Admin API points and nothing else.
+resource "aws_cloudwatch_event_rule" "catalog_sync" {
+  count = var.catalog_sync_schedule_expression == null ? 0 : 1
+
+  name                = "${var.name_prefix}-catalog-sync"
+  description         = "Runs the Shopify catalog mirror sync."
+  schedule_expression = var.catalog_sync_schedule_expression
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "catalog_sync" {
+  count = var.catalog_sync_schedule_expression == null ? 0 : 1
+
+  rule      = aws_cloudwatch_event_rule.catalog_sync[0].name
+  target_id = "catalog-sync"
+  arn       = aws_lambda_function.function["catalog_sync"].arn
+  input     = jsonencode({ source = "schedule" })
+}
+
+resource "aws_lambda_permission" "catalog_sync_schedule" {
+  count = var.catalog_sync_schedule_expression == null ? 0 : 1
+
+  statement_id  = "AllowTheCatalogSyncScheduleToInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.function["catalog_sync"].function_name
+  principal     = "events.amazonaws.com"
+
+  # Scoped to this one rule, not to the service.
+  source_arn = aws_cloudwatch_event_rule.catalog_sync[0].arn
 }
 
 # ---------------------------------------------------------------------------

@@ -68,6 +68,15 @@ describe('products/update', () => {
     expect(result.result.warnings.join(' ')).toMatch(/no variants/);
   });
 
+  it('mirrors a draft product as not purchasable, whatever its stock says (D58)', () => {
+    const draft = { ...(payload as Record<string, unknown>), status: 'draft' };
+    const result = handleProductsUpdate(draft, { knownSlugs: KNOWN_SLUGS, syncedAt: '2026-08-22T09:00:00Z', storefrontBase: BASE });
+    expect(result.matched).toBe(true);
+    if (!result.matched) return;
+    expect(result.result.record).toMatchObject({ available: false, inventoryStatus: 'out_of_stock' });
+    expect(result.result.warnings.join(' ')).toMatch(/status draft/);
+  });
+
   it('survives an empty object without throwing', () => {
     expect(() => handleProductsUpdate({}, { knownSlugs: KNOWN_SLUGS, syncedAt: '2026-08-22T09:00:00Z' })).not.toThrow();
   });

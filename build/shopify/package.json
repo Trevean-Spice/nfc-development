@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "licences": "node scripts/licences.mjs",
-    "sync:contract": "node scripts/sync-contract.mjs"
+    "sync:contract": "node scripts/sync-contract.mjs",
+    "package:catalog-sync": "node scripts/package-catalog-sync.mjs"
   },
   "dependencies": {},
   "devDependencies": {

@@ -122,8 +122,9 @@ variable "enable_http_invoke_path" {
     main.tf, next to the resources, because that is where somebody about to
     change it will be reading.
   EOT
-  type        = bool
-  default     = true
+
+  type    = bool
+  default = true
 }
 
 variable "log_retention_days" {
@@ -194,8 +195,9 @@ variable "revalidation_webhook_url" {
     an environment can point the API at a pipeline it does not own, which is
     what a local end to end run against a deployed API needs.
   EOT
-  type        = string
-  default     = null
+
+  type    = string
+  default = null
 }
 
 variable "create_renderer_lambda" {
@@ -211,8 +213,9 @@ variable "create_renderer_lambda" {
     The role is not gated by this and does not move. The container assumes it.
     See the long note beside the resource.
   EOT
-  type        = bool
-  default     = true
+
+  type    = bool
+  default = true
 }
 
 variable "publisher_public_base_url" {
@@ -226,8 +229,9 @@ variable "publisher_public_base_url" {
     the correct direction to fail: an editor told the change is live when it is
     not will find out from a customer.
   EOT
-  type        = string
-  default     = null
+
+  type    = string
+  default = null
 }
 
 variable "distribution_domain_name" {
@@ -241,8 +245,9 @@ variable "distribution_domain_name" {
     node, so a dependency belonging to one function becomes a dependency of all
     eight, including the two whose function URLs the distribution needs.
   EOT
-  type        = string
-  default     = null
+
+  type    = string
+  default = null
 }
 
 variable "admin_api_base_url" {
@@ -277,4 +282,28 @@ variable "shopify_store_domain" {
 
   type    = string
   default = ""
+}
+
+variable "catalog_sync_dry_run" {
+  description = <<-EOT
+    true: the catalog_sync function reads the CATALOG# rows and the Shopify
+    Admin API, logs the update it would make to each row, and writes nothing.
+    false: it writes. Leave true until a dry run against the live store has been
+    read by a person. See build/shopify/CATALOG-SYNC-DEPLOY.md.
+  EOT
+
+  type    = bool
+  default = true
+}
+
+variable "catalog_sync_schedule_expression" {
+  description = <<-EOT
+    EventBridge schedule for catalog_sync, for example "rate(1 hour)". Null
+    creates no schedule, which is the state until the first live dry run has
+    been read. The API serves a row as stale six hours after its syncedAt
+    (CATALOG_STALE_AFTER_SECONDS), so hourly survives five missed runs.
+  EOT
+
+  type    = string
+  default = null
 }

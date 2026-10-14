@@ -41,6 +41,8 @@ export interface CatalogSyncOptions extends SlugResolutionOptions {
   pageSize?: number;
   /** Preferred SKU per blend slug, when a blend has more than one variant. */
   preferredSkuBySlug?: Record<string, string>;
+  /** The variant each slug already mirrors. Wins over the SKU preference and over position. */
+  preferredVariantIdBySlug?: Record<string, string>;
   lowStockThreshold?: number | null;
   defaultCurrency?: string;
   attributionMode?: MapOptions['attributionMode'];
@@ -230,6 +232,9 @@ export async function syncCatalog(options: CatalogSyncOptions): Promise<CatalogS
         ...(options.defaultCurrency ? { defaultCurrency: options.defaultCurrency } : {}),
         ...(options.preferredSkuBySlug?.[resolution.slug]
           ? { preferredSku: options.preferredSkuBySlug[resolution.slug] }
+          : {}),
+        ...(options.preferredVariantIdBySlug?.[resolution.slug]
+          ? { preferredVariantId: options.preferredVariantIdBySlug[resolution.slug] }
           : {}),
       });
 

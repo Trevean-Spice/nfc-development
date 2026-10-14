@@ -35,6 +35,9 @@ module "stack" {
   # See "Decision log", D49.
   shopify_store_domain = var.shopify_store_domain
 
+  catalog_sync_dry_run             = var.catalog_sync_dry_run
+  catalog_sync_schedule_expression = var.catalog_sync_schedule_expression
+
   create_certificate  = var.create_certificate
   apex_domain         = var.apex_domain
   attach_apex_aliases = false

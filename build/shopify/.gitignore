@@ -9,3 +9,6 @@ coverage/
 # committed .env template is how a real value eventually ends up beside it.
 .env
 .env.*
+
+# Lambda deployment archives built by scripts/package-catalog-sync.mjs.
+.lambda-build/

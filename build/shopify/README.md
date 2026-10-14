@@ -90,6 +90,13 @@ report. **It does not write.** Persistence belongs to the API component, which o
 DynamoDB client and the `CATALOG#` key namespace, and keeping the write out of here is what
 lets the whole sync be tested without a database as well as without a store.
 
+**Added 14 October 2026, not yet deployed:** the catalog_sync Lambda itself,
+`src/lambda/catalogSyncHandler.ts`, with a conditional writer in `src/sync/` that updates
+only existing `CATALOG#` rows and only the attributes the mirror owns, dry run by default,
+and its own packager (`npm run package:catalog-sync`). It still adds no dependency: the
+AWS SDK is the one in the Lambda runtime. What changed, the test results, the deploy steps
+and what is still unknown: `CATALOG-SYNC-DEPLOY.md`.
+
 ### 4. Order webhook, signature verified
 
 `src/webhooks/`. Feeds reorder attribution, per SKU.

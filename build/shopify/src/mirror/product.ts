@@ -114,6 +114,12 @@ export function resolveSlug(product: NormalisedProduct, options: SlugResolutionO
 export interface VariantSelectionOptions {
   /** Preferred SKU per blend slug, when Trevean sells more than one size. */
   preferredSku?: string | null;
+  /**
+   * The variant the mirror already points at, in either id form. Checked first, so a
+   * variant verified by hand stays selected for as long as the product still carries it,
+   * whatever Shopify's position order does.
+   */
+  preferredVariantId?: string | null;
 }
 
 /**
@@ -131,6 +137,11 @@ export function selectVariant(
   options: VariantSelectionOptions = {},
 ): NormalisedVariant | null {
   if (product.variants.length === 0) return null;
+  if (options.preferredVariantId) {
+    const wanted = canonicalVariantGid(options.preferredVariantId);
+    const byId = wanted ? product.variants.find((v) => canonicalVariantGid(v.gid) === wanted) : undefined;
+    if (byId) return byId;
+  }
   if (options.preferredSku) {
     const bySku = product.variants.find((v) => v.sku === options.preferredSku);
     if (bySku) return bySku;
