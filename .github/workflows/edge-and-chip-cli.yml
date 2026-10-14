@@ -31,18 +31,16 @@ name: Edge redirect and chip tooling
 # network, so every job here runs without credentials.
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - 'build/edge/**'
-      - 'build/chip-cli/**'
-      - '.github/workflows/edge-and-chip-cli.yml'
   pull_request:
     paths:
       - 'build/edge/**'
       - 'build/chip-cli/**'
       - '.github/workflows/edge-and-chip-cli.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: '20'
