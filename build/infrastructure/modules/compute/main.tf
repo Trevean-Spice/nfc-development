@@ -166,11 +166,18 @@ locals {
       # in since Thursday 27 August 2026 and it is exactly what
       # blend_html_can_be_published = false has been reporting: publish updates
       # a record and stops.
+      #
+      # The Shopify webhooks (/internal/webhooks/shopify/*) are served here too,
+      # because the admin HTTP API's $default route is the API's only public
+      # door that takes a POST. Without SHOPIFY_WEBHOOK_SECRET_NAME the API looks
+      # for trevean/api/shopify-webhook-secret, which no environment creates, and
+      # answers every signed delivery 503 (14 October 2026).
       environment = merge(
         {
-          MEDIA_ORIGINALS_BUCKET   = replace(var.media.originals_bucket_arn, "arn:${data.aws_partition.current.partition}:s3:::", "")
-          MEDIA_DERIVATIVES_QUEUE  = var.media.derivatives_queue_url
-          REVALIDATION_SECRET_NAME = "trevean/${var.environment}/revalidation-secret"
+          MEDIA_ORIGINALS_BUCKET      = replace(var.media.originals_bucket_arn, "arn:${data.aws_partition.current.partition}:s3:::", "")
+          MEDIA_DERIVATIVES_QUEUE     = var.media.derivatives_queue_url
+          REVALIDATION_SECRET_NAME    = "trevean/${var.environment}/revalidation-secret"
+          SHOPIFY_WEBHOOK_SECRET_NAME = "trevean/${var.environment}/shopify-webhook-secret"
         },
         var.revalidation_webhook_url == null ? {} : { REVALIDATION_WEBHOOK_URL = var.revalidation_webhook_url },
       )
@@ -657,6 +664,49 @@ data "aws_iam_policy_document" "admin_api" {
     }
   }
 
+  # orders/create attribution (build/api routes/webhooks.ts). ADD on the daily
+  # order counters only: the per blend and all blends DAY rows. Not the hourly
+  # or GEO rows, not EVT# raw events, not the stream consumer's checkpoints.
+  # The five contract slugs are listed rather than matched with
+  # ROLLUP#BLEND#*#DAY, because * also spans # and would admit the
+  # ROLLUP#BLEND#{slug}#GEO#DAY rows.
+  statement {
+    sid       = "CountWebhookOrdersOnDailyRollups"
+    effect    = "Allow"
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [var.table_arns.scan_events]
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "dynamodb:LeadingKeys"
+      values = [
+        "ROLLUP#ALL#DAY",
+        "ROLLUP#BLEND#persian-sunrise#DAY",
+        "ROLLUP#BLEND#caribbean-sunset#DAY",
+        "ROLLUP#BLEND#north-african-night-market#DAY",
+        "ROLLUP#BLEND#silk-road#DAY",
+        "ROLLUP#BLEND#kyoto-garden#DAY",
+      ]
+    }
+  }
+
+  # The per delivery claim that makes those ADDs count once: a conditional put
+  # keyed on X-Shopify-Webhook-Id, deleted again only when its ADD failed so
+  # Shopify's retry can count it. Its own CKPT# prefix, so this cannot touch
+  # the rollup consumer's batch checkpoints.
+  statement {
+    sid       = "ClaimWebhookOrderDeliveries"
+    effect    = "Allow"
+    actions   = ["dynamodb:PutItem", "dynamodb:DeleteItem"]
+    resources = [var.table_arns.scan_events]
+
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "dynamodb:LeadingKeys"
+      values   = ["CKPT#shopify-orders-create#*"]
+    }
+  }
+
   statement {
     sid       = "PresignMediaUploads"
     effect    = "Allow"
@@ -693,6 +743,19 @@ data "aws_iam_policy_document" "admin_api" {
       effect    = "Allow"
       actions   = ["secretsmanager:GetSecretValue"]
       resources = [var.secret_arns["revalidation-secret"]]
+    }
+  }
+
+  # Verifies every inbound Shopify webhook. Without it the API cannot read the
+  # secret and refuses every signed delivery (503, so Shopify retries).
+  dynamic "statement" {
+    for_each = contains(keys(var.secret_arns), "shopify-webhook-secret") ? [1] : []
+
+    content {
+      sid       = "VerifyShopifyWebhooks"
+      effect    = "Allow"
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = [var.secret_arns["shopify-webhook-secret"]]
     }
   }
 

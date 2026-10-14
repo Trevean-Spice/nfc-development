@@ -427,21 +427,23 @@ of that shape. **They are not evidence about Trevean's catalog.**
 
 ### Relationship to the API component
 
-`build/api` already carries a small inline Shopify webhook handler at
-`/internal/webhooks/shopify/*`, written before this component existed. That handler and this
-one differ in three ways worth reconciling when the two are wired together, and none of them
-is urgent:
+`build/api` carries the Shopify webhook endpoint at `/internal/webhooks/shopify/*`, and it
+is the endpoint Shopify will call (it is reachable through the admin API's HTTP API; the
+`shopify_webhook` Lambda stays the placeholder). **Reconciled on Wednesday 14 October 2026,
+not yet deployed:**
 
-- it derives availability from a `variant.available` field that the REST payload does not
-  carry, where this component derives it from `inventory_management`, `inventory_policy` and
-  `inventory_quantity`;
-- it converts price with `Math.round(parseFloat(x) * 100)`, which is correct for two-decimal
-  currencies and wrong for JPY and KWD, where this component converts on the string;
-- it maps a SKU to a blend by substring inference, where this component requires an explicit
-  map.
+- products/update now derives availability from `inventory_management`,
+  `inventory_policy` and `inventory_quantity`, converts price on the string, keeps the row's
+  pinned variant, and writes with the catalog sync's conditional, attribute scoped update
+  (`src/sync/catalogWriter.ts`), never a PutItem;
+- orders/create matches a line by the row's variant id, then the row's SKU, then whole
+  token SKU rules, never substrings, and counts each delivery once per rollup row.
 
-`build/api` was not modified. The reconciliation is a small change on its side to delegate
-to this package, and it belongs in a commit that says so.
+The API cannot import this package (separate package, separate Lambda archive), so the rules
+are restated in `build/api/src/services/shopifyCatalogMirror.ts`, and a test there reads
+`src/sync/catalogWriter.ts` and fails if the owned attribute list, the slug list or the
+condition expression drifts. What changed and how it goes live: `CATALOG-SYNC-DEPLOY.md`,
+section 4.
 
 ---
 

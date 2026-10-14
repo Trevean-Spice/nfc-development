@@ -1,4 +1,4 @@
-import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { config } from '../config/env.js';
 import { db } from '../db/client.js';
 import { catalogPk, ENTITY, LIVE_SK } from '../db/keys.js';
@@ -30,7 +30,13 @@ export interface CatalogItem {
   inventoryStatus: 'in_stock' | 'low_stock' | 'out_of_stock' | 'unknown';
   cartPermalinkUrl?: string | null;
   syncedAt: string;
-  syncSource: 'schedule' | 'webhook' | 'seed';
+  /**
+   * Provenance. 'seed' from the seeder; the catalog sync writes shopify-sync-{time}, the
+   * products/update webhook shopify-webhook-{time}, and the 7 October rows carry
+   * manual-verified-2026-10-07 (D65). Not served by the API.
+   */
+  syncSource: string;
+  variantPosition?: number | null;
 }
 
 const TABLE = () => config.tables.spiceBlends;
@@ -50,4 +56,38 @@ export async function putCatalogEntry(entry: Omit<CatalogItem, 'pk' | 'sk' | 'en
   };
   await db().send(new PutCommand({ TableName: TABLE(), Item: item }));
   return item;
+}
+
+/**
+ * The CATALOG# rows for the given slugs, strongly consistent, so a webhook plans against the
+ * latest write. One GetItem per slug: five contract slugs, never a Scan.
+ */
+export async function readCatalogRows(slugs: readonly string[]): Promise<Map<string, Record<string, unknown>>> {
+  const rows = new Map<string, Record<string, unknown>>();
+  for (const slug of slugs) {
+    const out = await db().send(
+      new GetCommand({ TableName: TABLE(), Key: { pk: catalogPk(slug), sk: LIVE_SK }, ConsistentRead: true }),
+    );
+    if (out.Item) rows.set(slug, out.Item as Record<string, unknown>);
+  }
+  return rows;
+}
+
+/**
+ * The conditional, attribute scoped update planned by services/shopifyCatalogMirror.ts. The
+ * key is built here from the slug and must be CATALOG#: this function cannot reach a BLEND#
+ * item whatever plan it is handed.
+ */
+export async function updateCatalogMirror(
+  slug: string,
+  update: {
+    UpdateExpression: string;
+    ConditionExpression: string;
+    ExpressionAttributeNames: Record<string, string>;
+    ExpressionAttributeValues: Record<string, unknown>;
+  },
+): Promise<void> {
+  const pk = catalogPk(slug);
+  if (!pk.startsWith('CATALOG#')) throw new Error(`Refusing to write outside the CATALOG# namespace: ${pk}`);
+  await db().send(new UpdateCommand({ TableName: TABLE(), Key: { pk, sk: LIVE_SK }, ...update }));
 }

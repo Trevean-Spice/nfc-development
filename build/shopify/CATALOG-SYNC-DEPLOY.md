@@ -44,7 +44,7 @@ is for later, one approval item at a time.
 | `build/infrastructure/modules/compute/variables.tf`, `modules/stack/{main,variables}.tf`, `envs/dev/{main,variables}.tf` | Two variables threaded dev, then stack, then compute: `catalog_sync_dry_run` (default `true`) and `catalog_sync_schedule_expression` (default `null`). Staging and prod pick up the defaults. |
 
 **Not changed:** `build/content/tools/seed-dynamodb.mjs`, the chip-cli write protection
-probe gate, `build/api` (including its inline webhook routes), IAM policies, DNS, secrets.
+probe gate, `build/api` (including its inline webhook routes), IAM policies, DNS, secrets. (That is this branch, `fleet/catalog-sync`. `fleet/order-webhook` then changes `build/api` and the admin_api IAM: section 4.)
 
 ### What a run does
 
@@ -170,66 +170,282 @@ has not been parsed by Terraform. The `build/api` test suite was not run (nothin
 
 ## 4. The webhook path (products/update, orders/create)
 
-**Short answer: no webhook path is live, nothing registers webhooks with the store, and
-the one handler that is deployed must not be subscribed as it stands.**
+**Rewritten Wednesday 14 October 2026 on branch `fleet/order-webhook`** (built on
+`fleet/catalog-sync`). **Nothing has been deployed, applied, pushed, or registered with
+Shopify.** The endpoint is the API's existing webhook handler, reached through the admin
+API's HTTP API. The `shopify_webhook` Lambda stays the 848 byte placeholder, untouched, with
+no way in.
 
-### shopify_webhook Lambda
+### 4.1 What was wrong (each one checked in the code and Terraform, not against a live request)
 
-- Still the inert placeholder (D58 lists it with catalog_sync and media_derivatives; no
-  package has been built for it).
-- **No way in:** not in `http_invoke_functions` (no function URL), no API Gateway route,
-  no CloudFront behaviour. Shopify cannot reach it.
-- Its IAM grants `CATALOG#*` and `ORDER#*` on SpiceBlends. Order attribution (both in
-  `build/api` and in this package) writes `ROLLUP#` counters into ScanEvents, which this
-  role cannot do. If this function becomes the endpoint, its policy needs changing.
+1. **Every signed delivery would have failed with a 500. Confirmed.** `build/api` reads
+   `SHOPIFY_WEBHOOK_SECRET_NAME`, default `trevean/api/shopify-webhook-secret`. Terraform did
+   not set it on `admin_api`, and the secrets module creates `trevean/dev/shopify-webhook-secret`.
+   The `admin_api` policy granted `GetSecretValue` on the admin signing key and the
+   revalidation secret only. **Found while fixing it, and worse:** had the secret become
+   readable while still holding the Terraform placeholder, the API would have used the
+   placeholder string, which is written in this repository, as the HMAC key, so anybody who
+   had read the repository could sign a delivery it accepted.
+2. **products/update would have damaged the rows. Confirmed.** A full `PutItem` of the
+   CATALOG# row (dropping `variantPosition`, the 7 October provenance and anything else not
+   named), and availability from `variant.available` through `isPurchasable`, which answers
+   false when the field is absent. Shopify's REST product payload carries
+   `inventory_management`, `inventory_policy` and `inventory_quantity` on a variant and no
+   `available` (per Shopify's REST product resource, not verified against a live delivery),
+   so every update would have marked the blend unavailable. Also: the first variant rather
+   than the row's verified one, price by `Math.round(parseFloat(x) * 100)`, and currency from
+   a `currency` field the payload does not carry.
+3. **orders/create could not write its counters. Confirmed.** `admin_api` had `Query` and
+   `GetItem` on `ROLLUP#*` in ScanEvents and nothing else, so the `UpdateItem` (ADD) failed.
+   Also: no deduplication (Shopify retries a delivery with the same webhook id, and ADD
+   counted it again), the day was the delivery time rather than the order's `created_at`, the
+   ALL row counted lines rather than orders, and lines were matched on SKU tokens only, while
+   the reorder permalink puts a variant id in the cart.
 
-### The API's inline handler (`build/api/src/routes/webhooks.ts`)
+### 4.2 What changed
 
-- In the API build deployed on 7 October (D65) to content-api, scan-ingest and admin-api.
-- **Reachable on the public internet** only through the admin API's HTTP API, whose route
-  is `$default` (`https://<admin-api id>.execute-api.us-east-1.amazonaws.com/internal/webhooks/shopify/...`).
-  CloudFront forwards `/v1/*` only, and the content and scan function URLs are AWS_IAM.
-- **Every delivery there would fail closed (500):** `SHOPIFY_WEBHOOK_SECRET_NAME` is not
-  set by Terraform, so it reads `trevean/api/shopify-webhook-secret`, which is not the name
-  the secrets module creates (`trevean/dev/shopify-webhook-secret`), and the admin_api
-  role has no `GetSecretValue` on any Shopify secret.
-- **And it would do damage if the secret were fixed:** products-update does a full
-  `PutItem` of the CATALOG# row (admin_api has unconditioned write on SpiceBlends) and
-  reads availability from `variant.available`, which Shopify's REST product payload does
-  not carry (per this package's README, not verified against a live delivery), so every
-  product update would mark the blend unavailable and drop attributes the sync owns.
-  orders-create writes ROLLUP# to ScanEvents, where admin_api is read only, so it would
-  fail.
+| File | Change |
+|---|---|
+| `build/api/src/routes/webhooks.ts` | Rewritten. Signature check first (4.3), then the services. Status codes chosen for Shopify's retry behaviour. |
+| `build/api/src/webhooks/signature.ts` | `isWellFormedSignature` (exactly one base64 SHA-256 digest, checked before the secret is read) and `webhookSecretFrom` (raw value or `{"value": ...}`; refuses the Terraform placeholder). The constant time compare is unchanged. |
+| `build/api/src/services/shopifyCatalogMirror.ts` | **New.** products/update with the catalog sync's rules: REST normalisation, availability from the three inventory signals, draft or archived means not purchasable, the row's variant pinned, exact price conversion, a plan identical in shape to `planCatalogWrite` (SET of `MIRROR_OWNED_ATTRIBUTES` only, never `cartPermalinkUrl`, never REMOVE or PutItem, the same condition expression, the same skip reasons). |
+| `build/api/src/services/orderAttribution.ts` | **New.** Reads only `created_at` and `line_items[].variant_id/sku/quantity`. Matches by the row's variant id, then the row's SKU, then `slugForSku`. Sums units per blend. |
+| `build/api/src/repositories/catalog.ts` | `readCatalogRows` (consistent GetItem per contract slug) and `updateCatalogMirror` (UpdateItem, key forced to `CATALOG#`). `syncSource` typed as a string. `putCatalogEntry` (the seeder's) unchanged. |
+| `build/api/src/repositories/rollups.ts` | `releaseBatch`, the inverse of the existing `claimBatch`. |
+| `build/api/test/helpers/global-setup.ts` | The in process DynamoDB the tests start listens on 127.0.0.1 instead of every interface. |
+| `build/api/test/unit/shopifyWebhookRules.test.ts`, `test/integration/shopifyWebhooks.test.ts`, `test/integration/shopifyWebhookFailures.test.ts` | **New**, 36 tests. One existing test (`admin.test.ts`) now sends `X-Shopify-Topic`, as Shopify does. |
+| `build/infrastructure/modules/compute/main.tf` | `admin_api`: environment `SHOPIFY_WEBHOOK_SECRET_NAME = "trevean/${var.environment}/shopify-webhook-secret"`; policy statements `VerifyShopifyWebhooks` (`GetSecretValue` on that secret's ARN), `CountWebhookOrdersOnDailyRollups` (`UpdateItem` on ScanEvents, leading keys exactly `ROLLUP#ALL#DAY` and `ROLLUP#BLEND#{slug}#DAY` for the five contract slugs; a new slug needs a line here), `ClaimWebhookOrderDeliveries` (`PutItem`, `DeleteItem` on ScanEvents, leading keys `CKPT#shopify-orders-create#*`). The `shopify_webhook` function and role are untouched. |
+| `build/shopify/README.md` | "Relationship to the API component" now says what was reconciled and how drift is caught. |
 
-### What registers webhooks
+**Not changed:** `build/content/tools/seed-dynamodb.mjs`, the chip-cli write protection probe
+gate, the `shopify_webhook` placeholder, the catalog sync code, DNS, secret values.
 
-Nothing. No script, no Terraform, no Shopify app configuration in this repository (searched
-for `webhookSubscriptionCreate`, webhook TOML and registration code). The topics and routes
-are only declared in `src/webhooks/topics.ts`.
+**Why the rules are restated rather than imported.** `build/api` and `build/shopify` are
+separate packages with separate Lambda archives, and the API's packager ships only its own
+`dist/src`. `test/unit/shopifyWebhookRules.test.ts` reads
+`build/shopify/src/sync/catalogWriter.ts` and fails if `MIRROR_OWNED_ATTRIBUTES`,
+`CONTRACT_SLUGS` or the condition expression differ, so the two writers cannot drift silently.
 
-### The exact step needed, not done
+### 4.3 What each delivery gets back
 
-1. **Decide the endpoint** (a design decision, not made here): either (a) give
-   shopify_webhook real code built on this package (`verifyWebhook`,
-   `handleProductsUpdate`, `attributeOrder`), a public entry point Shopify can call (a
-   function URL with auth NONE or an HTTP API route, because Shopify cannot sign SigV4),
-   a ROLLUP# grant on ScanEvents and a conditional writer like the sync's; or (b) change
-   the API's inline handler to delegate to this package and give admin_api the webhook
-   secret. (a) keeps the least privilege design.
-2. **Put the signing secret** in `trevean/dev/shopify-webhook-secret`, out of band.
-   Which secret signs depends on how the subscription is created: an app created
-   subscription is signed with that app's client secret; one created in the store admin
-   under Notifications, Webhooks is signed with the key shown on that page.
-3. **Register** two subscriptions with the store, for example with the custom app's token
-   through Admin GraphQL `webhookSubscriptionCreate` for `PRODUCTS_UPDATE` and
-   `ORDERS_CREATE`, callback URLs ending `/internal/webhooks/shopify/products-update` and
-   `/internal/webhooks/shopify/orders-create`, format JSON. orders/create needs order
-   access on the app, and Shopify gates order webhooks behind protected customer data
-   settings; whether that applies to this app is unknown.
+| Case | Answer | Effect |
+|---|---|---|
+| No `X-Shopify-Hmac-Sha256`, or not the shape of a SHA-256 base64 digest | **401** | The secret is not read. An unsigned request can never become a 5xx. |
+| Secret unreadable, unset, or still the Terraform placeholder | **503** | Fails closed. Shopify retries, so deliveries made before the secret is fixed are not lost while it keeps retrying. |
+| HMAC over the raw body does not match (constant time) | **401** | Nothing read or written. |
+| Authentic, but `X-Shopify-Topic` is not the route's topic, or `X-Shopify-Shop-Domain` is not `SHOPIFY_STORE_DOMAIN` | 200, `ignored` | Logged as a warning, nothing written. A misregistered subscription shows in the log and does no harm. |
+| products/update for a product that is no blend | 200, `matched: false` | Logged. |
+| products/update skipped (`row_missing`, `not_a_catalog_row`, `no_variant`, `product_id_mismatch`, `variant_id_mismatch`) | 200, `skipped` | Row untouched, warning logged with the reason. A retry cannot change the answer. |
+| products/update condition fails (row changed between read and write) | **409** | Row untouched. Shopify retries and the retry plans against the row as it is then. |
+| products/update applied | 200 | `changes` (from and to) logged. `syncSource = shopify-webhook-<time>`. |
+| orders/create without `X-Shopify-Webhook-Id` | **400** | Not counted, because it cannot be deduplicated. Shopify always sends the header. |
+| orders/create without a usable `created_at`, or nothing we sell | 200, `counted: 0` | Logged. |
+| orders/create counted | 200, `counted: n` | Per blend row: `orders` +1, `units` +quantity. ALL row: `orders` +1, `units` +total. Day from the order's `created_at`, UTC. |
+| orders/create duplicate (same webhook id) | 200, `counted: 0` | Nothing added. |
+| orders/create counter write fails | **503** | That row's claim is released, so Shopify's retry writes it once; rows already written are not written again. |
 
-**Do not register products/update against the current admin API endpoint.** The hourly
-sync below makes prices follow the store without any webhook, so webhooks are optional for
-the catalog and needed only for order attribution.
+**Idempotency.** orders/create is deduplicated on `X-Shopify-Webhook-Id`, using the code base's
+existing conditional claim (`claimBatch`, a `CKPT#` item with a 7 day TTL), one claim per
+rollup row: `CKPT#shopify-orders-create#{webhook id}#{rollup pk}`. products/update needs no
+record: every write is a SET of values derived from the payload, so a duplicate writes the
+same values again (only `syncedAt` and `syncSource` advance).
+
+### 4.4 Test results
+
+Run on this host, Node v22.23.3, vitest 2.1.9, no network, no AWS, no Shopify. The in
+process DynamoDB (dynalite) evaluates the real condition and update expressions.
+
+```
+build/api       $ npm test            Test Files  19 passed (19)   Tests  293 passed (293)
+                $ npm run typecheck   (clean)
+build/shopify   $ npm test            Test Files  11 passed (11)   Tests  277 passed (277)
+                $ npm run typecheck   (clean)
+```
+
+Baseline before any change on this branch: `build/api` 16 files, 257 tests;
+`build/shopify` 11 files, 277 tests; both typechecks clean.
+
+The 36 new tests cover: **happy path** (price, availability from inventory, BLEND# item
+identical, attributes the mirror does not own kept, `cartPermalinkUrl` stays null, served by
+`GET /v1/catalog`; an order counted on the blend and ALL rows with no PII stored anywhere in
+ScanEvents); **edges** (unknown product, product with several variants keeping the pinned one,
+pinned variant gone, row pinned to another product, missing row never created, draft product,
+duplicate products/update leaving the row identical, duplicate and distinct order deliveries,
+an order of nothing we sell, wrong topic, wrong shop, order day from `created_at` across a
+time zone); **failures** (no signature, malformed signature, wrong secret, tampered body,
+missing secret answers 503 while unsigned and malformed requests still answer 401, the
+Terraform placeholder refused even when a request is signed with it, a real conditional check
+failure leaving the row untouched, the route answering 409 and the retry applying, a failed
+counter write answering 503 and the retry counting exactly once, missing webhook id).
+
+Mutation check: each of these removed in turn made the suite fail (1 to 5 tests each): the
+availability rule, the draft rule, the product id condition, the order claim, the claim
+release, the signature shape check before the secret read, the placeholder guard.
+
+**Package:** `node scripts/package-lambda.mjs` in `build/api` built
+`.lambda-build/api.zip`, 6,664,121 bytes, sha256
+`wh7LnRhJ41HoiCjdLPrYZuzpUHBWewki2ggGEox8x7c=` on this host (rebuild at deploy time and use the
+value the packager prints). The unzipped archive's own `index.handler`, driven offline with
+API Gateway HTTP API (payload 2.0) events against a loopback dynalite, answered 401 unsigned,
+401 wrong signature, 200 signed, 200 signed with a body the gateway base64 encoded, and the row
+read back with the new price, `available true`, `cartPermalinkUrl` null.
+
+**Not run:** `terraform fmt`, `validate`, `plan`. Terraform is not installed on this host.
+
+### 4.5 Going live (each step an approval item; none run)
+
+Environment: dev, account <TREVEAN_DEV_ACCOUNT_ID>, us-east-1, prefix `trevean-dev-<TREVEAN_PREFIX_SUFFIX>`. **The
+order matters:** new code first (it fails closed with the old environment), then Terraform,
+then the secret, then the subscriptions. Never the other way round: the old code with the
+new permissions and a real secret is the handler that damages rows.
+
+**W0. Precondition (client side, outside this repo).** The Shopify custom app on
+`dmt009-91.myshopify.com` from section 5, Step 0, with `read_products` and, for
+orders/create, `read_orders`. Shopify treats order webhooks as protected customer data, so
+the app may need that access approved before the ORDERS_CREATE subscription is accepted.
+**Unverified.**
+
+**W1. Build and test the API** (local, no approval needed):
+
+```
+cd build/api
+npm ci --ignore-scripts
+npm test                          # expect 293 passed
+npm run typecheck
+node scripts/package-lambda.mjs   # prints bytes and sha256; keep the sha256
+```
+
+**W2. Deploy the API code** (approval: `deploy.trevean`), as the operations runbook,
+section 3, does, to all three API functions so they stay on one build (D58, D65):
+
+```
+for f in content-api scan-ingest admin-api; do
+  aws lambda update-function-code --function-name trevean-dev-<TREVEAN_PREFIX_SUFFIX>-$f \
+    --zip-file fileb://build/api/.lambda-build/api.zip
+  aws lambda wait function-updated --function-name trevean-dev-<TREVEAN_PREFIX_SUFFIX>-$f
+done
+```
+
+Confirm each returned `CodeSha256` equals the packager's sha256. Then `demo-readiness` must
+still be 10 passing, 0 failing, and `GET /v1/catalog/caribbean-sunset` must still return the
+`dmt009-91.myshopify.com/cart/...` permalink at $18.00. With the old environment the new code
+looks for `trevean/api/shopify-webhook-secret`, cannot read it, and answers every signed
+delivery 503: inert.
+
+**W3. Terraform** (approval: `deploy.trevean`):
+
+```
+cd build/infrastructure/envs/dev
+terraform init
+terraform validate
+terraform plan -out order-webhook.tfplan
+```
+
+**Expected plan: 0 to add, 2 to change, 0 to destroy**, both in place:
+
+- `module.stack.module.compute.aws_lambda_function.function["admin_api"]`:
+  `environment.variables` gains `SHOPIFY_WEBHOOK_SECRET_NAME = "trevean/dev/shopify-webhook-secret"`.
+  Nothing else on the function changes (code is in `ignore_changes`).
+- `module.stack.module.compute.aws_iam_role_policy.admin_api`: the policy JSON gains three
+  statements, `VerifyShopifyWebhooks`, `CountWebhookOrdersOnDailyRollups` and
+  `ClaimWebhookOrderDeliveries`, and loses none.
+
+**If section 5, Step 2 (the catalog sync environment) has not been applied yet, the plan is
+0 to add, 3 to change, 0 to destroy**: the third is
+`aws_lambda_function.function["catalog_sync"]`, exactly as Step 2 describes, because this
+branch contains that change. **Anything else in the plan is drift or someone else's change:
+stop and read it.** Then apply the saved plan file.
+
+**W4. Set the signing secret** (approval; done by the holder, out of band):
+
+- Secret: **`trevean/dev/shopify-webhook-secret`** in Secrets Manager (us-east-1). The ARN is
+  in the stack's `secret_arns` output or the console.
+- Value: **the API secret key (client secret) of the Shopify custom app that creates the
+  subscriptions in W6.** Shopify signs an app's subscriptions with that app's client secret.
+  It is shown with the app's credentials in the Shopify admin or the Dev Dashboard.
+- Stored as the raw string, or as `{"value":"<the key>"}`. Set in the console. **Never on a
+  command line, in a file in the repository, or in a message.**
+- If the subscriptions are instead created by hand in the store admin (Settings,
+  Notifications, Webhooks), Shopify signs them with the key shown on that page, and that key
+  goes here instead. **Use one method only**: two subscriptions for one topic means two
+  signing keys (one of them always 401) and, for orders, two webhook ids per order.
+- Until it is set, every signed delivery answers 503.
+
+**W5. Check the endpoint** (approval; calls our own API only, not Shopify):
+
+```
+API=$(aws lambda get-function-configuration --function-name trevean-dev-<TREVEAN_PREFIX_SUFFIX>-admin-ui \
+  --query Environment.Variables.API_BASE_URL --output text)
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$API/internal/webhooks/shopify/products-update" \
+  -H 'content-type: application/json' -d '{}'          # expect 401
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$API/internal/webhooks/shopify/orders-create" \
+  -H 'content-type: application/json' -d '{}'          # expect 401
+```
+
+A 500 or 502 here is a stop: read `/aws/lambda/trevean-dev-<TREVEAN_PREFIX_SUFFIX>-admin-api`.
+
+**W6. Register the two subscriptions** (approval; writes to the client's store, through the
+custom app's Admin API token, the same one as section 5, Step 0):
+
+| Topic (GraphQL enum) | Address | Format |
+|---|---|---|
+| `PRODUCTS_UPDATE` (`products/update`) | `$API/internal/webhooks/shopify/products-update` | JSON |
+| `ORDERS_CREATE` (`orders/create`) | `$API/internal/webhooks/shopify/orders-create` | JSON |
+
+`$API` is the `https://<id>.execute-api.us-east-1.amazonaws.com` value from W5. With Admin
+GraphQL, one `webhookSubscriptionCreate` per row (the address field is `callbackUrl` in
+older API versions and `uri` in newer ones; check against the version used):
+
+```
+mutation {
+  webhookSubscriptionCreate(
+    topic: PRODUCTS_UPDATE
+    webhookSubscription: { callbackUrl: "<$API>/internal/webhooks/shopify/products-update", format: JSON }
+  ) { webhookSubscription { id topic } userErrors { field message } }
+}
+```
+
+Then the same for `ORDERS_CREATE` and `/orders-create`. Record both subscription ids.
+
+**After W6, check** `/aws/lambda/trevean-dev-<TREVEAN_PREFIX_SUFFIX>-admin-api` for
+`shopify product update applied` or `skipped` (with its reason) on the next product edit,
+and for `shopify webhook signature rejected` (wrong key in W4) or `secret unavailable` (W4
+not done or W3 not applied). Deliveries ignored as `shop_not_allowed` mean
+`SHOPIFY_STORE_DOMAIN` is not the shop's myshopify host; `dmt009-91.myshopify.com` was set on
+7 October (D64, D65).
+
+**Rollback.** Fastest: `webhookSubscriptionDelete` for the two subscription ids, after which
+nothing calls the endpoint. A products/update that wrote a wrong value is restored the same
+way as the sync (section 6): `update-item` on the CATALOG# key, SET only the attributes in the
+logged `changes.from`. Order counters are additive: subtract with an `ADD` of the negative
+values on the logged rows. Code: redeploy the archive built from the commit deployed on
+7 October (D65), with the subscriptions deleted first.
+
+### 4.6 Open risks
+
+1. **No real delivery has ever been received.** The REST payload shape (no `variant.available`,
+   numeric `variant_id` on order lines) is from Shopify's documentation and this package's
+   fixtures, not from this store.
+2. **Out of order deliveries.** Shopify does not guarantee order. An older products/update
+   that arrives late overwrites newer values until the next delivery or sync run. A guard on
+   `updated_at` would need an attribute the sync also maintains; not done.
+3. **Body limit.** The API refuses bodies over 256 KiB (413). A product with a very long
+   description or many images could exceed it and never be applied. Unknown for this store.
+4. **Under count, never double count.** If the function dies between an order's claim and its
+   ADD, that row misses one order. Raw orders are not stored, so there is no backfill source
+   other than Shopify itself.
+5. **The order counters are recorded, not shown.** The dashboard reads scan rollups; nothing
+   reads `orders` or `units` yet. The cart's channel (`note_attributes`) is not read.
+6. **`admin_api` still has unconditioned write on all of SpiceBlends** (pre-existing, for the
+   editorial admin). The webhook code builds only `CATALOG#` keys; IAM does not enforce that
+   for this function.
+7. **Rotation.** The secrets module classes this secret "overlap two values"; the API accepts
+   one. Rotating means a short window of 401s, which Shopify retries through.
+8. **Shopify retries for a limited time and can remove a subscription that keeps failing**, so
+   W4 must be done before W6, and a long 503 outage can cost deliveries.
+9. **Terraform not validated** on this host (not installed). The HCL follows the existing
+   statements' shape and `fmt` alignment by hand.
+10. **Protected customer data** approval for orders/create on this custom app: unknown (W0).
 
 ---
 
@@ -387,8 +603,7 @@ client (README, "What the client must decide", item 3); hourly is the package de
 9. **Draft rule changes behaviour on purpose:** a blend set to DRAFT in Shopify will show
    `available false`, `out_of_stock` after the next run. On 7 October all five were active.
 10. **Terraform not validated** on this host (not installed).
-11. **Webhooks:** see section 4. The admin API's inline products-update handler would
-    damage rows if it ever received verified deliveries; reconciling it with this package
-    is outstanding work.
+11. **Webhooks:** see section 4. Reconciled with this package on 14 October 2026
+    (`fleet/order-webhook`), not deployed; its own risks are in section 4.6.
 12. **Low stock** stays off (`SHOPIFY_LOW_STOCK_THRESHOLD` unset), so in stock items read
     `in_stock` whatever the quantity.

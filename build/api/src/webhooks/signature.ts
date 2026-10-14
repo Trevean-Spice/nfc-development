@@ -33,3 +33,45 @@ export function verifyShopifySignature(rawBody: string | Buffer, headerValue: st
   if (!headerValue) return false;
   return safeEqual(computeHmacBase64(rawBody, secret), headerValue);
 }
+
+/** Base64 of exactly 32 bytes: 43 payload characters and one pad. The only shape Shopify sends. */
+const BASE64_SHA256 = /^[A-Za-z0-9+/]{43}=$/;
+
+/**
+ * Whether the header could be a Shopify signature at all. Checked BEFORE the secret is read,
+ * so an unsigned or garbage request is a 401 that costs no Secrets Manager call and can
+ * never become a 500 because the secret happens to be unavailable.
+ */
+export function isWellFormedSignature(headerValue: string | undefined): headerValue is string {
+  return typeof headerValue === 'string' && BASE64_SHA256.test(headerValue);
+}
+
+/**
+ * The signing secret from what the secret store returned, or undefined when it is not usable.
+ *
+ * Accepts the raw value, or a JSON object with a string "value". REFUSES the Terraform
+ * placeholder: modules/secrets creates every secret holding
+ * {"value":"FILL IN WHEN ACCESS LANDS","set_by":"terraform-placeholder"}, and that string is
+ * written in the repository. Used as an HMAC key it would let anybody who has read the
+ * repository sign a delivery the endpoint accepts. Undefined here means the endpoint fails
+ * closed, which is the only safe answer to "the secret has not been set yet".
+ */
+export function webhookSecretFrom(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  let value = raw.trim();
+  if (value === '') return undefined;
+  if (value.startsWith('{')) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+    const obj = parsed as { value?: unknown; set_by?: unknown };
+    if (obj.set_by === 'terraform-placeholder') return undefined;
+    if (typeof obj.value !== 'string') return undefined;
+    value = obj.value.trim();
+  }
+  if (value === '' || /^FILL IN/i.test(value)) return undefined;
+  return value;
+}

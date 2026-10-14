@@ -501,7 +501,7 @@ describe('inbound webhooks', () => {
     const res = await app.inject({
       method: 'POST',
       url: path,
-      headers: { 'content-type': 'application/json', 'x-shopify-hmac-sha256': signature },
+      headers: { 'content-type': 'application/json', 'x-shopify-hmac-sha256': signature, 'x-shopify-topic': 'products/update' },
       payload: raw,
     });
     expect(res.statusCode).toBe(200);

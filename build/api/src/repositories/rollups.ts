@@ -1,4 +1,4 @@
-import { PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { config } from '../config/env.js';
 import { db, isConditionalCheckFailed } from '../db/client.js';
 import { checkpointPk } from '../db/keys.js';
@@ -123,4 +123,17 @@ export async function claimBatch(streamName: string, batchId: string, ttlSeconds
     if (isConditionalCheckFailed(err)) return false;
     throw err;
   }
+}
+
+/**
+ * Gives a claim back, so a counter that was claimed but not written is written when the
+ * delivery is retried. Used by the orders/create webhook, which claims each rollup row per
+ * webhook id, then ADDs, and releases only if the ADD failed. If the process dies between
+ * claim and ADD, or the release itself fails, that row is under counted by one order rather
+ * than double counted, which is the direction a reconciling backfill can repair.
+ */
+export async function releaseBatch(streamName: string, batchId: string): Promise<void> {
+  await db().send(
+    new DeleteCommand({ TableName: config.tables.scanEvents, Key: { pk: checkpointPk(streamName, batchId), sk: LIVE_SK } }),
+  );
 }

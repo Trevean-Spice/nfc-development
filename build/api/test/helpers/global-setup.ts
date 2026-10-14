@@ -16,7 +16,9 @@ export async function setup(): Promise<void> {
   const port = Number.parseInt(process.env.TEST_DDB_PORT ?? '4571', 10);
   server = dynalite({ createTableMs: 0, updateTableMs: 0, deleteTableMs: 0 });
   await new Promise<void>((resolve, reject) => {
-    (server as Server).listen(port, (err?: Error) => (err ? reject(err) : resolve()));
+    // Loopback only: setup-env.ts points the client at 127.0.0.1, and nothing else
+    // on the host has any business reaching a test database.
+    (server as Server).listen(port, '127.0.0.1', (err?: Error) => (err ? reject(err) : resolve()));
   });
 }
 
