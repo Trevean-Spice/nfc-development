@@ -48,7 +48,11 @@ module "stack" {
   blend_rewrite_source_path       = var.blend_rewrite_source_path
   allow_placeholder_edge_function = var.allow_placeholder_edge_function
 
-  vercel_origin_domain_name = null
+  # Variables rather than literals so the Vercel origin is a tfvars line, step 1b
+  # of "Operations runbook", section 9.2. Default null, which keeps the default
+  # behaviour on our S3 bucket. MUST be set before DNS moves. See the variables.
+  vercel_origin_domain_name     = var.vercel_origin_domain_name
+  forward_host_header_to_vercel = var.forward_host_header_to_vercel
 
   name_tables_with_prefix    = true
   create_slug_index          = var.create_slug_index

@@ -248,3 +248,45 @@ variable "attach_apex_aliases" {
   type        = bool
   default     = false
 }
+
+variable "vercel_origin_domain_name" {
+  description = <<-EOT
+    The marketing site, reached as the DEFAULT origin of the apex distribution.
+    null, the default, leaves the default behaviour on our S3 bucket, which is
+    the plan as applied.
+
+    The value is trevean-spice-website.vercel.app, the production alias of
+    Dan's Vercel project. Measured Thursday 15 October 2026: / answers 200 on
+    that host with no redirect to the custom domain.
+
+    MUST BE SET BEFORE DNS MOVES. With null, after Dan's DNS change every path
+    that is not ours is answered from the bucket and the marketing site
+    disappears. Never the apex or www: after the cutover those resolve to this
+    distribution, and CloudFront would request itself. See "Operations
+    runbook", section 9.2, step 1b.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.vercel_origin_domain_name == null || can(regex("^[a-z0-9-]+\\.vercel\\.app$", var.vercel_origin_domain_name))
+    error_message = "vercel_origin_domain_name must be null or a *.vercel.app hostname, normally trevean-spice-website.vercel.app. Never treveanspice.com or www: after the cutover they resolve to this distribution and it would request itself."
+  }
+}
+
+variable "forward_host_header_to_vercel" {
+  description = <<-EOT
+    true, the default, forwards the viewer Host (treveanspice.com or www) to
+    the Vercel origin. Vercel routes by Host, so both names must stay attached
+    to the Vercel project after DNS moves, and CloudFront checks the
+    certificate Vercel presents against that name, so Vercel must keep a valid
+    certificate for a domain whose DNS no longer points at it.
+
+    false sends trevean-spice-website.vercel.app instead, which needs neither.
+    It is the fallback if Vercel stops serving or certifying the apex, an in
+    place update of the vercel_default origin request policy. Check
+    x-robots-tag on the vercel.app host before using it.
+  EOT
+  type        = bool
+  default     = true
+}

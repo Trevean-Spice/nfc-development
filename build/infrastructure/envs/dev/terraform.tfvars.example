@@ -46,3 +46,7 @@ edge_function_source_path = "../../../edge/dist/redirect.js"
 # function_packages = {}
 # enable_rollup_event_source_mapping = false
 # enable_media_event_source_mapping  = false
+
+# [READY, NOT YET] Apex cutover step 1b ("Operations runbook", section 9.2).
+# Set before Dan's DNS change, never after it. null keeps the S3 default.
+# vercel_origin_domain_name = "trevean-spice-website.vercel.app"

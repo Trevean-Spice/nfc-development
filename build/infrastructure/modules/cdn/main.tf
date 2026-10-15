@@ -20,6 +20,10 @@
 # ordered entries (/_next/*, /assets/*, /images/*) that share one origin, one
 # cache policy and one origin request policy. It is one behaviour class
 # expressed three times, not a fourth class.
+#
+# Added Thursday 15 October 2026: with a Vercel origin the same class gains the
+# rest of the published render tree (/blends/*, /media/*, /js/*, /vendor/*,
+# /icons/* and four single files). See site_root_path_patterns below.
 # ===========================================================================
 
 locals {
@@ -53,6 +57,38 @@ locals {
   aws_origin_is_s3  = local.site_bucket_in_use ? true : var.aws_origin_type == "s3"
 
   asset_path_patterns = ["/_next/*", "/assets/*", "/images/*"]
+
+  # The rest of what the publisher puts in the site bucket, all of it at the
+  # bucket root. Without a Vercel origin the default behaviour is the bucket and
+  # these reach it through the default. With one, the default is the marketing
+  # site, and every one of these would be proxied to Vercel and 404 there:
+  #
+  #   /js/enhance.js, /vendor/*  the field beacon, so every tap goes unrecorded,
+  #                              which is the failure the cutover exists to fix
+  #   /media/*                   the hero image on every blend page
+  #   /sw.js, /offline.html      the service worker and its branded offline page
+  #   /manifest.webmanifest,
+  #   /icons/*                   the web app manifest and its icons
+  #   /blends/*, /404.html       the publisher's read back, which fetches each
+  #                              published HTML object at /{key} (offline.html
+  #                              too)
+  #
+  # Only with a Vercel origin, so every environment without one plans unchanged.
+  # Same origin and policies as the asset class, which is what the default gave
+  # these paths before. None of them exists on the marketing site except
+  # /404.html, which is also ours (Trevean-Spice/website PR 2), and Vercel's own
+  # not-found handling does not go through that path.
+  site_root_path_patterns = local.has_vercel_origin ? [
+    "/blends/*",
+    "/media/*",
+    "/js/*",
+    "/vendor/*",
+    "/icons/*",
+    "/sw.js",
+    "/offline.html",
+    "/manifest.webmanifest",
+    "/404.html",
+  ] : []
 
   # The /v1 surface. Two Lambda function URL origins, one behaviour each.
   has_api_origin        = length(var.api_origin_domain_names) > 0
@@ -960,6 +996,26 @@ resource "aws_cloudfront_distribution" "apex" {
         event_type   = "viewer-request"
         function_arn = aws_cloudfront_function.admin_prefix[0].arn
       }
+    }
+  }
+
+  # Behaviour 6: the rest of the render tree, only when the default is Vercel.
+  # Last in the list so the plan that adds them appends and moves nothing. No
+  # pattern here overlaps any pattern above, so the position does not change
+  # which behaviour a request matches.
+  dynamic "ordered_cache_behavior" {
+    for_each = local.site_root_path_patterns
+
+    content {
+      path_pattern               = ordered_cache_behavior.value
+      target_origin_id           = local.aws_origin_id
+      viewer_protocol_policy     = "redirect-to-https"
+      allowed_methods            = ["GET", "HEAD"]
+      cached_methods             = ["GET", "HEAD"]
+      compress                   = true
+      cache_policy_id            = aws_cloudfront_cache_policy.assets.id
+      origin_request_policy_id   = aws_cloudfront_origin_request_policy.assets.id
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.app.id
     }
   }
 
