@@ -40,7 +40,9 @@ module "stack" {
 
   create_certificate  = var.create_certificate
   apex_domain         = var.apex_domain
-  attach_apex_aliases = false
+  # A variable rather than a literal so the apex cutover is a tfvars change, in
+  # the order "Operations runbook", section 9.2 sets. Default false.
+  attach_apex_aliases = var.attach_apex_aliases
 
   edge_function_source_path       = var.edge_function_source_path
   blend_rewrite_source_path       = var.blend_rewrite_source_path

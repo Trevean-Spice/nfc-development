@@ -236,3 +236,15 @@ variable "catalog_sync_schedule_expression" {
   type        = string
   default     = null
 }
+
+variable "attach_apex_aliases" {
+  description = <<-EOT
+    Attach treveanspice.com and www to the apex distribution with the ISSUED
+    certificate. NOT ONE ACTION: with publisher_public_base_url null it also
+    moves the publisher's read back host to the apex. Pin
+    publisher_public_base_url first. See "Operations runbook", section 9.2, and
+    "Decision log", D54.
+  EOT
+  type        = bool
+  default     = false
+}
