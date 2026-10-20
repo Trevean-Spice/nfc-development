@@ -290,3 +290,69 @@ variable "forward_host_header_to_vercel" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# The Route 53 zone. Added Tuesday 20 October 2026 for deploy item 05.
+# ---------------------------------------------------------------------------
+
+variable "manage_dns" {
+  description = <<-EOT
+    Create the Route 53 hosted zone for apex_domain: copied_zone_records, plus
+    the apex and www ALIAS records to this distribution. Default false.
+
+    Turned on by deploy item 05 once copied_zone_records holds the verified
+    copy of the Bluehost zone. Creating the zone changes no nameserver and
+    moves no traffic. Dan's nameserver change at Bluehost does that, by hand,
+    after item 05's comparison passes. See "Operations runbook", section 9.2.
+
+    Never turn it off again once the nameservers point at Route 53: the zone
+    and every copied record carry prevent_destroy, so the plan errors rather
+    than deleting email records out of a live zone.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "copied_zone_records" {
+  description = <<-EOT
+    Every record of the Bluehost zone, copied verbatim, except the apex NS and
+    SOA (Route 53 writes its own) and the apex and www A, AAAA and CNAME (the
+    ALIAS records replace them).
+
+    Generated, never hand typed: deploy-items/scripts/zone-check.mjs inventory
+    writes it, and deploy item 05 installs it as zone-copy.auto.tfvars from
+    zone-copy.auto.tfvars.example in this directory.
+  EOT
+  type = list(object({
+    name    = string
+    type    = string
+    ttl     = optional(number, 300)
+    records = list(string)
+  }))
+  default = []
+
+  # Caught here, at plan, rather than as a Route 53 conflict half way through an
+  # apply that has already created the zone and some of its records.
+  validation {
+    condition = alltrue([
+      for r in var.copied_zone_records : !(
+        (lower(r.name) == var.apex_domain && contains(["A", "AAAA", "NS", "SOA"], upper(r.type))) ||
+        (lower(r.name) == "www.${var.apex_domain}" && contains(["A", "AAAA", "CNAME"], upper(r.type)))
+      )
+    ])
+    error_message = "copied_zone_records must not hold the apex A, AAAA, NS or SOA, or www A, AAAA or CNAME: the ALIAS records and Route 53 itself own those. Regenerate it with zone-check.mjs inventory."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.copied_zone_records :
+      lower(r.name) == var.apex_domain || endswith(lower(r.name), ".${var.apex_domain}")
+    ])
+    error_message = "Every name in copied_zone_records must be the apex or end in .apex_domain, written in full."
+  }
+
+  validation {
+    condition     = length(distinct([for r in var.copied_zone_records : "${lower(r.name)}|${upper(r.type)}"])) == length(var.copied_zone_records)
+    error_message = "copied_zone_records holds the same name and type twice. One entry per RRset, with every value in its records list."
+  }
+}

@@ -50,3 +50,14 @@ output "certificate_status" {
   description = "Must read ISSUED before any alias is attached. PENDING_VALIDATION means the registrar record is not in yet."
   value       = module.stack.certificate_status
 }
+
+# Deploy item 05. Null until manage_dns is true.
+output "route53_name_servers" {
+  description = "The four nameservers Dan types into Bluehost, and only after deploy item 05's comparison has passed against them."
+  value       = module.stack.route53_name_servers
+}
+
+output "copied_zone_record_count" {
+  description = "RRsets copied from the Bluehost zone. Must equal the count in item 05's inventory."
+  value       = module.stack.copied_zone_record_count
+}

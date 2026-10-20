@@ -26,13 +26,37 @@ module "stack" {
   environment = "dev"
   name_prefix = var.name_prefix
 
-  manage_dns = false
+  # The Route 53 zone, deploy item 05. Bluehost has no ALIAS or ANAME, so on
+  # Tuesday 20 October 2026 the apex route became a nameserver delegation: an
+  # exact copy of the Bluehost zone in Route 53 plus the apex and www ALIAS
+  # records, verified against Bluehost, then Dan points the domain at the four
+  # Route 53 nameservers. Both are variables so turning the zone on is a tfvars
+  # change, default off. Creating the zone moves nothing: no resolver reads it
+  # until the nameservers change, and this Terraform never changes them.
+  manage_dns          = var.manage_dns
+  copied_zone_records = var.copied_zone_records
 
-  # TRUE while manage_dns is FALSE, and the pair is the whole point. The zone is
-  # authoritative at Bluehost, so Route 53 is not managed here; the certificate
-  # still has to exist, in us-east-1, before any alias can be attached. Gating the
-  # two together is what produced a hand made certificate that died unwatched.
-  # See "Decision log", D49.
+  # Literals, so no tfvars line can switch them.
+  #
+  # The email safety gate in modules/dns refuses a zone with no MX record. Dev
+  # never overrides it: treveanspice.com carries Dan's Google Workspace mail.
+  acknowledge_zone_has_no_email = false
+  # The two ACM validation CNAMEs are in copied_zone_records, verbatim from
+  # Bluehost, so renewal validates through Route 53 after the delegation.
+  # Setting this true as well would make a second resource own the same two
+  # records (it upserts), and destroying either would delete them.
+  manage_validation_records_in_route53 = false
+  # The certificate is ISSUED. Nothing to wait for, and no ACM resource added.
+  wait_for_certificate_validation = false
+
+  # create_certificate is set in terraform.tfvars and is TRUE, independently of
+  # manage_dns, and the pair is the whole point. The certificate has to exist,
+  # in us-east-1, before any alias can be attached, whoever answers for the
+  # zone. Gating the two together is what produced a hand made certificate that
+  # died unwatched. See "Decision log", D49. The stack counts the certificate
+  # as coalesce(create_certificate, manage_dns), and this variable is never
+  # null on dev, so turning manage_dns on cannot create or remove a
+  # certificate.
   shopify_store_domain = var.shopify_store_domain
 
   catalog_sync_dry_run             = var.catalog_sync_dry_run
