@@ -446,7 +446,7 @@ publisher_public_base_url = attach_apex_aliases && apex_domain != null
 
 > **REVERSED on Friday 11 September 2026. THE TAGS ARE WRITE PROTECTED. See D45.** Dan answered from memory here about a run that had already shipped; on 11 September, with the box in front of him, he said "yes the tags are locked per the supplier", and his own SO4731 instruction to the supplier asked for the NDEF area to be locked. **Everything below is preserved as the reasoning that was held at the time and none of its conclusions are current.** In particular: the 1,000 shipped tags are **not** freely re encodable, and the ST25TV area password is the only route to ever repointing them.
 
-**Dan, 19 August: "There are no write protections on the tags."** This closes Q4, open since Friday 7 August and chased twice.
+**Dan, 19 August: "There are no write protections on the tags."** This closes Q4, open since Friday 7 August.
 
 **What it changes:** a hard constraint becomes a recoverable one. Until today, the working assumption had to be that a thousand encoded jars carried a URL that could never be altered, so every recovery path ran through the redirect table and nothing else. The tags can be re-encoded.
 
