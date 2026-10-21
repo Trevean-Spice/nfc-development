@@ -1,0 +1,1164 @@
+{
+  "generatedFrom": "node_modules and package-lock.json, read on the machine this ran on",
+  "packageCount": 15,
+  "installed": {
+    "pairs": 486,
+    "names": 405,
+    "copies": 637,
+    "byLicence": {
+      "MIT": 315,
+      "Apache-2.0": 118,
+      "ISC": 18,
+      "BSD-3-Clause": 14,
+      "BSD-2-Clause": 7,
+      "BlueOak-1.0.0": 5,
+      "Apache-2.0 AND LGPL-3.0-or-later": 2,
+      "(MIT OR CC0-1.0)": 1,
+      "0BSD": 1,
+      "Apache-2.0 AND LGPL-3.0-or-later AND MIT": 1,
+      "BSD (older array form)": 1,
+      "CC-BY-4.0": 1,
+      "MIT (older object form)": 1,
+      "MPL-2.0": 1
+    },
+    "nonPermissive": [
+      "@img/sharp-wasm32@0.35.3: Apache-2.0 AND LGPL-3.0-or-later AND MIT (build/web)",
+      "@img/sharp-win32-x64@0.34.5: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "@img/sharp-win32-x64@0.35.3: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "axe-core@4.13.0: MPL-2.0 (build/web)",
+      "caniuse-lite@1.0.30001809: CC-BY-4.0 (build/web)",
+      "lazy@1.0.11: MIT (older object form) (build/api)",
+      "parse-cache-control@1.0.1: BSD (older array form) (build/web)",
+      "type-fest@4.41.0: (MIT OR CC0-1.0) (build/web)"
+    ],
+    "copyleft": [
+      "@img/sharp-wasm32@0.35.3: Apache-2.0 AND LGPL-3.0-or-later AND MIT (build/web)",
+      "@img/sharp-win32-x64@0.34.5: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "@img/sharp-win32-x64@0.35.3: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "axe-core@4.13.0: MPL-2.0 (build/web)"
+    ]
+  },
+  "resolved": {
+    "pairs": 635,
+    "byLicence": {
+      "MIT": 418,
+      "Apache-2.0": 140,
+      "LGPL-3.0-or-later": 20,
+      "ISC": 18,
+      "BSD-3-Clause": 14,
+      "BSD-2-Clause": 7,
+      "Apache-2.0 AND LGPL-3.0-or-later": 6,
+      "BlueOak-1.0.0": 5,
+      "Apache-2.0 AND LGPL-3.0-or-later AND MIT": 2,
+      "(MIT OR CC0-1.0)": 1,
+      "0BSD": 1,
+      "CC-BY-4.0": 1,
+      "declared nowhere in the lockfile": 1,
+      "MPL-2.0": 1
+    },
+    "copyleftNotInstalledHere": [
+      "@img/sharp-libvips-darwin-arm64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-darwin-arm64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-darwin-x64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-darwin-x64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-arm@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-arm@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-arm64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-arm64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-ppc64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-ppc64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-riscv64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-riscv64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-s390x@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-s390x@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-x64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linux-x64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linuxmusl-arm64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linuxmusl-arm64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linuxmusl-x64@1.2.4: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-libvips-linuxmusl-x64@1.3.2: LGPL-3.0-or-later (build/web)",
+      "@img/sharp-wasm32@0.34.5: Apache-2.0 AND LGPL-3.0-or-later AND MIT (build/web)",
+      "@img/sharp-win32-arm64@0.34.5: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "@img/sharp-win32-arm64@0.35.3: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "@img/sharp-win32-ia32@0.34.5: Apache-2.0 AND LGPL-3.0-or-later (build/web)",
+      "@img/sharp-win32-ia32@0.35.3: Apache-2.0 AND LGPL-3.0-or-later (build/web)"
+    ]
+  },
+  "packages": [
+    {
+      "path": "build/admin",
+      "what": "Admin CMS. Blend, recipe and grower editors, roles, preview, media library.",
+      "npmName": "@trevean/admin-cms",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [
+        {
+          "name": "@fastify/cookie",
+          "range": "^11.1.2",
+          "installed": [
+            {
+              "name": "@fastify/cookie",
+              "version": "11.1.2",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "@fastify/formbody",
+          "range": "^8.0.2",
+          "installed": [
+            {
+              "name": "@fastify/formbody",
+              "version": "8.0.2",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "@fastify/static",
+          "range": "^10.1.3",
+          "installed": [
+            {
+              "name": "@fastify/static",
+              "version": "10.1.3",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "fastify",
+          "range": "^5.12.1",
+          "installed": [
+            {
+              "name": "fastify",
+              "version": "5.12.1",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "jose",
+          "range": "^5.9.3",
+          "installed": [
+            {
+              "name": "jose",
+              "version": "5.10.0",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "yaml",
+          "range": "^2.5.1",
+          "installed": [
+            {
+              "name": "yaml",
+              "version": "2.9.0",
+              "license": "ISC"
+            }
+          ]
+        }
+      ],
+      "dev": [
+        {
+          "name": "@types/node",
+          "range": "^20.16.10",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "20.19.43",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "tsx",
+          "range": "^4.19.1",
+          "installed": [
+            {
+              "name": "tsx",
+              "version": "4.23.12",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "range": "^5.6.2",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.9.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "vitest",
+          "range": "^3.2.7",
+          "installed": [
+            {
+              "name": "vitest",
+              "version": "3.2.7",
+              "license": "MIT"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 130,
+      "installedNames": 126,
+      "installedCopies": 130,
+      "resolvedPairs": 180,
+      "byLicence": {
+        "MIT": 110,
+        "ISC": 8,
+        "BlueOak-1.0.0": 5,
+        "BSD-3-Clause": 5,
+        "Apache-2.0": 2
+      },
+      "multiVersion": [
+        {
+          "name": "fastify-plugin",
+          "versions": [
+            "5.1.0",
+            "6.0.0"
+          ]
+        },
+        {
+          "name": "fast-uri",
+          "versions": [
+            "3.1.5",
+            "4.1.2"
+          ]
+        },
+        {
+          "name": "cookie",
+          "versions": [
+            "1.1.1",
+            "2.0.1"
+          ]
+        },
+        {
+          "name": "process-warning",
+          "versions": [
+            "4.0.1",
+            "5.1.0"
+          ]
+        }
+      ],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/api",
+      "what": "REST API. Node and TypeScript over DynamoDB, implements the frozen contract.",
+      "npmName": "@trevean/tap-to-story-api",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [
+        {
+          "name": "@aws-sdk/client-dynamodb",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/client-dynamodb",
+              "version": "3.1112.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/client-s3",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/client-s3",
+              "version": "3.1112.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/client-secrets-manager",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/client-secrets-manager",
+              "version": "3.1112.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/lib-dynamodb",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/lib-dynamodb",
+              "version": "3.1112.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/s3-request-presigner",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/s3-request-presigner",
+              "version": "3.1112.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/util-dynamodb",
+          "range": "^3.996.9",
+          "installed": [
+            {
+              "name": "@aws-sdk/util-dynamodb",
+              "version": "3.996.9",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@fastify/aws-lambda",
+          "range": "^4.1.0",
+          "installed": [
+            {
+              "name": "@fastify/aws-lambda",
+              "version": "4.1.0",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "ajv",
+          "range": "^8.17.1",
+          "installed": [
+            {
+              "name": "ajv",
+              "version": "8.20.0",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "ajv-formats",
+          "range": "^3.0.1",
+          "installed": [
+            {
+              "name": "ajv-formats",
+              "version": "2.1.1",
+              "license": "MIT"
+            },
+            {
+              "name": "ajv-formats",
+              "version": "3.0.1",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "fastify",
+          "range": "^4.28.1",
+          "installed": [
+            {
+              "name": "fastify",
+              "version": "4.29.1",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "jose",
+          "range": "^5.9.3",
+          "installed": [
+            {
+              "name": "jose",
+              "version": "5.10.0",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "yaml",
+          "range": "^2.5.1",
+          "installed": [
+            {
+              "name": "yaml",
+              "version": "2.9.0",
+              "license": "ISC"
+            }
+          ]
+        }
+      ],
+      "dev": [
+        {
+          "name": "@types/node",
+          "range": "^20.16.10",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "20.19.43",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "dynalite",
+          "range": "^3.2.2",
+          "installed": [
+            {
+              "name": "dynalite",
+              "version": "3.2.2",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "tsx",
+          "range": "^4.19.1",
+          "installed": [
+            {
+              "name": "tsx",
+              "version": "4.23.12",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "range": "^5.6.2",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.9.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "vitest",
+          "range": "^2.1.2",
+          "installed": [
+            {
+              "name": "vitest",
+              "version": "2.1.9",
+              "license": "MIT"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 181,
+      "installedNames": 174,
+      "installedCopies": 182,
+      "resolvedPairs": 253,
+      "byLicence": {
+        "MIT": 131,
+        "Apache-2.0": 34,
+        "ISC": 9,
+        "BSD-3-Clause": 5,
+        "0BSD": 1,
+        "MIT (older object form)": 1
+      },
+      "multiVersion": [
+        {
+          "name": "@esbuild/win32-x64",
+          "versions": [
+            "0.21.5",
+            "0.28.2"
+          ]
+        },
+        {
+          "name": "ajv-formats",
+          "versions": [
+            "2.1.1",
+            "3.0.1"
+          ]
+        },
+        {
+          "name": "fast-uri",
+          "versions": [
+            "2.4.4",
+            "3.1.5"
+          ]
+        },
+        {
+          "name": "abstract-leveldown",
+          "versions": [
+            "6.2.3",
+            "6.3.0"
+          ]
+        },
+        {
+          "name": "esbuild",
+          "versions": [
+            "0.21.5",
+            "0.28.2"
+          ]
+        },
+        {
+          "name": "immediate",
+          "versions": [
+            "3.2.3",
+            "3.3.0"
+          ]
+        },
+        {
+          "name": "process-warning",
+          "versions": [
+            "3.0.0",
+            "5.1.0"
+          ]
+        }
+      ],
+      "nonPermissive": [
+        {
+          "name": "lazy",
+          "version": "1.0.11",
+          "license": "MIT (older object form)"
+        }
+      ]
+    },
+    {
+      "path": "build/chip-cli",
+      "what": "Chip programming tooling. Encodes, reads back and password protects ST25TV02KC tags.",
+      "npmName": "@trevean/chip-cli",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [],
+      "dev": [
+        {
+          "name": "@types/node",
+          "range": "^20.16.10",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "20.19.43",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "range": "^5.9.3",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.9.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 3,
+      "installedNames": 3,
+      "installedCopies": 3,
+      "resolvedPairs": 3,
+      "byLicence": {
+        "MIT": 2,
+        "Apache-2.0": 1
+      },
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/consolidation",
+      "what": "Consolidation package. The pull requests that adopt this work into the client repository.",
+      "npmName": null,
+      "hasPackageJson": false,
+      "hasLockfile": false,
+      "hasGenerator": false,
+      "runtime": [],
+      "dev": [],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/content",
+      "what": "Content fixtures and seeding. Blends, growers, recipes, placeholder imagery, readiness tooling.",
+      "npmName": "@trevean/content-fixtures",
+      "hasPackageJson": true,
+      "hasLockfile": false,
+      "hasGenerator": false,
+      "runtime": [],
+      "dev": [],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/contract-tests",
+      "what": "Contract tests. Enforces the frozen OpenAPI document against a running service.",
+      "npmName": "trevean-spice-contract-tests",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [
+        {
+          "name": "ajv",
+          "range": "^8.17.1",
+          "installed": [
+            {
+              "name": "ajv",
+              "version": "8.20.0",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "ajv-formats",
+          "range": "^3.0.1",
+          "installed": [
+            {
+              "name": "ajv-formats",
+              "version": "3.0.1",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "yaml",
+          "range": "^2.8.1",
+          "installed": [
+            {
+              "name": "yaml",
+              "version": "2.9.0",
+              "license": "ISC"
+            }
+          ]
+        }
+      ],
+      "dev": [
+        {
+          "name": "@types/node",
+          "range": "^20.19.0",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "20.19.43",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "range": "^5.9.2",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.9.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 10,
+      "installedNames": 10,
+      "installedCopies": 10,
+      "resolvedPairs": 10,
+      "byLicence": {
+        "MIT": 7,
+        "Apache-2.0": 1,
+        "BSD-3-Clause": 1,
+        "ISC": 1
+      },
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/dashboard",
+      "what": "Analytics dashboard. Scan volume, NFC and QR split, device and geography, hand written SVG charts.",
+      "npmName": "@trevean/analytics-dashboard",
+      "hasPackageJson": true,
+      "hasLockfile": false,
+      "hasGenerator": false,
+      "runtime": [],
+      "dev": [],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/edge",
+      "what": "Edge redirect. The /t/ and /q/ redirect function, its table, compiler and validator.",
+      "npmName": "trevean-edge-redirect",
+      "hasPackageJson": true,
+      "hasLockfile": false,
+      "hasGenerator": false,
+      "runtime": [],
+      "dev": [],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/infrastructure",
+      "what": "Infrastructure. Terraform for the whole stack. No npm tree.",
+      "npmName": null,
+      "hasPackageJson": false,
+      "hasLockfile": false,
+      "hasGenerator": false,
+      "runtime": [],
+      "dev": [],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/publisher",
+      "what": "Publisher. Uploads the built static pages to object storage and invalidates the CDN.",
+      "npmName": "@trevean/publisher",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [
+        {
+          "name": "@aws-sdk/client-cloudfront",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/client-cloudfront",
+              "version": "3.1127.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/client-s3",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/client-s3",
+              "version": "3.1127.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@aws-sdk/client-secrets-manager",
+          "range": "^3.658.0",
+          "installed": [
+            {
+              "name": "@aws-sdk/client-secrets-manager",
+              "version": "3.1127.0",
+              "license": "Apache-2.0"
+            }
+          ]
+        }
+      ],
+      "dev": [],
+      "installedPairs": 28,
+      "installedNames": 28,
+      "installedCopies": 28,
+      "resolvedPairs": 28,
+      "byLicence": {
+        "Apache-2.0": 26,
+        "0BSD": 1,
+        "MIT": 1
+      },
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/shopify",
+      "what": "Shopify integration. Cart permalinks, webhook verification, catalog sync, reorder resolution.",
+      "npmName": "@trevean/shopify-integration",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [],
+      "dev": [
+        {
+          "name": "@types/node",
+          "range": "^20.16.10",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "20.19.43",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "ajv",
+          "range": "^8.17.1",
+          "installed": [
+            {
+              "name": "ajv",
+              "version": "8.20.0",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "ajv-formats",
+          "range": "^3.0.1",
+          "installed": [
+            {
+              "name": "ajv-formats",
+              "version": "3.0.1",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "range": "^5.6.2",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.9.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "vitest",
+          "range": "^2.1.2",
+          "installed": [
+            {
+              "name": "vitest",
+              "version": "2.1.9",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "yaml",
+          "range": "^2.5.1",
+          "installed": [
+            {
+              "name": "yaml",
+              "version": "2.9.0",
+              "license": "ISC"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 54,
+      "installedNames": 54,
+      "installedCopies": 54,
+      "resolvedPairs": 101,
+      "byLicence": {
+        "MIT": 47,
+        "ISC": 3,
+        "Apache-2.0": 2,
+        "BSD-3-Clause": 2
+      },
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/vercel-redirect",
+      "what": "Vercel redirect. The alternative hosting route for the same /t/ and /q/ behaviour.",
+      "npmName": "trevean-vercel-redirect",
+      "hasPackageJson": true,
+      "hasLockfile": false,
+      "hasGenerator": false,
+      "runtime": [],
+      "dev": [],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "build/web",
+      "what": "Consumer blend pages. The page a customer reads after a tap.",
+      "npmName": "@trevean/consumer-blend-pages",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [
+        {
+          "name": "next",
+          "range": "15.5.23",
+          "installed": [
+            {
+              "name": "next",
+              "version": "15.5.23",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "react",
+          "range": "19.2.8",
+          "installed": [
+            {
+              "name": "react",
+              "version": "19.2.8",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "react-dom",
+          "range": "19.2.8",
+          "installed": [
+            {
+              "name": "react-dom",
+              "version": "19.2.8",
+              "license": "MIT"
+            }
+          ]
+        }
+      ],
+      "dev": [
+        {
+          "name": "@types/node",
+          "range": "22.10.5",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "22.10.5",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "@types/react",
+          "range": "19.0.7",
+          "installed": [
+            {
+              "name": "@types/react",
+              "version": "19.0.7",
+              "license": "MIT"
+            }
+          ]
+        },
+        {
+          "name": "lighthouse",
+          "range": "12.8.2",
+          "installed": [
+            {
+              "name": "lighthouse",
+              "version": "12.8.2",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "sharp",
+          "range": "0.35.3",
+          "installed": [
+            {
+              "name": "sharp",
+              "version": "0.34.5",
+              "license": "Apache-2.0"
+            },
+            {
+              "name": "sharp",
+              "version": "0.35.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "range": "5.7.3",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.7.3",
+              "license": "Apache-2.0"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 222,
+      "installedNames": 217,
+      "installedCopies": 227,
+      "resolvedPairs": 276,
+      "byLicence": {
+        "MIT": 129,
+        "Apache-2.0": 59,
+        "ISC": 12,
+        "BSD-2-Clause": 7,
+        "BSD-3-Clause": 7,
+        "Apache-2.0 AND LGPL-3.0-or-later": 2,
+        "(MIT OR CC0-1.0)": 1,
+        "0BSD": 1,
+        "Apache-2.0 AND LGPL-3.0-or-later AND MIT": 1,
+        "BSD (older array form)": 1,
+        "CC-BY-4.0": 1,
+        "MPL-2.0": 1
+      },
+      "multiVersion": [
+        {
+          "name": "@img/sharp-win32-x64",
+          "versions": [
+            "0.34.5",
+            "0.35.3"
+          ]
+        },
+        {
+          "name": "@opentelemetry/semantic-conventions",
+          "versions": [
+            "1.28.0",
+            "1.43.0"
+          ]
+        },
+        {
+          "name": "devtools-protocol",
+          "versions": [
+            "0.0.1507524",
+            "0.0.1608973"
+          ]
+        },
+        {
+          "name": "sharp",
+          "versions": [
+            "0.34.5",
+            "0.35.3"
+          ]
+        },
+        {
+          "name": "ws",
+          "versions": [
+            "7.5.13",
+            "8.21.3"
+          ]
+        }
+      ],
+      "nonPermissive": [
+        {
+          "name": "@img/sharp-wasm32",
+          "version": "0.35.3",
+          "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT"
+        },
+        {
+          "name": "@img/sharp-win32-x64",
+          "version": "0.35.3",
+          "license": "Apache-2.0 AND LGPL-3.0-or-later"
+        },
+        {
+          "name": "@img/sharp-win32-x64",
+          "version": "0.34.5",
+          "license": "Apache-2.0 AND LGPL-3.0-or-later"
+        },
+        {
+          "name": "axe-core",
+          "version": "4.13.0",
+          "license": "MPL-2.0"
+        },
+        {
+          "name": "caniuse-lite",
+          "version": "1.0.30001809",
+          "license": "CC-BY-4.0"
+        },
+        {
+          "name": "parse-cache-control",
+          "version": "1.0.1",
+          "license": "BSD (older array form)"
+        },
+        {
+          "name": "type-fest",
+          "version": "4.41.0",
+          "license": "(MIT OR CC0-1.0)"
+        }
+      ]
+    },
+    {
+      "path": "deliverables/m1/06-performance-budget-ci",
+      "what": "Performance budget CI. The workflow and assertions that hold the page to its byte and request budget.",
+      "npmName": "trevean-performance-budget",
+      "hasPackageJson": true,
+      "hasLockfile": false,
+      "hasGenerator": true,
+      "runtime": [],
+      "dev": [
+        {
+          "name": "@lhci/cli",
+          "range": "^0.14.0",
+          "installed": [
+            {
+              "name": "@lhci/cli",
+              "version": "not installed here",
+              "license": "not installed here"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 0,
+      "installedNames": 0,
+      "installedCopies": 0,
+      "resolvedPairs": 0,
+      "byLicence": {},
+      "multiVersion": [],
+      "nonPermissive": []
+    },
+    {
+      "path": "deliverables/m1/harness",
+      "what": "Measurement harness. The M1 instrumentation that produces the tap and page timings.",
+      "npmName": "trevean-measurement-harness",
+      "hasPackageJson": true,
+      "hasLockfile": true,
+      "hasGenerator": true,
+      "runtime": [],
+      "dev": [
+        {
+          "name": "typescript",
+          "range": "5.5.4",
+          "installed": [
+            {
+              "name": "typescript",
+              "version": "5.5.4",
+              "license": "Apache-2.0"
+            }
+          ]
+        },
+        {
+          "name": "@types/node",
+          "range": "20.14.10",
+          "installed": [
+            {
+              "name": "@types/node",
+              "version": "20.14.10",
+              "license": "MIT"
+            }
+          ]
+        }
+      ],
+      "installedPairs": 3,
+      "installedNames": 3,
+      "installedCopies": 3,
+      "resolvedPairs": 3,
+      "byLicence": {
+        "MIT": 2,
+        "Apache-2.0": 1
+      },
+      "multiVersion": [],
+      "nonPermissive": []
+    }
+  ]
+}
