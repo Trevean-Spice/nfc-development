@@ -234,6 +234,8 @@ Enforced at the CDN and WAF layer, not in application code, so a flood never rea
 
 Deprecation is marked `deprecated: true` in the document with `Deprecation` and `Sunset` headers and a minimum 30 day overlap.
 
+**Erratum E20, Thursday 22 October 2026. Documentation only, non breaking.** The frozen document said the shipped SO4731 tags are not write protected, in the `adminListTagRecords` description, the `TagRecord.writeProtected` description and four rows of the `deployedTable` example. Decision log D45 reversed that on Friday 11 September 2026. The descriptions now say the tags are write protected and the four encoded rows carry `true`; the reserved code stays `null`. No schema keyword changed. Recorded in the contract errata, section 17, and in item 6 of section 8 below.
+
 ---
 
 ## 7. The contract test suite, and what it catches that a schema check cannot
@@ -262,7 +264,7 @@ Observed 17 August 2026 against the in memory stub: 202 tests, 200 passing, 2 fa
 
 ## 8. Open items against the contract, stated rather than buried
 
-These are live as at Tuesday 25 August 2026, **except item 1, which was closed on Thursday 27 August 2026 and is kept below with the closure marked rather than deleted.** Anyone picking this up should resolve the rest before writing a client.
+These are live as at Tuesday 25 August 2026, **except item 1, which was closed on Thursday 27 August 2026 and is kept below with the closure marked rather than deleted, and item 6, corrected on Thursday 22 October 2026.** Anyone picking this up should resolve the rest before writing a client.
 
 **One of them has moved from theoretical to imminent.** Item 3 below says a sixth blend would be a v2 change and a schedule event, and that it is far cheaper to know in advance. **The client's live marketing site lists six blends.** Whether that is a sixth product or marketing copy is unanswered and has been asked. Read item 3 with that in mind.
 
@@ -282,7 +284,7 @@ Two ways to close it, and the recommendation was to do both: **serve the beacon 
 
 **5. 403 is declared on five operations whose minimum role is Viewer**, which is the lowest role, so no authenticated caller sits below it and 403 cannot occur. Harmless, arguably correct as future proofing, recorded so the coverage number reads honestly rather than looking like a gap in the tests.
 
-**6. `writeProtected` was `null`, meaning unknown, on every row of the tag records, and both the data model and the OpenAPI description said this was pending the supplier's answer. That was stale and it has been corrected.** The client answered on Wednesday 19 August 2026 that order SO4731 shipped with **no** write protection (decision log D18, closing Q4). **The rows and the descriptions were updated on Saturday 22 August 2026:** the four encoded codes carry `false`, the reserved code stays `null` because no tag exists to have a state, and the data model, the frozen OpenAPI document and the deployed redirect table now agree. **What remains outstanding is the verification, not the record:** this is the client's answer rather than the supplier's written one, so it is confirmed by read back against our own bare stock and against one shipped jar before anything depends on rewritability. See the document titled "Runbooks", section 4.2.
+**6. `writeProtected` is `true` on the four encoded rows of the tag records and `null` on the reserved code. Corrected Thursday 22 October 2026 as erratum E20 in the contract errata, documentation only.** This item previously said the four encoded codes carry `false`, on the client's answer of Wednesday 19 August 2026 (decision log D18, closing Q4). **That answer was reversed on Friday 11 September 2026 (D45):** order SO4731 shipped write protected, with an ST25TV area password nobody at Trevean holds, so the 1,000 tags cannot be re-encoded and the redirect table is the only recovery path. The redirect tables were corrected on 11 September. The frozen OpenAPI document's `adminListTagRecords` description, its `deployedTable` example and the `TagRecord.writeProtected` description were corrected on 22 October under the contract's own change control, and no field, type or validation rule changed. **What remains outstanding is the verification, not the record:** read back one shipped tag on a physical reader. See the document titled "Runbooks", section 4.2.
 
 **7. Three record types have no declared home in the data model:** media records, idempotency keys, and revalidation records. The implementation puts media in `SpiceBlends` under a `MEDIA#` namespace with an `entity-createdAt` index, consistent with how the catalog mirror lives there under `CATALOG#`. **That index is an addition, and the content package still describes the namespace as a proposal**, so the two packages do not yet agree in writing even though they agree in behaviour. Reconcile in one place.
 
