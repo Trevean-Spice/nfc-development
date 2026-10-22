@@ -98,7 +98,7 @@ describe('GET /v1/admin/tags', () => {
     );
   });
 
-  it('reports write protection as false on the encoded run and null where no tag exists', { skip: needsAdmin }, async () => {
+  it('reports write protection as true on the encoded run and null where no tag exists', { skip: needsAdmin }, async () => {
     const result = await callOperation('adminListTagRecords', { role: 'admin', expectStatus: 200 });
     for (const row of result.body.data as any[]) {
       assert.ok(
@@ -108,17 +108,17 @@ describe('GET /v1/admin/tags', () => {
       if (row.status === 'encoded') {
         assert.strictEqual(
           row.writeProtected,
-          false,
+          true,
           `Row ${row.code} is encoded, so it should carry the SO4731 answer rather than null.`,
         );
       }
     }
     const unknown = (result.body.data as any[]).filter((row) => row.writeProtected === null).length;
     console.log(
-      `      note: writeProtected is false across the SO4731 run and unknown on ${unknown} of ` +
+      `      note: writeProtected is true across the SO4731 run and unknown on ${unknown} of ` +
         `${(result.body.data as any[]).length} rows, which are the reserved codes carrying no tag. ` +
-        'Answered Wednesday 19 August 2026, decision log D18, closing Q4. Still to confirm by ' +
-        'read-back, because that is Dan\'s answer rather than Tagstand\'s written one.',
+        'Reversed Friday 11 September 2026, decision log D45, superseding D18. Still to confirm by ' +
+        'reading back one shipped tag, because that is Dan\'s check rather than Tagstand\'s written one.',
     );
   });
 });

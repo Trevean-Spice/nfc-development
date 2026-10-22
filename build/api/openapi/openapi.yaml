@@ -1554,10 +1554,12 @@ paths:
         cloning the repository, and so a pre cutover and post cutover verification against
         physical tags can be recorded.
 
-        writeProtected is false for the shipped SO4731 run. Answered on Wednesday 19 August
-        2026 (decision log D18, closing Q4): the shipped tags carry no write protection, so
-        the 1,000 tags can be re-encoded and recovery has a second path behind the redirect
-        table. It stays null on the reserved code, where no tag exists to have a state.
+        writeProtected is true for the shipped SO4731 run. Reversed on Friday 11 September
+        2026 (decision log D45, reversing D18 and re-answering Q4): the shipped tags are
+        write protected with an ST25TV area password nobody at Trevean holds, so the 1,000
+        tags cannot be re-encoded and the redirect table is the only recovery path. It stays
+        null on the reserved code, where no tag exists to have a state. Corrected Thursday
+        22 October 2026 as erratum E20, documentation only.
       tags: [Admin Tags]
       security:
         - bearerAuth: []
@@ -1587,7 +1589,7 @@ paths:
                         encodedOn: '2026-07-24'
                         supplierOrderRef: SO4731
                         chipPartNumber: ST25TV02KC
-                        writeProtected: false
+                        writeProtected: true
                         ndefUri: https://treveanspice.com/t/ps
                         lastVerifiedAgainstPhysicalTag: null
                       - code: cs
@@ -1600,7 +1602,7 @@ paths:
                         encodedOn: '2026-07-24'
                         supplierOrderRef: SO4731
                         chipPartNumber: ST25TV02KC
-                        writeProtected: false
+                        writeProtected: true
                         ndefUri: https://treveanspice.com/t/cs
                         lastVerifiedAgainstPhysicalTag: null
                       - code: sr
@@ -1613,7 +1615,7 @@ paths:
                         encodedOn: '2026-07-24'
                         supplierOrderRef: SO4731
                         chipPartNumber: ST25TV02KC
-                        writeProtected: false
+                        writeProtected: true
                         ndefUri: https://treveanspice.com/t/sr
                         lastVerifiedAgainstPhysicalTag: null
                       - code: nm
@@ -1626,7 +1628,7 @@ paths:
                         encodedOn: '2026-07-24'
                         supplierOrderRef: SO4731
                         chipPartNumber: ST25TV02KC
-                        writeProtected: false
+                        writeProtected: true
                         ndefUri: https://treveanspice.com/t/nm
                         lastVerifiedAgainstPhysicalTag: null
                       - code: kg
@@ -3109,11 +3111,12 @@ components:
         writeProtected:
           type: [boolean, 'null']
           description: |
-            Null means unknown. False across the shipped SO4731 run, answered on Wednesday
-            19 August 2026 (decision log D18, closing Q4): those tags carry no write
-            protection and can be re-encoded, so the chip tooling serves this production run
-            rather than only the next order. Null on the reserved code, where no tag exists
-            to have a state.
+            Null means unknown. True across the shipped SO4731 run, reversed on Friday
+            11 September 2026 (decision log D45, reversing D18): those tags are write
+            protected with an area password nobody at Trevean holds and cannot be
+            re-encoded, so the chip tooling serves the next order rather than this
+            production run. Null on the reserved code, where no tag exists to have a state.
+            Corrected Thursday 22 October 2026 as erratum E20, documentation only.
         ndefUri:
           type: [string, 'null']
           format: uri

@@ -333,9 +333,9 @@ export function freshState(): StubState {
     encodedOn: status === 'encoded' ? '2026-07-24' : null,
     supplierOrderRef: status === 'encoded' ? 'SO4731' : null,
     chipPartNumber: status === 'encoded' ? 'ST25TV02KC' : null,
-    // False on the encoded run and null on the reserved code. Decision log D18, Wednesday
-    // 19 August 2026, closing Q4: SO4731 shipped with no write protection.
-    writeProtected: status === 'encoded' ? false : null,
+    // True on the encoded run and null on the reserved code. Decision log D45, Friday
+    // 11 September 2026, reversing D18: SO4731 shipped write protected. Erratum E20.
+    writeProtected: status === 'encoded' ? true : null,
     ndefUri: status === 'encoded' ? `https://treveanspice.com/t/${code}` : null,
     lastVerifiedAgainstPhysicalTag: null,
   }));
