@@ -49,7 +49,7 @@ fi
 # the same empty result as a distribution that has not finished deploying, and
 # the message further down would then blame the wrong thing on the morning of
 # the flip.
-for TOOL in dig curl; do
+for TOOL in dig curl openssl timeout; do
   if ! command -v "$TOOL" >/dev/null 2>&1; then
     echo "$TOOL is not installed. This script cannot run without it." >&2
     exit 2
@@ -268,7 +268,16 @@ echo "4. Protocol and TLS"
 echo "---------------------------------------------------------------------------"
 echo
 
-TLS_VERSION="$($CURL --output /dev/null --write-out '%{ssl_version}' "https://${HOSTNAME_UNDER_TEST}/t/ps")"
+# The protocol comes from openssl s_client, on the same edge address and with
+# the hostname as SNI, not from curl's %{ssl_version}: curl 8.5.0 on OpenSSL
+# 3.0.13 prints nothing for it, which failed this check against a distribution
+# that negotiates TLS 1.3 (live, 24 October 2026). s_client prints
+# "New, TLSv1.3, Cipher is ..." and, in its session block, "Protocol  : TLSv1.3".
+# A handshake that fails prints neither, so the value is empty and the check
+# fails.
+TLS_VERSION="$(timeout 15 openssl s_client -connect "${EDGE_IP}:443" -servername "${HOSTNAME_UNDER_TEST}" </dev/null 2>/dev/null \
+  | sed -nE 's/^New, (TLSv[0-9.]+|SSLv[0-9]+), Cipher is .*/\1/p; s/^ *Protocol *: *(TLSv[0-9.]+|SSLv[0-9]+) *$/\1/p' \
+  | head -n 1)"
 echo "  negotiated: $TLS_VERSION"
 
 if [ "$TLS_VERSION" = "TLSv1.3" ]; then
