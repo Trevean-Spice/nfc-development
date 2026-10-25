@@ -43,7 +43,7 @@ test('encode shows the prefix abbreviation and the capacity headroom without a t
   const result = await run(['encode', '--code', 'ps']);
   assert.equal(result.code, 0);
   assert.match(result.out, /0x04 for "https:\/\/"/);
-  assert.match(result.out, /29 of 248 bytes used/);
+  assert.match(result.out, /29 of 312 bytes used, 283 free \(320 byte part\)/);
 });
 
 test('encode as JSON is machine readable', async () => {
@@ -186,7 +186,7 @@ test('doctor reports the table, the codes and the transport', async () => {
   const result = await run(['doctor']);
   assert.equal(result.code, 0);
   assert.match(result.out, /ok\s+redirect table/);
-  assert.match(result.out, /ok\s+every code fits the chip/);
+  assert.match(result.out, /ok\s+every code fits the chip\s+312 byte area on a 320 byte ST25TV02KC/);
   assert.match(result.out, /simulator, no physical tags are written/);
   assert.match(result.out, /Ready\./);
 });

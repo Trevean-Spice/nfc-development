@@ -279,6 +279,15 @@ function hex(bytes: Uint8Array): string {
  */
 export function readBinaryApdu(firstBlock: number, count: number): Uint8Array {
   const bytes = count * PART.blockSizeBytes;
+  // Le is one byte. An 80 block part can be asked for more than that in one read, and
+  // a length that wrapped would ask the reader for the wrong number of bytes.
+  if (bytes < 1 || bytes > 0xff) {
+    throw new ChipError(
+      'READBACK_FAILED',
+      `A single Read Binary carries 1 to 255 bytes, and ${count} block(s) is ${bytes}.`,
+      'This is a bug in the caller rather than anything to do with the tag. Read in smaller spans.',
+    );
+  }
   return Uint8Array.from([CLA_PCSC, INS_READ_BINARY, (firstBlock >> 8) & 0xff, firstBlock & 0xff, bytes & 0xff]);
 }
 
@@ -512,11 +521,12 @@ export class PcscTransport implements TagTransport {
   /**
    * Establishes the block count by reading, rather than asserting it from the datasheet.
    *
-   * README section 6.3 step 2 says to confirm the geometry is 64 blocks of 4 bytes.
-   * A constant cannot confirm anything, so this reads the last block the part should
-   * have and then reads one past it, and requires the first to succeed and the second
-   * to fail. **A part that answers both is not the part this tool models**, and writing
-   * a 248 byte image to it could run off the end of its area.
+   * README section 6.3 step 2 says to confirm the geometry is 80 blocks of 4 bytes
+   * (DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC). A constant cannot
+   * confirm anything, so this reads block 79, the last the part should have, and then
+   * block 80, one past it, and requires the first to succeed and the second to fail.
+   * **A part that answers both is not the part this tool models**, and writing a 312
+   * byte image to it could run off the end of its area.
    */
   private async probeBlockCount(): Promise<number> {
     const last = await this.transmit(readBinaryApdu(PART.blockCount - 1, 1), PART.blockSizeBytes + 2);
@@ -524,7 +534,7 @@ export class PcscTransport implements TagTransport {
       throw new ChipError(
         'TAG_NOT_ST25TV02KC',
         `Block ${PART.blockCount - 1} could not be read, so this tag has fewer than ${PART.blockCount} blocks.`,
-        'ST25TV02KC has 64 blocks of 4 bytes. A smaller part is a different chip and this tool will not write it.',
+        'ST25TV02KC has 80 blocks of 4 bytes (DS13304, END_MEM 4Fh). A smaller part is a different chip, an ST25TV512C has 16, and this tool will not write it. A genuine ST25TV02KC answers here unless its TruST25 configuration has reduced END_MEM, which DS13304 section 5.6 says can bring it to 3Dh. Report it with the UID rather than forcing it.',
       );
     }
 
@@ -533,7 +543,7 @@ export class PcscTransport implements TagTransport {
       throw new ChipError(
         'TAG_NOT_ST25TV02KC',
         `Block ${PART.blockCount} answered a read, so this tag is larger than ST25TV02KC.`,
-        'This is a bigger ST25 part. It is not what the redirect table and the 248 byte area calculation assume, so it is refused rather than half written.',
+        'This is a bigger ST25 part. It is not what the redirect table and the 312 byte area calculation assume, so it is refused rather than half written.',
       );
     }
 
