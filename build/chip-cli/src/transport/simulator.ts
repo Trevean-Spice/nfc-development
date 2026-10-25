@@ -403,9 +403,18 @@ export class SimulatorTransport implements TagTransport {
    * The model's own refusal is the AREA_PROTECTED it throws for a protected block with
    * no password presented, so that, and only that, is reported as refused. An injected
    * write fault is rethrown, exactly as a write fault on a real reader must not be read
-   * as protection.
+   * as protection. A tag other than the unit's own is refused before anything is written.
    */
-  async proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'> {
+  async proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'> {
+    const tag = this.requireTag();
+    if (expectedUid !== null && tag.uid !== expectedUid) {
+      throw new ChipError(
+        'TAG_CHANGED',
+        `The proof write was not sent: this unit's tag is uid ${expectedUid} and the tag in the field is uid ${tag.uid}.`,
+        'Set every tag in reach aside and label them. Do not record any of them as protected.',
+        { expectedUid, fieldUid: tag.uid },
+      );
+    }
     try {
       await this.writeBlock(block, data);
       return 'accepted';

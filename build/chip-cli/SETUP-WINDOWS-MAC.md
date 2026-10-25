@@ -14,6 +14,8 @@
 - **Not verified with the ACR1552U.** Its name as Windows or macOS reports it, whether the built in driver is enough, and how it answers each command are all unproven.
 - **Not verified on silicon.** The tool still has never written a physical tag. README section 6.3 is the bring up this call is doing.
 - **The Windows command for the throwaway password in section 4 is untested.** A fallback is given beside it.
+- **The protection commands now come from the ST25TV02KC datasheet** (DS13304 Rev 7, obtained Sunday 25 October 2026), and none of them has run on a chip.
+- **Known problem before you start:** the datasheet says the ST25TV02KC has 80 blocks, and this version of the tool expects 64 and refuses a tag that has more. Unless a fixed version has been sent since, section 4.2 will stop with `TAG_NOT_ST25TV02KC` "Block 64 answered a read". That is the tool, not the tag (README section 6.6, item G).
 
 If a step does not behave as written, that is a finding, not a failure on your part. Write down what it printed.
 
@@ -105,11 +107,15 @@ Verified         https://treveanspice.com/t/ps
 OK  ps  Persian Sunrise  https://treveanspice.com/t/ps
 ```
 
+If it prints `TAG_NOT_ST25TV02KC` and "Block 64 answered a read, so this tag is larger than ST25TV02KC", **stop here and skip 4.3.** That is the known geometry problem in section 0, not a wrong tag. Write down the message.
+
 **Then tap the tag with a real phone** (screen on, unlocked) and confirm the Persian Sunrise page opens. On an iPhone, tap the banner that appears. **This tap is the check that matters**, README section 6.3 step 3. Write down the UID and what the phone did.
 
 ### 4.3 Protection test, on the SACRIFICIAL tag only
 
-Take the tag from 4.2 off the reader. Put the **SACRIFICIAL** tag on. The password is a throwaway, generated on the spot and never written down: there is deliberately no `--password` flag.
+**Clear everything NFC from within arm's length of the reader first:** the tag from 4.2, every other tag, contactless bank cards, door badges, and the phone. Put them in another room or at least two metres away. Then put the **SACRIFICIAL** tag on the reader, alone. (The tool now addresses every command to the one tag it selected, so another tag should stay silent. That is unverified on silicon, and a tag locked by mistake cannot be unlocked.)
+
+The password is a throwaway, generated on the spot and never written down: there is deliberately no `--password` flag.
 
 **Mac:**
 
@@ -134,20 +140,45 @@ node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
 set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 ```
 
-**Before you run it, accept this:** since Sunday 25 October 2026 the opcode probe runs inside `--protect`, so on a bare tag this run **can now really protect the tag**, with a password that is discarded a minute later. That tag is then locked for good. That is what the SACRIFICIAL label is for. **Never run it on any other tag, and never on SO4731 stock.**
+**Before you run it, accept this:** the opcode probe runs inside `--protect`, so on a tag whose passwords are still the factory default this run **can really protect the tag**, with a password that is discarded a minute later. That tag is then locked for good. That is what the SACRIFICIAL label is for. **Never run it on any other tag, and never on SO4731 stock.** Run it **once**: every run presents one deliberately wrong password, and the chip has a failed attempt limiter whose settings ST does not publish.
 
-**What to expect.** Everything in the protection path is unverified on silicon (README sections 6.4 and 6.5), so the likeliest result is a safe refusal. Read the last lines printed and find them here. **Every "STOP" means: do not run anything else on this tag, do not retry with a change, unplug and replug the reader, and write down the full message word for word.**
+**What to expect.** Everything in the protection path is unverified on silicon (README sections 6.4 to 6.6), so the likeliest result is a safe refusal. Read the last lines printed and find them here. **Every "STOP" means: do not run anything else on this tag, do not retry with a change, unplug and replug the reader, and write down the full message word for word.**
+
+**Before `Verified`.** Nothing irreversible can have been sent. The tag is unharmed.
 
 | What it prints | What it means | What to do |
 |---|---|---|
-| `PROTECT_FAILED`, "The reader did not complete ..." or "Present Password got no usable answer", before `Written` | The ACS session or the ST command path failed. Nothing irreversible was sent | **STOP.** The tag is unharmed |
-| `PASSWORD_REJECTED` before `Written` | The tag refused the factory password. It is not a bare tag, or the path is wrong | **STOP.** Do not try any other password |
-| `Verified`, then `PROTECT_FAILED`, "Refusing to protect this tag: the opcode probe did not pass" | The gate working. The message lists what the tag answered to both passwords | **STOP.** Nothing was locked. This line is the most useful thing the session can produce |
-| `PROTECT_FAILED`, "Writing password 1 was not confirmed" or "Setting protection on area 1 was not confirmed" | An irreversible command got no clean answer. It may have taken effect | **STOP.** Label the tag "LOCKED? password discarded". Never reuse it |
-| `PROTECT_FAILED`, "did not report protection for area 1" | Protection was probably applied. The undocumented 0xBA read form failed | **STOP.** Label it "LOCKED, password discarded" |
-| `PROTECT_FAILED`, "The proof write to block 1 got neither ..." | Probably protected, but the tag refused the proof write with a code other than 0x12, or gave no clean answer | **STOP.** Write down the code in the message: it is how this part reports a protected block. Label it locked |
-| `PROTECT_FAILED`, "The area still accepted a write" | The commands were accepted and protection did not take | **STOP and report it the same day.** This is the one result that means the tool is wrong in a way the gate cannot catch |
-| `Protected`, `refusal proven: yes`, `opcode probe passed on this tag`, then `OK` | The whole path worked on this tag | Tap it with a phone: the Persian Sunrise page must open (**STOP** if it does not: the tag is scrap). Then run `node bin/chip-cli.mjs verify --expect ps --transport reader`, which must pass. Label the tag "PROTECTED, password discarded" |
+| `TAG_NOT_ST25TV02KC`, "Block 64 answered a read" | The known geometry problem (section 0) | **STOP.** Not the tag's fault |
+| `PROTECT_FAILED`, "The reader did not complete ...", "GetRandomNumber before ... got no usable answer" or "PresentPassword got no usable answer" | The ACS session or the ST command path failed | **STOP.** The tag is unharmed |
+| `PASSWORD_REJECTED` | The tag refused the factory password 1 | **STOP.** Do not try any other password |
+| Any other code before `Verified` (`TAG_ABSENT`, `WRITE_FAILED`, `READBACK_...`, `TRANSPORT_UNAVAILABLE`) | Section 4.2's path failed | **STOP.** The tag is unharmed |
+
+**After `Verified`, before any irreversible command.** Only these four mean nothing was locked:
+
+| What it prints | What it means | What to do |
+|---|---|---|
+| `PROTECT_FAILED`, "Refusing to protect this tag: the opcode probe did not pass" | The gate working. The message lists what the tag answered at each step | **STOP.** Nothing was locked. This line is the most useful thing the session can produce |
+| `PROTECT_FAILED`, "The tag could not be read immediately before protection" or "no longer holds the bytes that were verified" | The check before the probe | **STOP.** Nothing was locked |
+| `PROTECT_FAILED`, "The opcode probe could not run" | The probe itself failed to start | **STOP.** Nothing was locked |
+| `PASSWORD_REJECTED`, or "PresentPassword got no usable answer", printed after `Verified` | Presenting password 1 after the probe failed. WritePassword was not reached | **STOP.** Nothing was locked |
+
+**After an irreversible command.** Every one of these starts "Protection did not complete, and its irreversible part had begun. Password 1 may already have been changed by this run ... Label the tag LOCKED? and stop", then "Original message:" and what went wrong. **All of them: STOP. Label the tag "LOCKED? password discarded" and never reuse it.** What the original message tells the bring up:
+
+| Original message (after "Original message:") | What it means | Also do |
+|---|---|---|
+| "Writing password 1 was not confirmed", or `TRANSPORT_UNAVAILABLE` | WritePassword got no clean answer. It may have taken effect | Nothing more |
+| "Refusing to apply area protection: ... This command was not sent" | The password may have changed, then the gate stopped the protection command (the reader lost the session or the tag) | Nothing more |
+| "Setting protection on area 1 was not confirmed", or "The factory configuration password was not accepted" | The protection command got no clean answer, or could not be sent | Nothing more |
+| "The tag did not report protection for area 1", or "reports protection state ..." | The protection read failed or disagreed. The tag may already be protected | Nothing more |
+| `TAG_CHANGED`, `TAG_ABSENT`, "could not be read after protection", "After protection the tag decodes to" | Something went wrong between protecting and proving. If `TAG_CHANGED`: a second tag answered, so the area was not clear | Label every tag that was in reach LOCKED? too |
+| "The proof write was not sent" | The tag in the field was not the unit's tag | Label every tag that was in reach LOCKED? too |
+| "The proof write to block 1 got neither ..." | The tag refused the proof write with a code other than 12h, or gave no clean answer | **Write down the code in the message** |
+| "The proof write to block 1 was accepted" | The tag accepted the write after protection. **It may still be protected** and its password was changed: if the field did not really drop, the earlier password still applied. Or protection did not take | **Report it the same day** |
+
+| What it prints | What to do |
+|---|---|
+| `Protected`, `refusal proven: yes`, `opcode probe passed on this tag`, then `OK` | The whole path worked on this tag. Tap it with a phone: the Persian Sunrise page must open (**STOP** if it does not: the tag is scrap). Then run `node bin/chip-cli.mjs verify --expect ps --transport reader`, which must pass. Label the tag "PROTECTED, password discarded" |
+| **Anything not listed above, printed after `Verified`** | **STOP. Label the tag "LOCKED? password discarded".** Copy the message word for word |
 
 **Afterwards, whatever happened:**
 
@@ -168,8 +199,9 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | doctor: `No PC/SC reader appeared within 10 seconds` | Unplug and replug. Then install the ACS driver (section 2 step 1, section 3 step 1) |
 | doctor names a reader ending `SAM` | Pass the contactless one by name: add `--reader-name PICC` to every command |
 | write: `TAG_ABSENT` | Tag flat and centred, one tag only, then run it again. Close GoToTags |
-| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written |
+| write: `TAG_NOT_ST25TV02KC` "Block 64 answered a read" | The known geometry problem in section 0. Nothing was written. Stop and report it |
+| write: `TAG_NOT_ST25TV02KC`, anything else | Not the right kind of tag. Nothing was written |
 | write: `WRITE_FAILED` on a tag that should be blank | Report it with the full message. Try one more blank tag |
 | anything else | Every failure prints a code and a line beginning `What to do:`. README section 7 lists them all |
 
-**Everything here is reversible except section 4.3, and section 4.3 is blocked from doing the irreversible part.** Nothing in this document can lock a tag.
+**Everything here is reversible except section 4.3, which can lock the sacrificial tag for good.** Nothing else in this document can lock a tag.

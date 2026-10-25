@@ -107,7 +107,8 @@ PROTECTION OPTIONS
 BATCH OPTIONS
   --count <n>                 Units in this batch
   --journal <path>            Batch journal. Rerun the same command to resume it
-  --attempts <n>              Attempts per unit before it is recorded failed. Default 2
+  --attempts <n>              Attempts per unit before it is recorded failed. Default 2.
+                              Never applies once a unit's opcode probe has passed
   --max-failures <n>          Stop the run after this many failures. Default 10
   --prompt / --no-prompt      Wait for the operator between tags. Default: on with
                               a real reader and an interactive terminal

@@ -134,7 +134,9 @@ test('releasing the tag powers it down, and the next unit connects afresh', asyn
 /* ------------------------------------------------------------------------ */
 
 const WRITE_PASSWORD_BYTE = ST_COMMANDS.WRITE_PASSWORD.code;
-const SET_PROTECTION_BYTE = ST_COMMANDS.SET_MEMORY_PROTECTION.code;
+const SET_PROTECTION_BYTE = ST_COMMANDS.WRITE_CONFIGURATION.code;
+/** ToggleDiscreetSilent (DS13304 6.4.23), which the tool used to send as "Set Memory Protection". */
+const TOGGLE_DISCREET_SILENT = 0xba;
 const carries = carriesSt;
 
 for (const [label, call] of [
@@ -165,14 +167,15 @@ for (const [label, call] of [
   });
 }
 
-test('the probe that unlocks the pair sends only Present Password, never either irreversible opcode', async () => {
-  // The fake tag accepts the factory default (eight zero bytes) and refuses anything else.
+test('the probe that unlocks the pair sends only non destructive commands, never either irreversible opcode', async () => {
+  // The fake tag accepts the factory defaults (DS13304 Tables 17 and 19) and refuses anything else.
   const reader = new FakeReader(ACR1552U);
   const { transport } = await openWith([reader]);
   await transport.waitForTag(200);
   const probe = await transport.verifyOpcodes();
   assert.equal(probe.proven, true);
   assert.equal(reader.tag.sent.filter((a) => carries(a, WRITE_PASSWORD_BYTE) || carries(a, SET_PROTECTION_BYTE)).length, 0);
+  assert.equal(reader.tag.sent.filter((a) => carries(a, TOGGLE_DISCREET_SILENT)).length, 0);
   await transport.close();
 });
 

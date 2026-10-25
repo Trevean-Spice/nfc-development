@@ -28,12 +28,13 @@
  *   - **Implemented, and gated on the tag.** Passwords and area protection. Those
  *     need ST custom commands carried inside the ACS transparent session, whose bytes
  *     are checked against the ACR1552U reference manual (see the session constants
- *     below), while the ST opcodes themselves are secondary sourced. A wrong
- *     protection opcode is the worst possible thing to be wrong about: applied to a
- *     real tag it is not reversible without the very password the command was
- *     supposed to set. **So Write Password, Set Memory Protection and the 0xBA read
- *     form send nothing unless `verifyOpcodes` has passed on the tag in the field
- *     now.** README sections 6.4 and 6.5.
+ *     below). Since Sunday 25 October 2026 the ST commands come from the ST25TV02KC
+ *     datasheet, DS13304 Rev 7 (see chip/st-custom.ts), which corrected three wrong
+ *     secondary sourced values. A wrong protection command is the worst possible thing
+ *     to be wrong about: applied to a real tag it is not reversible without the very
+ *     password the command was supposed to set. **So WritePassword, WriteConfiguration
+ *     and the protection read send nothing unless `verifyOpcodes` has passed on the
+ *     tag in the field now.** README sections 6.4 to 6.6.
  *
  * `--protect` runs that probe itself, immediately before the first irreversible
  * command. None of the protection path has run on silicon. `PROTECTION_BRING_UP` at
@@ -47,11 +48,20 @@ import {
 import { ChipError } from '../chip/errors.js';
 import {
   ST_COMMANDS,
+  CONFIG_REGISTERS,
+  PASSWORD_ID,
+  RW_PROTECTION_WRITE_PROTECTED,
+  END_MEM_ST25TV02KC,
+  ERROR_INVALID_PASSWORD_DATA,
   stRequest,
+  coverCode,
   assertPasswordLength,
   FACTORY_DEFAULT_PASSWORD,
+  FACTORY_DEFAULT_CONFIG_PASSWORD,
   DELIBERATELY_WRONG_PASSWORD,
-  FLAG_HIGH_DATA_RATE,
+  FLAGS_ADDRESSED,
+  uidOnAir,
+  type ConfigRegister,
   type StCommand,
 } from '../chip/st-custom.js';
 import type { AreaProtectionState, TagIdentity, TagTransport } from './transport.js';
@@ -272,18 +282,49 @@ export const ACS_SESSION_END = Uint8Array.from([0xff, 0xc2, 0x00, 0x00, 0x02, 0x
 export const ACS_SWITCH_ISO15693 = Uint8Array.from([0xff, 0xc2, 0x00, 0x02, 0x04, 0x8f, 0x02, 0x02, 0x03, 0x00]);
 
 /**
+ * How long the RF field is held off in the cycle before the post protection proof, in
+ * microseconds. 5.3.5.3 gives the Manage Session Timer "[TIME]: 4 byte value (LSB first)
+ * in range from 1000 to 4294967000 us. The actual sleep time will round up to nearest
+ * 1000us." 10 ms is ten times the minimum.
+ */
+export const RF_OFF_US = 10_000;
+
+/**
+ * 5.3.5.3 Manage Session with three Cmd TLVs: RF Off `83 00` (5.3.5.3.3, "This command
+ * turns off the antenna field"), Timer `5F 46 04 [TIME]` (5.3.5.3.5, "If there is a timer
+ * data object with 5000 µs between RF Turn Off Data Object and RF Turn On Data Object,
+ * the reader will turn off the RF field for about 5000µs before it is turned on"), and
+ * RF On `84 00` (5.3.5.3.4). Lc is 2 + 7 + 2 = 11, `0B`. Le is left out, as in the manual's
+ * own examples of the RF objects, 5.3.5.6 steps 2 and 3 ("FF C2 00 00 02 83 00", "FF C2
+ * 00 00 02 84 00"); the Le column of 5.3.5.3 reads "--/00h".
+ *
+ * **Why it exists (review finding F3).** The proof that protection took needs a tag that
+ * no longer has a password presented. Releasing the PC/SC card with SCARD_UNPOWER_CARD was
+ * assumed to drop the field, and PC/SC does not promise that on a contactless reader. If
+ * the field stayed up, the password presented before Write Password would still apply, the
+ * proof write would be accepted, and a protected tag would be reported as not protected.
+ * This cycles the field explicitly, inside the proof's own session, by the manual's bytes.
+ */
+export const ACS_RF_CYCLE = Uint8Array.from([
+  0xff, 0xc2, 0x00, 0x00, 0x0b,
+  0x83, 0x00,
+  0x5f, 0x46, 0x04, RF_OFF_US & 0xff, (RF_OFF_US >>> 8) & 0xff, (RF_OFF_US >>> 16) & 0xff, (RF_OFF_US >>> 24) & 0xff,
+  0x84, 0x00,
+]);
+
+/**
  * How long the reader waits for the tag's answer to one transceived frame, in
  * microseconds.
  *
  * 5.3.5.4.3: "If no timer data object was defined in the data field, the reader will
  * wait for the duration given in the Set Parameter FWTI Data Object. If no FWTI is set,
  * the reader will wait for about 302 µs." An ISO 15693 tag does not even begin to answer
- * until about 320 µs after the request (t1 in ISO/IEC 15693-3), and Write Password and
- * Set Memory Protection program EEPROM before they answer. So every exchange carries
- * its own Timer data object. **50 ms is deliberately generous**: ISO/IEC 15693-3 lets a
- * write-alike command answer up to 20 ms after the request (quoted from the standard as
- * commonly cited, not from a copy in hand), and the ST25TV02KC programming time is not
- * in hand either. A timeout that is too short is the dangerous direction, because an
+ * until about 320 µs after the request (t1 in ISO/IEC 15693-3), and WritePassword,
+ * WriteConfiguration and GetRandomNumber program EEPROM before they answer: they are
+ * "write-alike" commands (DS13304 6.4.17, 6.4.18, 6.4.24), with a write time Wt of
+ * "Max 32 bits of data - 4 - ms" typical (Table 172) and "typical 5 ms per block" (features
+ * list). So every exchange carries its own Timer data object. **50 ms is deliberately
+ * generous**: ten times the typical write time. A timeout that is too short is the dangerous direction, because an
  * irreversible command that took effect would then be reported as failed. 5.3.5.4 says
  * the actual timeout rounds up to the nearest 302.07 x 2^n µs, which here is 77.3 ms.
  */
@@ -448,8 +489,10 @@ const ISO15693_RESPONSE_FLAG_ERROR = 0x01;
  * The shape required is the manual's own, 5.3.5.6 step 6: "C0 03 00 90 00 92 01 00
  * 96 02 00 00 97 0C [Card Response] 90 00". The C0 object must be present and read
  * `00 90 00` ("SW1 SW2 from the C0 data object below should also be used", 5.3.5.2).
- * The 92 and 96 objects are optional, and when present must report all bits valid and
- * no error. Exactly one 97 object must carry the tag's answer. Exported for the tests.
+ * The 92 and 96 objects must both be present, since the manual's success shape
+ * always carries them, and must report all bits valid and no error: a reader that left
+ * 96 out would leave a CRC error unseen, so its absence fails closed (review finding F9).
+ * Exactly one 97 object must carry the tag's answer. Exported for the tests.
  */
 export function parseTransceiveAnswer(response: Uint8Array): TagAnswer {
   const noAnswer = (reason: string): TagAnswer => ({ kind: 'no-answer', reason });
@@ -460,14 +503,18 @@ export function parseTransceiveAnswer(response: Uint8Array): TagAnswer {
   const seen = new Set<number>();
   let status: Uint8Array | null = null;
   let tagData: Uint8Array | null = null;
+  let bitFramingSeen = false;
+  let responseStatusSeen = false;
   for (const tlv of tlvs) {
     if (seen.has(tlv.tag)) return noAnswer(`data object 0x${tlv.tag.toString(16)} appears twice`);
     seen.add(tlv.tag);
     if (tlv.tag === TLV_STATUS) {
       status = tlv.value;
     } else if (tlv.tag === TLV_RX_BIT_FRAMING) {
+      bitFramingSeen = true;
       if (tlv.value.length !== 1 || tlv.value[0] !== 0x00) return noAnswer(`receive bit framing ${hex(tlv.value)}, so the last byte was partial`);
     } else if (tlv.tag === TLV_RESPONSE_STATUS) {
+      responseStatusSeen = true;
       if (tlv.value.length !== 2 || tlv.value[0] !== 0x00 || tlv.value[1] !== 0x00) {
         return noAnswer(`response status ${hex(tlv.value)} (bit 0 CRC, bit 1 collision, bit 2 parity, bit 3 framing error)`);
       }
@@ -485,61 +532,77 @@ export function parseTransceiveAnswer(response: Uint8Array): TagAnswer {
   if (tagData.length === 0) return noAnswer('an empty 97 response object');
 
   const flags = tagData[0] ?? 0;
-  if (flags === 0x00) return { kind: 'ok', data: tagData.subarray(1) };
-  if (flags === ISO15693_RESPONSE_FLAG_ERROR && tagData.length === 2) return { kind: 'error', errorCode: tagData[1] ?? 0 };
-  return noAnswer(`ISO 15693 response flags 0x${flags.toString(16).padStart(2, '0')} with ${tagData.length - 1} byte(s) after them, which is neither a plain success nor a plain error`);
+  const plainOk = flags === 0x00;
+  const plainError = flags === ISO15693_RESPONSE_FLAG_ERROR && tagData.length === 2;
+  if (!plainOk && !plainError) {
+    return noAnswer(`ISO 15693 response flags 0x${flags.toString(16).padStart(2, '0')} with ${tagData.length - 1} byte(s) after them, which is neither a plain success nor a plain error`);
+  }
+  if (!bitFramingSeen) return noAnswer('no 92 receive bit framing object, which the manual\'s success shape always carries');
+  if (!responseStatusSeen) return noAnswer('no 96 response status object, so a CRC, collision, parity or framing error could not be seen');
+  if (plainOk) return { kind: 'ok', data: tagData.subarray(1) };
+  return { kind: 'error', errorCode: tagData[1] ?? 0 };
 }
 
 /**
  * ISO/IEC 15693-3 error codes that mean the tag did not understand the request as a
- * command it implements: 01 command not supported, 02 command not recognised, 03 option
- * not supported. A wrong password answered with one of these proves nothing about the
- * password, only that the frame was not taken as Present Password.
+ * command it implements. DS13304 Table 94: "01h Invalid IC Mfg code value 02h Invalid
+ * request format 03h Invalid Request_flags value". A wrong password answered with one of
+ * these proves nothing about the password, only that the frame was not taken as
+ * PresentPassword.
  */
 const ISO15693_ERRORS_NOT_UNDERSTOOD: readonly number[] = [0x01, 0x02, 0x03];
 
 /**
- * ISO/IEC 15693-3 error code 12: "the specified block is locked and its content cannot
- * be changed". The only answer to a write that the post protection proof accepts as a
- * protection refusal. **Taken from ISO 15693-3 as commonly cited, not from the ST25TV02KC
- * datasheet, which is not in hand.** If the part answers a password protected block with
- * a different code, the proof fails closed: the unit is recorded PROTECT_FAILED, never
- * protected, and the code seen is in the message.
+ * The only answer to the proof write that counts as a protection refusal. **Confirmed by
+ * the datasheet on Sunday 25 October 2026:** DS13304 Table 107, WriteSingleBlock error
+ * codes, "12h Write access to requested block is protected and security session is
+ * closed". (Until then it was ISO 15693-3 as commonly cited.) Any other answer fails
+ * closed: the unit is recorded PROTECT_FAILED, never protected.
  */
 export const ISO15693_ERROR_BLOCK_LOCKED = 0x12;
 
-/** ISO/IEC 15693-3 Write Single Block. A standard command, in the ACS supported list (5.3.4.2.2, 21h, "Yes"). */
+/**
+ * ISO/IEC 15693-3 Write Single Block, an optional command of the standard.
+ *
+ * It goes through the Transparent Exchange (5.3.5.4), which forwards whatever frame it is
+ * given, so no ACS table governs it. **The "21h ... Yes" row in 5.3.4.2.2 is not evidence
+ * for this path:** that table lists what ACS tested through the separate `FF FB` pass
+ * through command (5.3.4.2), which this tool does not use. (Corrected Sunday 25 October
+ * 2026, review finding F10. The earlier comment cited it as the support claim.)
+ */
 const ISO15693_WRITE_SINGLE_BLOCK = 0x21;
 
-/** Builds an ISO 15693 Write Single Block frame: flags, 21, block number, data. Exported for the tests. */
-export function writeSingleBlockFrame(block: number, data: Uint8Array): Uint8Array {
+/**
+ * Builds an addressed ISO 15693 Write Single Block frame: flags `22h`, `21h`, the UID LSB
+ * first, block number, data. For a standard command the UID follows the command code
+ * directly, as in the manual's addressed Stay Quiet example "22 02 XX XX XX XX XX XX XX
+ * XX" (5.3.4.2.1). Exported for the tests.
+ */
+export function writeSingleBlockFrame(uidMsbFirst: Uint8Array, block: number, data: Uint8Array): Uint8Array {
   if (block < 0 || block > 0xff) throw new Error(`Block ${block} does not fit a one byte block number.`);
-  return Uint8Array.from([FLAG_HIGH_DATA_RATE, ISO15693_WRITE_SINGLE_BLOCK, block, ...data]);
+  return Uint8Array.from([FLAGS_ADDRESSED, ISO15693_WRITE_SINGLE_BLOCK, ...uidOnAir(uidMsbFirst), block, ...data]);
 }
 
 /**
- * Decides whether the opcode probe proved the command path. Pure, so every way it can
- * go wrong is tested without a reader. Exported for the tests.
+ * Decides whether the Present Password pair of the probe proved the command path. Pure, so
+ * every way it can go wrong is tested without a reader. Exported for the tests.
  *
  * **"Different" is not enough. Both halves must be explicitly correct:**
- *   - the factory default must be an explicit tag level success: flags 00, nothing after;
- *   - the deliberately wrong password must be an explicit tag level error: flags 01 and
- *     one error code, and not a code saying the command itself was not understood.
+ *   - the factory default must be an explicit tag level success: flags 00, nothing after
+ *     (DS13304 Table 154, "00h");
+ *   - the deliberately wrong password must be an explicit tag level error with exactly
+ *     the code the datasheet gives for it, 0Fh, "Invalid Password_data value" (Table 155).
+ *     Since Sunday 25 October 2026 any other code is refused too, which is stricter than
+ *     the earlier "anything but 01, 02 or 03".
  * A timeout and a CRC error differ from each other, and proved nothing under the old rule.
  */
 export function judgeOpcodeProbe(wrong: TagAnswer, right: TagAnswer): { proven: boolean; detail: string } {
-  const describe = (a: TagAnswer) =>
-    a.kind === 'ok'
-      ? `success with ${a.data.length} byte(s) after the flags`
-      : a.kind === 'error'
-        ? `tag error code 0x${a.errorCode.toString(16).padStart(2, '0')}`
-        : `no usable answer (${a.reason})`;
-  const seen = `The deliberately wrong password got ${describe(wrong)}. The factory default got ${describe(right)}.`;
+  const seen = `The deliberately wrong password got ${describeProbeAnswer(wrong)}. The factory default got ${describeProbeAnswer(right)}.`;
 
   if (right.kind !== 'ok' || right.data.length !== 0) {
     return {
       proven: false,
-      detail: `${seen} The factory default must be an explicit success (ISO 15693 flags 00, nothing after them) and was not, so the command path is unproven and the irreversible commands stay locked. Either this tag already carries a password, or a byte in the opcode, the flags, the session framing or the reader wrapper is wrong.`,
+      detail: `${seen} The factory default must be an explicit success (ISO 15693 flags 00, nothing after them) and was not, so the command path is unproven and the irreversible commands stay locked. Either this tag's password 1 is not the factory default, or a byte in the opcode, the flags, the address, the cover coding, the session framing or the reader wrapper is wrong.`,
     };
   }
   if (wrong.kind !== 'error') {
@@ -551,13 +614,78 @@ export function judgeOpcodeProbe(wrong: TagAnswer, right: TagAnswer): { proven: 
   if (ISO15693_ERRORS_NOT_UNDERSTOOD.includes(wrong.errorCode)) {
     return {
       proven: false,
-      detail: `${seen} Error code 0x${wrong.errorCode.toString(16).padStart(2, '0')} means the tag did not take the frame as a command it implements, so the refusal says nothing about the password. The irreversible commands stay locked.`,
+      detail: `${seen} Error code 0x${hex2(wrong.errorCode)} means the tag did not take the frame as a command it implements, so the refusal says nothing about the password. The irreversible commands stay locked.`,
+    };
+  }
+  if (wrong.errorCode !== ERROR_INVALID_PASSWORD_DATA) {
+    return {
+      proven: false,
+      detail: `${seen} The datasheet's answer to a wrong password is error 0x0f, "Invalid Password_data value" (DS13304 Table 155), and this was 0x${hex2(wrong.errorCode)}. The irreversible commands stay locked.`,
     };
   }
   return {
     proven: true,
-    detail: `${seen} The tag accepted the factory default and explicitly refused the wrong password, so the Present Password path is confirmed on this tag.`,
+    detail: `${seen} The tag accepted the factory default and refused the wrong password with error 0x0f, so the GetRandomNumber, cover coding, PresentPassword and addressing path is confirmed on this tag.`,
   };
+}
+
+/**
+ * What the rest of the probe saw: the configuration password and three configuration
+ * registers. All of them are read or presented without changing anything.
+ */
+export interface ProbePreconditions {
+  readonly configPassword: TagAnswer;
+  readonly rwProtectionA1: TagAnswer;
+  readonly endA1: TagAnswer;
+  readonly lckConfig: TagAnswer;
+}
+
+/**
+ * The second half of the probe, added Sunday 25 October 2026 from the datasheet. It makes
+ * the gate stricter: the irreversible pair runs only on a tag where it can complete, so a
+ * password is never changed on a tag whose protection then cannot be applied. Pure and
+ * exported for the tests. Requires:
+ *   - PWD_CFG, Password_id 00h, to accept its factory value (Table 17, "00000000h"), because
+ *     RW_PROTECTION_A1 can only be written in the CONFIG session (Table 10);
+ *   - RW_PROTECTION_A1 to read 00h: AREA1 not yet protected (Table 11, factory "00b");
+ *   - END_A1 to read 4Fh, END_MEM: single area mode, so PWD_A1 is the 64 bit password this
+ *     tool holds (Table 27) and AREA1 covers the whole user memory (Table 13);
+ *   - LCK_CONFIG b0 and b1 clear: RW_PROTECTION_A1 and END_A1 are not permanently locked
+ *     (Table 7, 5.1.4).
+ */
+export function judgeProbePreconditions(seen: ProbePreconditions): { proven: boolean; detail: string } {
+  const fail = (why: string) => ({ proven: false, detail: `${why} The irreversible commands stay locked.` });
+  const c = seen.configPassword;
+  if (c.kind !== 'ok' || c.data.length !== 0) {
+    return fail(`The configuration password (Password_id 00h) got ${describeProbeAnswer(c)} to its factory value. Area protection is written only in the CONFIG session, so it could not be applied after the password change.`);
+  }
+  const one = (a: TagAnswer, name: string, bytes: number): number[] | string =>
+    a.kind === 'ok' && a.data.length === bytes ? Array.from(a.data) : `${name} could not be read (${describeProbeAnswer(a)})`;
+  const rw = one(seen.rwProtectionA1, 'RW_PROTECTION_A1', 1);
+  if (typeof rw === 'string') return fail(`${rw}.`);
+  if (rw[0] !== 0x00) return fail(`RW_PROTECTION_A1 reads 0x${hex2(rw[0] ?? 0)}, so AREA1 is already protected or configured (factory value 00h, DS13304 Table 11).`);
+  const end = one(seen.endA1, 'END_A1', 1);
+  if (typeof end === 'string') return fail(`${end}.`);
+  if (end[0] !== END_MEM_ST25TV02KC) return fail(`END_A1 reads 0x${hex2(end[0] ?? 0)}, not 0x4f, so the tag is in dual area mode and PWD_A1 is 32 bits, not the 64 bit password this tool holds (DS13304 Tables 13 and 27).`);
+  const lck = one(seen.lckConfig, 'LCK_CONFIG', 2);
+  if (typeof lck === 'string') return fail(`${lck}.`);
+  if (((lck[0] ?? 0) & 0x03) !== 0) return fail(`LCK_CONFIG reads 0x${hex2(lck[1] ?? 0)}${hex2(lck[0] ?? 0)}, so the AREA1 configuration is permanently locked (DS13304 Table 7) and protection could not be applied.`);
+  return {
+    proven: true,
+    detail: 'The configuration password is the factory value, AREA1 is unprotected, the tag is in single area mode and the AREA1 configuration is not locked.',
+  };
+}
+
+function describeProbeAnswer(a: TagAnswer): string {
+  return a.kind === 'ok'
+    ? `success with ${a.data.length} byte(s) after the flags`
+    : a.kind === 'error'
+      ? `tag error code 0x${hex2(a.errorCode)}`
+      : `no usable answer (${a.reason})`;
+}
+
+function hex2(n: number): string {
+  return n.toString(16).padStart(2, '0');
 }
 
 /** Generous. A person is placing a tag on a reader by hand. */
@@ -574,6 +702,11 @@ function body(response: Uint8Array): Uint8Array {
 
 function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The UID the transport holds as MSB first hex, back as bytes. */
+function uidBytes(uidHex: string): Uint8Array {
+  return Uint8Array.from(uidHex.match(/../g) ?? [], (b) => parseInt(b, 16));
 }
 
 /**
@@ -652,6 +785,12 @@ export class PcscTransport implements TagTransport {
    * re-read the UID from the field and require it to match before sending anything.
    */
   private provenUid: string | null = null;
+  /**
+   * Passwords this connection has presented successfully to the selected tag, by
+   * Password_id, so WritePassword can present the current one again in its own session.
+   * Held in memory only, and cleared with the proof.
+   */
+  private readonly presentedPasswords = new Map<number, Uint8Array>();
 
   private readonly loadBinding: PcscBindingLoader;
   private readonly readerTimeoutMs: number;
@@ -895,7 +1034,7 @@ export class PcscTransport implements TagTransport {
       throw new ChipError(
         'WRITE_FAILED',
         `Writing block ${block} failed with status 0x${sw(response).toString(16)}.`,
-        'If this is a tag from order SO4731, it is write protected and needs the ST25TV area password, which Trevean does not hold. Use a bare tag. See "Decision log", D45.',
+        'If this is a tag from order SO4731, it is write protected and needs the ST25TV area password, which Trevean does not hold. Use a blank tag. See "Decision log", D45.',
       );
     }
   }
@@ -903,29 +1042,31 @@ export class PcscTransport implements TagTransport {
   // -------------------------------------------------------------------------
   // Protection.
   //
-  // The opcodes these use come from secondary sources rather than the datasheet,
-  // which would not download from five routes on 7 October 2026. See
-  // chip/st-custom.ts for the provenance of every byte.
-  //
-  // The design that makes that shippable: PRESENT PASSWORD cannot damage a tag,
-  // so it is probed against the physical chip, and the probe's result decides
+  // Every byte below is from the ST25TV02KC datasheet, DS13304 Rev 7, since Sunday 25
+  // October 2026. See chip/st-custom.ts for what that corrected. The datasheet is not the
+  // part, so the design that makes this shippable is unchanged: the non destructive
+  // commands are probed against the physical chip, and the probe's result decides
   // whether the irreversible pair is allowed to run at all.
   // -------------------------------------------------------------------------
 
   /**
-   * Sends one raw ISO 15693 frame inside a transparent session and returns what the TAG
-   * said. Throws, with nothing further sent, when the session start or the protocol
-   * switch is refused, including a refusal hidden in a C0 object under a 90 00. A
-   * transport error throws too, and clears the proof.
+   * Runs `body` inside one ACS transparent session and closes it whatever happens. Throws,
+   * with nothing further sent, when the session start, the optional RF cycle or the
+   * protocol switch is refused, including a refusal hidden in a C0 object under a 90 00.
+   * A transport error throws too, and clears the proof.
+   *
+   * One session per operation, so the GetRandomNumber that cover codes a password and the
+   * password command it codes always travel in the same RF power up (DS13304 5.1.3: the
+   * random number must have been fetched "since the latest boot").
    */
-  private async transceive(frame: Uint8Array, step: string): Promise<TagAnswer> {
+  private async inSession<T>(step: string, body: (exchange: (frame: Uint8Array) => Promise<TagAnswer>) => Promise<T>, options: { rfCycle?: boolean } = {}): Promise<T> {
     requireControlOk(await this.transmit(ACS_SESSION_START, 2), `start transparent session for ${step}`, []);
     try {
-      requireControlOk(await this.transmit(ACS_SWITCH_ISO15693, 2), `switch protocol to ISO 15693 for ${step}`, [
-        TLV_SWITCH_RESPONSE,
-        TLV_ATR,
-      ]);
-      return parseTransceiveAnswer(await this.transmit(transparentExchangeApdu(frame), 32));
+      if (options.rfCycle === true) {
+        requireControlOk(await this.transmit(ACS_RF_CYCLE, 2), `turn the RF field off for ${RF_OFF_US / 1000} ms and on again before ${step}`, []);
+      }
+      requireControlOk(await this.transmit(ACS_SWITCH_ISO15693, 2), `switch protocol to ISO 15693 for ${step}`, [TLV_SWITCH_RESPONSE, TLV_ATR]);
+      return await body(async (frame) => parseTransceiveAnswer(await this.transmit(transparentExchangeApdu(frame), 32)));
     } finally {
       // Always closes, even on failure. A reader left in a transparent session stops
       // auto polling and looks broken to the next person who picks it up.
@@ -933,30 +1074,99 @@ export class PcscTransport implements TagTransport {
     }
   }
 
-  /** Sends one ST custom command. See `transceive`. */
-  private stCommand(command: StCommand, params: readonly number[] = []): Promise<TagAnswer> {
-    return this.transceive(stRequest(command, params), command.name);
+  /** Sends one raw ISO 15693 frame in its own transparent session. See `inSession`. */
+  private transceive(frame: Uint8Array, step: string, options: { rfCycle?: boolean } = {}): Promise<TagAnswer> {
+    return this.inSession(step, (exchange) => exchange(frame), options);
+  }
+
+  /** The selected tag's UID as bytes, MSB first, or a refusal naming the command that was therefore not sent. */
+  private selectedUidBytes(step: string): Uint8Array {
+    const uid = this.currentUid;
+    if (!this.connected || uid === null) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `No tag is selected, so ${step} has no UID to be addressed to. This command was not sent.`,
+        'Select the tag again. This is a bug in the caller if it repeats.',
+        { step },
+      );
+    }
+    return uidBytes(uid);
+  }
+
+  /** Builds one ST custom frame addressed to the selected tag (review finding F1). */
+  private stFrame(command: StCommand, params: readonly number[] = []): Uint8Array {
+    return stRequest(command, this.selectedUidBytes(command.name), params);
+  }
+
+  /**
+   * GetRandomNumber, inside a session. Returns RND_NUMBER, sent LSB first (Table 167 and
+   * the 5.1.3 note), or throws: without it no password can be cover coded, so the
+   * password command that was to follow is not sent.
+   */
+  private async randomNumber(exchange: (frame: Uint8Array) => Promise<TagAnswer>, step: string): Promise<number> {
+    const answer = await exchange(this.stFrame(ST_COMMANDS.GET_RANDOM_NUMBER));
+    if (answer.kind !== 'ok' || answer.data.length !== 2) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `GetRandomNumber before ${step} got no usable answer: ${describeAnswer(answer, 2)}. The password command was not sent.`,
+        'Nothing irreversible reached the tag. Set the tag aside and record this message for the bring up notes.',
+        { step },
+      );
+    }
+    return (answer.data[0] ?? 0) | ((answer.data[1] ?? 0) << 8);
+  }
+
+  /** GetRandomNumber then PresentPassword, cover coded, inside a session. Returns the tag's answer to PresentPassword and the random number used. */
+  private async presentIn(
+    exchange: (frame: Uint8Array) => Promise<TagAnswer>,
+    passwordId: number,
+    passwordMsbFirst: Uint8Array,
+  ): Promise<{ answer: TagAnswer; rnd: number }> {
+    const rnd = await this.randomNumber(exchange, `PresentPassword ${passwordId}`);
+    const answer = await exchange(this.stFrame(ST_COMMANDS.PRESENT_PASSWORD, [passwordId, ...coverCode(passwordMsbFirst, rnd)]));
+    return { answer, rnd };
+  }
+
+  /** ReadConfiguration of one register, inside a session (Table 144). */
+  private readConfigIn(exchange: (frame: Uint8Array) => Promise<TagAnswer>, register: ConfigRegister): Promise<TagAnswer> {
+    return exchange(this.stFrame(ST_COMMANDS.READ_CONFIGURATION, [register.fid, register.pid]));
   }
 
   /**
    * Proves the command path on the tag in front of you, without changing it.
    *
-   * This is the bring up step README section 6.3 asks for, made executable, and since
-   * Sunday 25 October 2026 it runs inside `--protect` itself, immediately before the
-   * first irreversible command (see `UnitSession.protect`). It presents a deliberately
-   * wrong password and then the factory default, and requires the factory default to be
-   * an EXPLICIT success and the wrong one an EXPLICIT tag level error. See
-   * `judgeOpcodeProbe` for exactly what counts. Only then are the opcode, the
-   * manufacturer byte, the flag byte, the transparent session framing and the reader
-   * transceive wrapper shown to be right, because nothing else produces that pair.
+   * This is the bring up step README section 6.3 asks for, made executable, and it runs
+   * inside `--protect` itself, immediately before the first irreversible command (see
+   * `UnitSession.protect`). In one transparent session, every frame addressed to the
+   * selected UID, it sends:
    *
-   * Any timeout, CRC error, transport error or unexpected shape on either attempt means
-   * NOT proven. The proof is recorded against this tag's UID and is lost when any tag is
+   *   1. GetRandomNumber, then PresentPassword 1 with a deliberately wrong password, cover
+   *      coded. Required: error 0Fh (Table 155). "All security sessions are closed if an
+   *      invalid value of Password_data is presented."
+   *   2. GetRandomNumber again, which 5.1.3 requires after a failed presentation, then
+   *      PresentPassword 1 with the factory default. Required: a plain success.
+   *   3. GetRandomNumber, then PresentPassword 0 (PWD_CFG) with its factory value.
+   *      Required: a plain success, because protection is written in the CONFIG session.
+   *   4. ReadConfiguration of RW_PROTECTION_A1, END_A1 and LCK_CONFIG. Required: 00h, 4Fh,
+   *      and LCK_A1 and LCK_A2 clear. See `judgeProbePreconditions`.
+   *
+   * Then it re-reads the UID from the field and requires it to be the selected tag. Only
+   * then are the opcodes, the IC Mfg byte, the flags, the address, the cover coding, the
+   * transparent session framing and the reader transceive wrapper shown to be right,
+   * because nothing else produces that set of answers. GetRandomNumber, PresentPassword
+   * and ReadConfiguration change nothing that matters (Table 24: the random number
+   * register only).
+   *
+   * Any timeout, CRC error, transport error or unexpected shape at any step means NOT
+   * proven. The proof is recorded against this tag's UID and is lost when any tag is
    * selected, when the tag is released, and on reopen or any transport error.
    *
-   * It passes only on a bare tag whose password 1 is still the factory default. Run it
-   * on a SACRIFICIAL BARE TAG. It is safe by construction, but the point of a bring up
-   * is that you find out on a tag you do not mind losing.
+   * It passes only on a tag whose password 1 AND configuration password are still the
+   * factory default, and whose AREA1 is unprotected and unlocked. It presents password 1
+   * and the configuration password and no other (review finding F6). Run it on a
+   * SACRIFICIAL tag. Every run presents one wrong password, and the part has a failed
+   * attempt limiter whose settings are only in ST application note AN5577, which is not
+   * public (DS13304 5.1.2).
    */
   async verifyOpcodes(): Promise<{ proven: boolean; detail: string }> {
     this.resetProof();
@@ -965,12 +1175,22 @@ export class PcscTransport implements TagTransport {
       return { proven: false, detail: 'No tag is selected, so there is nothing to prove the command path on.' };
     }
 
-    const cmd = ST_COMMANDS.PRESENT_PASSWORD;
+    const AREA1 = PASSWORD_ID.AREA1;
     let verdict: { proven: boolean; detail: string };
     try {
-      const wrong = await this.stCommand(cmd, [1, ...DELIBERATELY_WRONG_PASSWORD]);
-      const right = await this.stCommand(cmd, [1, ...FACTORY_DEFAULT_PASSWORD]);
-      verdict = judgeOpcodeProbe(wrong, right);
+      verdict = await this.inSession('the opcode probe', async (exchange) => {
+        const wrong = (await this.presentIn(exchange, AREA1, DELIBERATELY_WRONG_PASSWORD)).answer;
+        const right = (await this.presentIn(exchange, AREA1, FACTORY_DEFAULT_PASSWORD)).answer;
+        const pair = judgeOpcodeProbe(wrong, right);
+        if (!pair.proven) return pair;
+        const rest = judgeProbePreconditions({
+          configPassword: (await this.presentIn(exchange, PASSWORD_ID.CONFIG, FACTORY_DEFAULT_CONFIG_PASSWORD)).answer,
+          rwProtectionA1: await this.readConfigIn(exchange, CONFIG_REGISTERS.RW_PROTECTION_A1),
+          endA1: await this.readConfigIn(exchange, CONFIG_REGISTERS.END_A1),
+          lckConfig: await this.readConfigIn(exchange, CONFIG_REGISTERS.LCK_CONFIG),
+        });
+        return rest.proven ? { proven: true, detail: `${pair.detail} ${rest.detail}` } : { proven: false, detail: `${pair.detail} ${rest.detail}` };
+      });
     } catch (cause) {
       this.resetProof();
       return {
@@ -980,8 +1200,8 @@ export class PcscTransport implements TagTransport {
     }
     if (!verdict.proven) return verdict;
 
-    // The two answers came from whatever was in the field. Require it to be the tag
-    // that was selected, read from the field now rather than remembered.
+    // The answers came from whatever answered to the selected UID. Require it to be the
+    // tag that was selected, read from the field now rather than remembered.
     const now = await this.readUidNow();
     if (now !== uid) {
       this.resetProof();
@@ -991,55 +1211,144 @@ export class PcscTransport implements TagTransport {
       };
     }
     this.provenUid = uid;
+    // The probe's last presentation opened the CONFIG session, so no AREA1 password is
+    // known to be presented now. UnitSession presents it again before Write Password.
+    this.presentedPasswords.clear();
     return verdict;
   }
 
+  /**
+   * GetRandomNumber then PresentPassword, cover coded, in one session. Non destructive.
+   * Remembers the password for this tag and connection, so Write Password can present it
+   * again in its own session (see `writePassword`).
+   */
   async presentPassword(passwordNumber: number, password: Uint8Array): Promise<void> {
     assertPasswordLength(password);
-    const answer = await this.stCommand(ST_COMMANDS.PRESENT_PASSWORD, [passwordNumber, ...password]);
+    if (passwordNumber !== PASSWORD_ID.AREA1) {
+      throw new ChipError('PROTECT_FAILED', `Password ${passwordNumber} is not one this tool presents. It presents PWD_A1, Password_id 01h.`, 'This is a bug in the caller. Report it.', { passwordNumber });
+    }
+    const { answer } = await this.inSession(ST_COMMANDS.PRESENT_PASSWORD.name, (exchange) => this.presentIn(exchange, passwordNumber, password));
 
-    if (answer.kind === 'error') {
+    if (answer.kind === 'error' && answer.errorCode === ERROR_INVALID_PASSWORD_DATA) {
+      this.presentedPasswords.delete(passwordNumber);
       throw new ChipError(
         'PASSWORD_REJECTED',
-        `The tag refused password ${passwordNumber} with ISO 15693 error code 0x${answer.errorCode.toString(16).padStart(2, '0')}.`,
-        'Either the password is wrong or this area is governed by a different password number. On an SO4731 tag it is wrong, and Trevean does not hold the right one. See "Decision log", D45.',
+        `The tag refused password ${passwordNumber} with error 0x0f, "Invalid Password_data value" (DS13304 Table 155).`,
+        'The password is wrong. On an SO4731 tag it is wrong, and Trevean does not hold the right one. See "Decision log", D45.',
         { passwordNumber, errorCode: answer.errorCode },
       );
     }
     if (answer.kind !== 'ok' || answer.data.length !== 0) {
+      this.presentedPasswords.delete(passwordNumber);
       throw new ChipError(
         'PROTECT_FAILED',
-        `Present Password got no usable answer from the tag: ${answer.kind === 'no-answer' ? answer.reason : `success flags with ${answer.data.length} unexpected byte(s) after them`}.`,
+        `PresentPassword got no usable answer from the tag: ${describeAnswer(answer, 0)}.`,
         'This is not evidence of a wrong password, and nothing was written. It is the ST command path through the reader failing. Set the tag aside and record this message for the bring up notes.',
         { passwordNumber },
       );
     }
+    this.presentedPasswords.set(passwordNumber, Uint8Array.from(password));
   }
 
+  /**
+   * WritePassword. **IRREVERSIBLE.** Gated.
+   *
+   * In one session: GetRandomNumber, PresentPassword with the password this connection
+   * last presented successfully, then WritePassword with the new value cover coded with
+   * the same random number. "WritePassword command is applicable and successful, if and
+   * only if it preceded by a successful PresentPassword command with same password
+   * selected" (6.4.18), and the random number may be reused after a successful
+   * presentation (5.1.3 note). Doing both in one session means the AREA1 security session
+   * cannot have closed in between, whatever the reader does to the field between
+   * transparent sessions. If the presentation is refused, WritePassword is not sent.
+   */
   async writePassword(passwordNumber: number, password: Uint8Array): Promise<void> {
     assertPasswordLength(password);
     await this.requireProvenOpcodes('change a password');
-
-    const answer = await this.stCommand(ST_COMMANDS.WRITE_PASSWORD, [passwordNumber, ...password]);
-    if (answer.kind !== 'ok' || answer.data.length !== 0) {
+    const current = this.presentedPasswords.get(passwordNumber);
+    if (passwordNumber !== PASSWORD_ID.AREA1 || current === undefined) {
       throw new ChipError(
         'PROTECT_FAILED',
-        `Writing password ${passwordNumber} was not confirmed by the tag: ${describeAnswer(answer)}.`,
-        'Set the tag aside, label it, and do not record it as protected. If the tag gave no answer, it may or may not now hold the new password, which is the one in the secret store: write down the fingerprint the tool printed with this run. Do not retry on this tag.',
+        `Refusing to change password ${passwordNumber}: ${passwordNumber !== PASSWORD_ID.AREA1 ? 'this tool changes only PWD_A1, Password_id 01h' : 'its current value has not been presented successfully on this tag in this connection'}. This command was not sent.`,
+        'This is a bug in the caller. Report it.',
         { passwordNumber },
       );
     }
-  }
 
-  async setAreaProtection(area: number, protection: AreaProtection, passwordNumber: number): Promise<void> {
-    await this.requireProvenOpcodes('apply area protection');
-
-    const bits = protection === 'none' ? 0x00 : protection === 'write_protected' ? 0x01 : 0x03;
-    const answer = await this.stCommand(ST_COMMANDS.SET_MEMORY_PROTECTION, [area, (passwordNumber << 4) | bits]);
+    const answer = await this.inSession(ST_COMMANDS.WRITE_PASSWORD.name, async (exchange) => {
+      const presented = await this.presentIn(exchange, passwordNumber, current);
+      if (presented.answer.kind !== 'ok' || presented.answer.data.length !== 0) {
+        throw new ChipError(
+          'PROTECT_FAILED',
+          `The current password was not accepted immediately before WritePassword: ${describeAnswer(presented.answer, 0)}. WritePassword was not sent.`,
+          'The password was not changed. Set the tag aside and record this message for the bring up notes.',
+          { passwordNumber },
+        );
+      }
+      return exchange(this.stFrame(ST_COMMANDS.WRITE_PASSWORD, [passwordNumber, ...coverCode(password, presented.rnd)]));
+    });
     if (answer.kind !== 'ok' || answer.data.length !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
-        `Setting protection on area ${area} was not confirmed by the tag: ${describeAnswer(answer)}.`,
+        `Writing password ${passwordNumber} was not confirmed by the tag: ${describeAnswer(answer, 0)}.`,
+        'Set the tag aside, label it, and do not record it as protected. If the tag gave no answer, it may or may not now hold the new password, which is the one in the secret store: write down the fingerprint the tool printed with this run. DS13304 6.4.18: "There is no anti-tearing mechanism while operating the WritePassword command". Do not retry on this tag.',
+        { passwordNumber },
+      );
+    }
+    this.presentedPasswords.set(passwordNumber, Uint8Array.from(password));
+  }
+
+  /**
+   * Writes RW_PROTECTION_A1 = 01b, "write allowed if AREA1 security session is open"
+   * (Table 11). **IRREVERSIBLE without PWD_A1.** Gated.
+   *
+   * In one session: GetRandomNumber, PresentPassword 0 with the factory configuration
+   * password (the probe has just shown it is the factory value), then WriteConfiguration
+   * FID 00h PID 00h value 01h (Tables 4, 10 and 147). There is no password number in the
+   * register: PWD_A1 always governs AREA1 (Table 26), so anything but area 1 under
+   * password 1 is refused. Only write protection is ever written: 10b and 11b would make
+   * the area unreadable to a phone.
+   *
+   * "W effective time : on next RF boot sequence" (Table 10). The value is readable at
+   * once (6.4.17), and the tag enforces it only from its next power up, which is why the
+   * proof write cycles the field first.
+   *
+   * **What this does not do.** PWD_CFG stays at its factory value, and LCK_CONFIG is never
+   * written. So anyone who presents the factory configuration password can write
+   * RW_PROTECTION_A1 back to 00b, and could also use the Kill command, which takes PWD_CFG
+   * (6.4.20). Changing PWD_CFG or locking the configuration is a separate decision for
+   * Trevean, README section 11.
+   */
+  async setAreaProtection(area: number, protection: AreaProtection, passwordNumber: number): Promise<void> {
+    await this.requireProvenOpcodes('apply area protection');
+    if (area !== 1 || passwordNumber !== PASSWORD_ID.AREA1 || protection !== 'write_protected') {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `Refusing to set area ${area} to "${protection}" under password ${passwordNumber}: this tool writes only RW_PROTECTION_A1 = 01b, write protection of area 1 under PWD_A1 (DS13304 Tables 11 and 26). This command was not sent.`,
+        'This is a bug in the caller. Report it.',
+        { area, passwordNumber },
+      );
+    }
+
+    const answer = await this.inSession(ST_COMMANDS.WRITE_CONFIGURATION.name, async (exchange) => {
+      const config = (await this.presentIn(exchange, PASSWORD_ID.CONFIG, FACTORY_DEFAULT_CONFIG_PASSWORD)).answer;
+      if (config.kind !== 'ok' || config.data.length !== 0) {
+        throw new ChipError(
+          'PROTECT_FAILED',
+          `The factory configuration password was not accepted immediately before WriteConfiguration: ${describeAnswer(config, 0)}. WriteConfiguration was not sent.`,
+          'Area protection was not applied.',
+          { area },
+        );
+      }
+      const r = CONFIG_REGISTERS.RW_PROTECTION_A1;
+      return exchange(this.stFrame(ST_COMMANDS.WRITE_CONFIGURATION, [r.fid, r.pid, RW_PROTECTION_WRITE_PROTECTED]));
+    });
+    // The CONFIG session closed any AREA1 session.
+    this.presentedPasswords.clear();
+    if (answer.kind !== 'ok' || answer.data.length !== 0) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `Setting protection on area ${area} was not confirmed by the tag: ${describeAnswer(answer, 0)}.`,
         'Set the tag aside, label it, and do not record it as protected. If the tag gave no answer, the area may or may not now be protected under the password in the secret store. Do not retry on this tag.',
         { area, passwordNumber },
       );
@@ -1047,36 +1356,36 @@ export class PcscTransport implements TagTransport {
   }
 
   /**
-   * Reads an area's protection with the 0xBA "read form", a single parameter.
+   * Reads RW_PROTECTION_A1 with ReadConfiguration A0h, FID 00h PID 00h (Tables 4 and 144).
    *
-   * **GATED, like the irreversible pair, since Sunday 25 October 2026.** 0xBA is the
-   * same code as Set Memory Protection, and the one parameter "read form" is described
-   * only by secondary sources. **No documented safe read of the area protection is in
-   * hand**: the ST25TV02KC datasheet is not, and the ACS manual documents only the
-   * transport. A bet on an undocumented form of an irreversible opcode is not "read
-   * only", so this refuses, sending nothing, unless the probe has passed on this very
-   * tag in this very connection. The consequence is stated plainly in README 6.4: it can
-   * no longer be pointed at an SO4731 tag to find out what the supplier applied, because
-   * the probe cannot pass on a tag that carries a password.
+   * **Still GATED,** although the datasheet now documents a safe read ("R : always
+   * possible", Table 10). Taking the gate off is a change to D66 and is left for review:
+   * see the report of Sunday 25 October 2026. The value read is the stored one, which
+   * "is immediately readable with a ReadConfiguration request" after it is written, while
+   * the tag enforces it only from its next RF boot (6.4.17).
    */
   async readAreaProtection(area = 1): Promise<AreaProtectionState> {
-    await this.requireProvenOpcodes('read area protection with the undocumented 0xBA read form');
+    await this.requireProvenOpcodes('read area protection');
+    if (area !== 1) {
+      throw new ChipError('PROTECT_FAILED', `This tool reads the protection of area 1 only, not area ${area}. This command was not sent.`, 'This is a bug in the caller. Report it.', { area });
+    }
 
-    const answer = await this.stCommand(ST_COMMANDS.SET_MEMORY_PROTECTION, [area]);
-    if (answer.kind !== 'ok' || answer.data.length !== 1) {
+    const answer = await this.inSession(ST_COMMANDS.READ_CONFIGURATION.name, (exchange) => this.readConfigIn(exchange, CONFIG_REGISTERS.RW_PROTECTION_A1));
+    const value = answer.kind === 'ok' && answer.data.length === 1 ? (answer.data[0] ?? 0) : null;
+    if (value === null || (value & 0xfc) !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
-        `The tag did not report protection for area ${area}: ${describeAnswer(answer)}.`,
-        'The 0xBA read form is undocumented and this is the first thing to record at bring up. The protection command before it may still have taken effect. Set the tag aside, label it, and do not record it as protected.',
+        `The tag did not report protection for area ${area}: ${value === null ? describeAnswer(answer, 1) : `RW_PROTECTION_A1 reads 0x${hex2(value)}, with reserved bits b7 to b2 set`}.`,
+        'The protection command before it may still have taken effect. Set the tag aside, label it LOCKED?, and do not record it as protected.',
         { area },
       );
     }
 
-    const value = answer.data[0] ?? 0;
     const bits = value & 0x03;
     return {
       protection: bits === 0x00 ? 'none' : bits === 0x01 ? 'write_protected' : 'read_and_write_protected',
-      passwordNumber: (value >> 4) & 0x03,
+      // Table 26: PWD_A1 governs AREA1. The register carries no password number.
+      passwordNumber: PASSWORD_ID.AREA1,
     };
   }
 
@@ -1093,16 +1402,34 @@ export class PcscTransport implements TagTransport {
    * leaving the block unchanged because the bytes are the ones already there. Anything
    * else throws.
    *
+   * Three things make sure the verdict is about the right tag in the right state:
+   *   - `expectedUid`, the UID the unit selected at the start, must be the selected UID
+   *     and the UID read from the field now (review finding F8). Nothing is sent otherwise;
+   *   - inside the proof's own session, before the write, the RF field is turned off for
+   *     10 ms and on again by the manual's bytes, `ACS_RF_CYCLE`, so no password presented
+   *     earlier can still apply (review finding F3);
+   *   - the write is addressed to that UID, so no other tag in the field takes it (F1).
+   *
    * It is not gated by the probe. It cannot be: the proof runs after the tag has left the
    * field, which clears the probe, and after the password has changed, so the probe cannot
    * pass again. It writes nothing that is not already there, so it is no more dangerous
    * than the Update Binary it replaces.
    */
-  async proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'> {
+  async proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'> {
     if (data.length !== PART.blockSizeBytes) {
       throw new ChipError('PROTECT_FAILED', `The proof write must be exactly ${PART.blockSizeBytes} bytes.`, 'This is a bug in the caller. Report it.');
     }
-    const answer = await this.transceive(writeSingleBlockFrame(block, data), 'Write Single Block');
+    const selected = this.currentUid;
+    const now = this.connected && selected !== null ? await this.readUidNow() : null;
+    if (expectedUid === null || selected !== expectedUid || now !== expectedUid) {
+      throw new ChipError(
+        'TAG_CHANGED',
+        `The proof write was not sent: this unit's tag is uid ${expectedUid ?? 'unknown'}, the selected tag is uid ${selected ?? 'none'} and the tag in the field reads uid ${now ?? 'unreadable'}.`,
+        'Set every tag in reach aside and label them. Do not record any of them as protected.',
+        { expectedUid, selectedUid: selected, fieldUid: now },
+      );
+    }
+    const answer = await this.transceive(writeSingleBlockFrame(uidBytes(expectedUid), block, data), 'Write Single Block', { rfCycle: true });
     if (answer.kind === 'ok' && answer.data.length === 0) return 'accepted';
     if (answer.kind === 'error' && answer.errorCode === ISO15693_ERROR_BLOCK_LOCKED) return 'refused';
     throw new ChipError(
@@ -1114,8 +1441,9 @@ export class PcscTransport implements TagTransport {
   }
 
   /**
-   * The gate. Irreversible commands, and the undocumented 0xBA read form, do not run
-   * unless the probe passed on the tag that is in the field right now.
+   * The gate. The irreversible commands (WritePassword, WriteConfiguration) and the
+   * protection read do not run unless the probe passed on the tag that is in the field
+   * right now.
    *
    * Three conditions, all checked before a single byte of the command is sent: the probe
    * passed in this connection, the selected UID is the proven one, and the UID read from
@@ -1164,6 +1492,7 @@ export class PcscTransport implements TagTransport {
 
   private resetProof(): void {
     this.provenUid = null;
+    this.presentedPasswords.clear();
   }
 
   async completeUnit(): Promise<void> {
@@ -1208,17 +1537,17 @@ export class PcscTransport implements TagTransport {
   }
 }
 
-function describeAnswer(answer: TagAnswer): string {
+function describeAnswer(answer: TagAnswer, expectedBytes = 0): string {
   if (answer.kind === 'no-answer') return answer.reason;
   if (answer.kind === 'error') return `tag error code 0x${answer.errorCode.toString(16).padStart(2, '0')}`;
-  return `success flags with ${answer.data.length} unexpected byte(s) after them`;
+  return `success flags with ${answer.data.length} byte(s) after them where ${expectedBytes} were expected`;
 }
 
 function gateRefusal(action: string, reason: string): ChipError {
   return new ChipError(
     'PROTECT_FAILED',
-    `Refusing to ${action}: ${reason}. Nothing was sent to the tag.`,
-    'The opcode probe runs automatically as part of --protect, on the tag in the field, immediately before the first irreversible command, and passes only on a bare tag whose password is still the factory default. Use a sacrificial bare tag for bring up. The opcodes come from secondary sources rather than the datasheet, and an irreversible command sent on an unproven path can lock a tag with a value nobody holds. See README section 6.4, chip/st-custom.ts and "Decision log", D45.',
+    `Refusing to ${action}: ${reason}. This command was not sent.`,
+    'The opcode probe runs automatically as part of --protect, on the tag in the field, immediately before the first irreversible command, and passes only on a tag whose password 1 and configuration password are still the factory default. Use a sacrificial tag for bring up. The commands come from the ST25TV02KC datasheet and have never run on the part, and an irreversible command sent on an unproven path can lock a tag with a value nobody holds. See README section 6.4, chip/st-custom.ts and "Decision log", D45 and D66.',
     { action },
   );
 }

@@ -155,6 +155,8 @@ export class UnitSession {
   #plan: WritePlan | null = null;
   #receipt: VerificationReceipt | null = null;
   #presented = new Set<number>();
+  #irreversibleStarted = false;
+  #probePassed = false;
 
   readonly #options: UnitSessionOptions;
   readonly #now: () => Date;
@@ -503,9 +505,10 @@ export class UnitSession {
     }
 
     // The opcode probe, on this tag, now, before the first irreversible command. It
-    // sends only Present Password, so it cannot change the tag, and on a transport
+    // sends only GetRandomNumber, PresentPassword and ReadConfiguration, so it cannot
+    // change the tag's passwords or protection, and on a transport
     // whose protection opcodes are not proven by construction it is the only thing
-    // that can unlock Write Password and Set Memory Protection. A hardware transport
+    // that can unlock WritePassword and WriteConfiguration. A hardware transport
     // that has no probe is refused protection outright rather than trusted.
     let opcodeProbe: ProtectionOutcome['opcodeProbe'] = 'not-applicable';
     if (transport.verifyOpcodes !== undefined) {
@@ -520,11 +523,12 @@ export class UnitSession {
         throw new ChipError(
           'PROTECT_FAILED',
           `Refusing to protect this tag: the opcode probe did not pass. ${probe.detail}`,
-          'Nothing has been locked: the probe sends only Present Password, which cannot change a tag. The tag is written and verified but not protected: set it aside and label it. The probe passes only on a bare tag whose password is still the factory default, so a tag that already carries a password cannot be protected by this tool on a reader. If this was a sacrificial bare tag, record this message for the bring up notes and stop. See README section 6.4.',
+          'Nothing has been locked: the probe sends only GetRandomNumber, PresentPassword and ReadConfiguration, which cannot change a tag\'s protection or passwords. The tag is written and verified but not protected: set it aside and label it. The probe passes only on a tag whose password 1 and configuration password are still the factory default and whose area 1 is unprotected, so a tag that already carries a password cannot be protected by this tool on a reader. If this was a sacrificial tag, record this message for the bring up notes and stop. See README section 6.4.',
           { probe: 'not-proven' },
         );
       }
       opcodeProbe = 'passed';
+      this.#probePassed = true;
       // The probe's wrong password may have ended any earlier presentation on the tag.
       this.#presented.clear();
     } else if (transport.isHardware) {
@@ -542,44 +546,74 @@ export class UnitSession {
     }
 
     const passwordChanged = !request.currentPassword.equals(request.newPassword);
-    if (passwordChanged) {
-      try {
-        await transport.writePassword(passwordNumber, request.newPassword.toBytes());
-      } catch (cause) {
-        this.fail(
-          cause,
-          'PROTECT_FAILED',
-          'The tag is written and verified but its password was not changed. Set it aside and report it. Do not record it as protected.',
-        );
-      }
+    const fingerprint = request.newPassword.fingerprint();
+
+    // From the moment the first irreversible command starts, nothing that goes wrong
+    // may be reported as "nothing happened". Whatever fails from here, a transport
+    // error, a gate refusal on the second command, a lost tag, a failed proof, is
+    // rethrown as PROTECT_FAILED saying the tag may already be locked, with the
+    // original message appended (review finding F2).
+    this.#irreversibleStarted = true;
+    let refusalProven: boolean;
+    try {
+      refusalProven = await this.applyAndProve(receipt, plan, area, passwordNumber, passwordChanged, request);
+    } catch (cause) {
+      this.#phase = 'failed';
+      throw mayBeLocked(cause, { area, passwordNumber, passwordChanged, fingerprint });
     }
 
-    try {
-      await transport.setAreaProtection(area, 'write_protected', passwordNumber);
-    } catch (cause) {
-      this.fail(
-        cause,
-        'PROTECT_FAILED',
-        'The tag is written and verified but not protected. Set it aside, label it, and report it. Do not ship it as protected.',
-      );
+    this.#phase = 'protected';
+    return {
+      applied: true,
+      area,
+      passwordNumber,
+      passwordFingerprint: fingerprint,
+      passwordChanged,
+      refusalProven,
+      opcodeProbe,
+    };
+  }
+
+  /**
+   * True once the opcode probe has passed on this unit's tag, or a protection command that
+   * cannot be taken back has started on it. The batch never retries such a unit on its
+   * own (review finding F7): from that point the remedies say "Do not retry on this tag",
+   * the tag may already be locked, and a second attempt starts on whatever is on the
+   * reader, without a prompt.
+   */
+  get retryForbidden(): boolean {
+    return this.#probePassed || this.#irreversibleStarted;
+  }
+
+  /** The irreversible commands and the proof that they took. Every failure is wrapped by `protect`. */
+  private async applyAndProve(
+    receipt: VerificationReceipt,
+    plan: WritePlan,
+    area: number,
+    passwordNumber: number,
+    passwordChanged: boolean,
+    request: ProtectionRequest,
+  ): Promise<boolean> {
+    const transport = this.#options.transport;
+    if (passwordChanged) {
+      await transport.writePassword(passwordNumber, request.newPassword.toBytes());
     }
+
+    await transport.setAreaProtection(area, 'write_protected', passwordNumber);
 
     // Read the protection state back while the tag is still the one the probe ran on.
-    // The state is configuration rather than session, so reading it before the tag
-    // leaves the field proves the same thing as after, and on the PC/SC transport the
-    // read is gated on that same proof: its 0xBA read form is undocumented (README 6.4).
-    let state: AreaProtectionState;
-    try {
-      state = await transport.readAreaProtection(area);
-    } catch (cause) {
-      this.fail(cause, 'PROTECT_FAILED', 'The protection state could not be read back. Set the tag aside and report it.');
-    }
+    // On the PC/SC transport the read is gated on that same proof, so after the release
+    // below it could not run. On the ST25TV02KC this reads the STORED value, which "is
+    // immediately readable with a ReadConfiguration request", while the tag enforces it
+    // only "on next RF boot sequence" (DS13304 6.4.17 and Table 10). So a read of "none"
+    // here contradicts the datasheet and is NOT evidence the tag is unprotected (review
+    // finding F4): the protection may still be stored, or the read may have gone wrong.
+    const state = await transport.readAreaProtection(area);
     if (state.protection !== 'write_protected') {
-      this.#phase = 'failed';
       throw new ChipError(
         'PROTECT_FAILED',
-        `The tag reports protection state "${state.protection}" after the protection command was accepted.`,
-        'Set this tag aside, label it, and report it. Do not record it as protected.',
+        `The tag reports protection state "${state.protection}" after the protection command was accepted. The tag may already be protected: the datasheet says the stored value reads back at once and takes effect at the next power up, so this read is not evidence either way.`,
+        'STOP. Label the tag LOCKED? and set it aside. Do not record it as protected and do not retry on it.',
         { protection: state.protection, area },
       );
     }
@@ -592,57 +626,69 @@ export class UnitSession {
     // Confirm protection did not break readability. A protected tag that no phone
     // can read is a scrap tag that passed every other check.
     const areaBlocks = plan.areaImage.length / PART.blockSizeBytes;
+    let after: Uint8Array;
     try {
-      const after = await transport.readBlocks(CC_BLOCK, 1 + areaBlocks);
-      const uri = decodeUriMessage(unwrapNdefTlv(after.subarray(CC_BYTES))).uri;
-      if (uri !== receipt.intendedUri) {
-        this.#phase = 'failed';
-        throw new ChipError(
-          'PROTECT_FAILED',
-          `After protection the tag decodes to "${uri}" rather than "${receipt.intendedUri}".`,
-          'Set this tag aside, label it, and report it.',
-          { uri },
-        );
-      }
+      after = await transport.readBlocks(CC_BLOCK, 1 + areaBlocks);
     } catch (cause) {
-      this.fail(cause, 'PROTECT_FAILED', 'The tag could not be read after protection. Set it aside and report it.');
+      throw asChipError(cause, 'PROTECT_FAILED', 'The tag could not be read after protection.');
+    }
+    let uri: string;
+    try {
+      uri = decodeUriMessage(unwrapNdefTlv(after.subarray(CC_BYTES))).uri;
+    } catch (cause) {
+      throw asChipError(cause, 'PROTECT_FAILED', 'The tag could not be read after protection.');
+    }
+    if (uri !== receipt.intendedUri) {
+      throw new ChipError('PROTECT_FAILED', `After protection the tag decodes to "${uri}" rather than "${receipt.intendedUri}".`, 'Set this tag aside, label it, and report it.', { uri });
     }
 
     // The conclusive check: a write to the protected area must now be refused BY THE
     // TAG, for protection, and not merely fail. The bytes attempted are the bytes
-    // already there, so a tag that is somehow not protected is left unchanged and the
-    // unit fails rather than passing.
+    // already there. The transport refuses, sending nothing, unless the tag in the field
+    // is the one this unit selected, and on a reader it cycles the RF field first so no
+    // password presented earlier can still apply (review findings F3 and F8).
     const headerBlock = plan.areaImage.slice(0, PART.blockSizeBytes);
-    let verdict: 'refused' | 'accepted';
-    try {
-      verdict = await transport.proveWriteRefused(T5T_AREA_FIRST_BLOCK, headerBlock);
-    } catch (cause) {
-      this.fail(cause, 'PROTECT_FAILED', 'The protection proof step failed for an unexpected reason. Set the tag aside and report it. Do not record it as protected.');
-    }
+    const verdict = await transport.proveWriteRefused(T5T_AREA_FIRST_BLOCK, headerBlock, this.#identity?.uid ?? null);
     if (verdict !== 'refused') {
-      this.#phase = 'failed';
       throw new ChipError(
         'PROTECT_FAILED',
-        'The area still accepted a write after protection was applied and read back as set.',
-        'Set this tag aside, label it, and report it. Do not record it as protected. The tag content is unchanged.',
+        `The proof write to block ${T5T_AREA_FIRST_BLOCK} was accepted after protection was applied and read back as set. That does not show the tag is unprotected: if a password presented earlier in this run still applied, a protected tag accepts the write too. The tag may be protected${passwordChanged ? ', and its password was changed by this run' : ''}.`,
+        'STOP. Label the tag LOCKED? and set it aside. Do not record it as protected and do not retry on it. Report it the same day. The block was rewritten with the bytes it already held.',
         { area, passwordNumber },
       );
     }
-    const refusalProven = true;
-
-    this.#phase = 'protected';
-    return {
-      applied: true,
-      area,
-      passwordNumber,
-      passwordFingerprint: request.newPassword.fingerprint(),
-      passwordChanged,
-      refusalProven,
-      opcodeProbe,
-    };
+    return true;
   }
 
   async finish(): Promise<void> {
     await this.#options.transport.completeUnit();
   }
+}
+
+/**
+ * Rewrites any failure after the first irreversible protection command as PROTECT_FAILED
+ * saying the tag may already be locked. Only the password's fingerprint is named, never
+ * the password. The original code and message are kept, appended, for the bring up notes.
+ */
+function mayBeLocked(
+  cause: unknown,
+  facts: { area: number; passwordNumber: number; passwordChanged: boolean; fingerprint: string },
+): ChipError {
+  const original = asChipError(cause, 'PROTECT_FAILED', '');
+  const what = facts.passwordChanged
+    ? `Password ${facts.passwordNumber} may already have been changed by this run (new password fingerprint ${facts.fingerprint}), and area ${facts.area} may already be protected.`
+    : `Area ${facts.area} may already be protected under password ${facts.passwordNumber} (fingerprint ${facts.fingerprint}).`;
+  return new ChipError(
+    'PROTECT_FAILED',
+    `Protection did not complete, and its irreversible part had begun. ${what} Label the tag LOCKED? and stop. Original message: ${original.code}: ${original.message}`,
+    'STOP. Run nothing else on this tag and do not retry on it. Label it "LOCKED?" with the fingerprint above (on a sacrificial tag with a throwaway password: "LOCKED? password discarded"). Do not record it as protected. Copy this whole message into the bring up notes.',
+    {
+      mayBeLocked: true,
+      originalCode: original.code,
+      passwordFingerprint: facts.fingerprint,
+      passwordChanged: facts.passwordChanged,
+      area: facts.area,
+      passwordNumber: facts.passwordNumber,
+    },
+  );
 }

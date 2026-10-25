@@ -99,7 +99,7 @@ export class PhysicalReaderTransport implements TagTransport {
   async readAreaProtection(_area: number): Promise<AreaProtectionState> {
     notImplemented('readAreaProtection');
   }
-  async proveWriteRefused(_block: number, _data: Uint8Array): Promise<'refused' | 'accepted'> {
+  async proveWriteRefused(_block: number, _data: Uint8Array, _expectedUid: string | null): Promise<'refused' | 'accepted'> {
     notImplemented('proveWriteRefused');
   }
   async releaseTag(): Promise<void> {

@@ -279,8 +279,12 @@ export async function runBatch(options: BatchOptions): Promise<BatchSummary> {
       for (let tryIndex = 0; tryIndex < attemptsPerUnit; tryIndex += 1) {
         const attempt = baseAttempt + tryIndex + 1;
         emit({ type: 'unit-start', seq, total: count, attempt });
-        const result = await runOneUnit({ ...options, uri, entryCode: entry.code, seq, attempt, now });
-        if (result.outcome !== 'failed' || tryIndex === attemptsPerUnit - 1) {
+        const { record: result, retryForbidden } = await runOneUnit({ ...options, uri, entryCode: entry.code, seq, attempt, now });
+        // A unit that failed after its opcode probe passed, or after an irreversible
+        // protection command started, is never retried automatically: the tag may already
+        // be locked, its remedy says not to retry, and the retry would start on whatever
+        // is on the reader without asking (review finding F7).
+        if (result.outcome !== 'failed' || tryIndex === attemptsPerUnit - 1 || retryForbidden) {
           record = journal.append<UnitRecord>(result);
           break;
         }
@@ -393,7 +397,7 @@ interface RunOneUnitOptions extends BatchOptions {
   readonly now: () => Date;
 }
 
-async function runOneUnit(options: RunOneUnitOptions): Promise<Omit<UnitRecord, 'digest'>> {
+async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<UnitRecord, 'digest'>; retryForbidden: boolean }> {
   const started = Date.now();
   const at = options.now().toISOString();
 
@@ -401,7 +405,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<Omit<UnitRecord, 
     // Zero transport calls. Nothing is selected, nothing is written, nothing is
     // read and nothing is protected. A test asserts exactly that.
     const plan = planEncoding(options.uri);
-    return {
+    const record: Omit<UnitRecord, 'digest'> = {
       kind: 'unit',
       seq: options.seq,
       attempt: options.attempt,
@@ -423,6 +427,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<Omit<UnitRecord, 
       error: null,
       durationMs: Date.now() - started,
     };
+    return { record, retryForbidden: false };
   }
 
   const session = new UnitSession({
@@ -468,7 +473,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<Omit<UnitRecord, 
       };
     }
 
-    return {
+    const record: Omit<UnitRecord, 'digest'> = {
       ...base,
       outcome: protection === null ? 'verified' : 'protected',
       uid: identity.uid,
@@ -485,9 +490,10 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<Omit<UnitRecord, 
       error: null,
       durationMs: Date.now() - started,
     };
+    return { record, retryForbidden: false };
   } catch (cause) {
     const error = asChipError(cause, 'WRITE_FAILED', 'Set this tag aside, label it, and continue with the next one.');
-    return {
+    const record: Omit<UnitRecord, 'digest'> = {
       ...base,
       outcome: 'failed',
       uid: session.identity?.uid ?? null,
@@ -504,6 +510,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<Omit<UnitRecord, 
       error: { code: error.code, message: error.message, remedy: error.remedy },
       durationMs: Date.now() - started,
     };
+    return { record, retryForbidden: session.retryForbidden };
   }
 }
 

@@ -80,8 +80,11 @@ export interface TagTransport {
    * including a refusal whose reason cannot be told, rejects. A transport must never
    * report 'refused' for a write that merely failed, because that would record an
    * unprotected tag as protected.
+   *
+   * `expectedUid` is the UID the unit selected at the start. A transport that can read a
+   * UID must refuse, sending nothing, unless the tag in front of it is that tag.
    */
-  proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'>;
+  proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'>;
 
   /**
    * Proves, on the tag in the field and without changing it, that the command path the
@@ -176,8 +179,8 @@ export class RecordingTransport implements TagTransport {
   readAreaProtection(area: number): Promise<AreaProtectionState> {
     return this.record('readAreaProtection', [area], () => this.inner.readAreaProtection(area));
   }
-  proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'> {
-    return this.record('proveWriteRefused', [block], () => this.inner.proveWriteRefused(block, data));
+  proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'> {
+    return this.record('proveWriteRefused', [block, expectedUid], () => this.inner.proveWriteRefused(block, data, expectedUid));
   }
   releaseTag(): Promise<void> {
     return this.record('releaseTag', [], () => this.inner.releaseTag());

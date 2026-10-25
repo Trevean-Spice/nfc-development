@@ -265,8 +265,8 @@ class SwappableReader implements TagTransport {
   readAreaProtection(area: number) {
     return this.#active.readAreaProtection(area);
   }
-  proveWriteRefused(block: number, data: Uint8Array) {
-    return this.#active.proveWriteRefused(block, data);
+  proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null) {
+    return this.#active.proveWriteRefused(block, data, expectedUid);
   }
   /**
    * This double calls itself hardware, and protect() refuses hardware with no probe.
@@ -336,9 +336,16 @@ test('a tag swapped in during the protection proof is caught by its uid', async 
     reader.swap();
   };
 
+  // Since review finding F2 a failure after the first irreversible command is reported
+  // as PROTECT_FAILED saying the tag may be locked, with the original code kept.
   await assert.rejects(
     () => session.protect(receipt, passwords()),
-    (error: unknown) => isChipError(error) && error.code === 'TAG_CHANGED',
+    (error: unknown) =>
+      isChipError(error) &&
+      error.code === 'PROTECT_FAILED' &&
+      error.detail['originalCode'] === 'TAG_CHANGED' &&
+      /A different tag came back into the field/.test(error.message) &&
+      /LOCKED\?/.test(error.message),
   );
   assert.notEqual(first.uid, null);
   assert.equal(session.phase, 'failed');
