@@ -87,9 +87,16 @@ export const carriesSt = (apdu: string, code: number) => {
   return frame !== null && frame[1] === code && frame[2] === 0x02;
 };
 
+/**
+ * DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC, so 80 blocks. Typed in
+ * rather than taken from PART, so the fake tag is the datasheet's and a model that
+ * drifts from it fails the probe here as it would on silicon.
+ */
+export const ST25TV02KC_BLOCKS = 0x4f + 1;
+
 /** A tag on a reader, answering per the ACS manual, and recording every APDU. */
 export class FakeTag {
-  readonly memory = new Uint8Array(PART.totalBytes);
+  readonly memory: Uint8Array;
   readonly sent: string[] = [];
   disconnects = 0;
   failTransmit = false;
@@ -161,6 +168,11 @@ export class FakeTag {
   private inSession = false;
   private switchedTo15693 = false;
 
+  /** `blockCount` is the user memory this tag has. Anything but 80 is another part, or a TruST25 reduced END_MEM (section 5.6). */
+  constructor(readonly blockCount: number = ST25TV02KC_BLOCKS) {
+    this.memory = new Uint8Array(blockCount * PART.blockSizeBytes);
+  }
+
   handle(): PcscCardHandle {
     return {
       transmit: async (apdu) => {
@@ -225,12 +237,12 @@ export class FakeTag {
     if (ins === 0xca) return [...this.uidLsbFirst, ...OK];
     if (ins === 0xb0) {
       const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
-      if (block + count > PART.blockCount) return [0x6a, 0x82];
+      if (block + count > this.blockCount) return [0x6a, 0x82];
       for (let b = block; b < block + count; b += 1) if (this.readProtected(b)) return [0x63, 0x00];
       return [...this.memory.subarray(block * 4, (block + count) * 4), ...OK];
     }
     if (ins === 0xd6) {
-      if (block >= PART.blockCount) return [0x6a, 0x82];
+      if (block >= this.blockCount) return [0x6a, 0x82];
       // 5.3.3.5 gives Update Binary one error row, "6X XXh Fail", whatever the cause.
       if (this.writeProtected(block)) return [0x63, 0x00];
       this.memory.set(apdu.subarray(5, 5 + lc), block * 4);
@@ -366,7 +378,7 @@ export class FakeTag {
       // Table 105: block number, then four bytes. Table 107 for the errors.
       const block = mfg ?? 0;
       if (params.length !== 4) return [0x01, 0x02];
-      if (block >= PART.blockCount) return [0x01, 0x10];
+      if (block >= this.blockCount) return [0x01, 0x10];
       if (this.writeProtected(block)) return [0x01, this.protectedWriteError];
       this.memory.set(params, block * 4);
       return [0x00];
