@@ -16,10 +16,12 @@
 | Topic | NTAG, which is what most NFC material describes | ST25TV02KC, which is what this project uses |
 |---|---|---|
 | Family | Type 2, ISO 14443 | **Type 5, ISO 15693** |
-| Memory | Varies by part. NTAG216 user memory is 888 bytes | **256 bytes, in 64 blocks of 4** |
+| Memory | Varies by part. NTAG216 user memory is 888 bytes | **320 bytes, in 80 blocks of 4** (DS13304 Rev 7: END_MEM is 4Fh) |
 | Write protection | One time programmable lock bits | **Area based 64 bit password** |
 | Is protection reversible | No. Set once, never cleared | **Yes, with the password** |
 | Tooling | Most tools and phone apps | Does not apply here and will usually be wrong |
+
+**Where the 80 comes from.** STMicroelectronics datasheet DS13304 Rev 7 (February 2025): page 1, "Up to 2560 bits (320 bytes) of EEPROM", "Accessible by blocks of four bytes"; section 4.1, figure 5 note 3, "80 blocks of 32 bits for ... ST25TV02KC"; section 4.2, "Value of END_MEM is ... 4Fh for ... ST25TV02KC". In the factory single area layout, END_A1 equals END_MEM and AREA1 "is composed of (END_MEM+1) blocks", so blocks 0 to 79. Until Sunday 25 October 2026 this tool said 256 bytes in 64 blocks, and its reader probe would have refused every genuine tag.
 
 The previous team's work in the client repository targets NTAG216. Nothing in it contributes to this. That is recorded in the Scope document, "In scope", item 4, and in the Decision log, entry D19.
 
@@ -78,7 +80,7 @@ Four codes are encodable: `ps`, `cs`, `sr`, `nm`. `kg` (Kyoto Garden) is reserve
 node bin/chip-cli.mjs encode --code ps
 ```
 
-This shows the URL, the bytes, and how much of the 256 byte chip is used. For every blend it is 29 bytes of the 248 byte usable area. Capacity is not a concern on this part and never will be. If a tool ever tells you the tag is too small, that tool has misidentified the tag.
+This shows the URL, the bytes, and how much of the 320 byte chip is used. For every blend it is 29 bytes of the 312 byte usable area. Capacity is not a concern on this part and never will be. If a tool ever tells you the tag is too small, that tool has misidentified the tag.
 
 **3. Rehearse without touching anything.**
 
@@ -207,16 +209,17 @@ Applying protection and being told "accepted" is not proof. For every protected 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 143 automated tests against a software model of the ST25TV02KC. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 212 automated tests against a software model of the ST25TV02KC. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 
 Run `npm test` and read the count. These are properties of the code and they hold:
 
-- The NDEF URI record is built correctly, byte for byte, against the NFC Forum URI Record Type Definition. The `https://` prefix abbreviation is applied as identifier code `0x04`, saving eight of the 256 bytes.
+- The NDEF URI record is built correctly, byte for byte, against the NFC Forum URI Record Type Definition. The `https://` prefix abbreviation is applied as identifier code `0x04`, saving eight of the 320 bytes.
 - Every code in the redirect table produces exactly the URL the Scope document states, asserted against strings transcribed from that document rather than read from the file under test.
 - Encoding and decoding round trip, including for awkward URIs, and the decoder refuses a second record, a truncated record, a reserved prefix code and a record that is not a URI record.
-- The 248 byte usable area is enforced. A URI that exactly fills it is accepted and one byte more is refused with both numbers in the message.
+- The 312 byte usable area, blocks 1 to 78, is enforced. An NDEF TLV that exactly fills it is accepted and one byte more is refused with both numbers in the message. On this part a URI reaches the 255 byte short record limit first, at about 260 characters, and is refused there. Block 79 is never written.
+- A write touches only the blocks the message needs: for every code in the table, block 1 (terminator), blocks 2 to 8, block 1 again (header), and block 0 only when the tag has no valid capability container.
 - Protection cannot be applied before verification. Six separate tests assert both that the tool refuses and that no protection command reached the tag.
 - A batch of 500 units completes with 500 journal records and no gaps, resumes correctly after an interruption, retries units that failed, and refuses to resume a journal belonging to a different code, a different count or a different redirect table.
 - Every failure path produces a named code and a remedy: no tag, wrong part, refused write, partial write, corrupted read back, refused password, already protected tag, refused protection.
@@ -228,7 +231,7 @@ Run `npm test` and read the count. These are properties of the code and they hol
 
 1. **That any of this works on silicon at all.** `src/transport/pcsc.ts` is written against published PC/SC documentation and **has never talked to a chip**. `src/transport/reader-stub.ts` remains reachable as `--transport stub`, refusing predictably, so a bring up failure can be attributed to hardware rather than to us.
 2. **The ST specific command set.** Present Password, Write Password and the area configuration commands are ST custom commands. Their opcodes are deliberately not written into the stub, because copying opcodes from a datasheet into code that has never run would create exactly the kind of unverified fact this project keeps out of its documents.
-3. **The capability container byte 3.** This is the one byte in the whole image the tool cannot check for itself: a wrong feature flag is invisible to a read back and visible only to a phone. **This is why the tool preserves a capability container the tag already carries rather than overwriting it**, which for SO4731 stock means keeping the one that measured 79/80 on iPhone and 40/40 on Android on 6 August. Only tags with no valid container get one from this tool, and those are the ones to check on a phone first.
+3. **The capability container byte 3.** This is the one byte in the whole image the tool cannot check for itself: a wrong feature flag is invisible to a read back and visible only to a phone. **This is why the tool preserves a capability container the tag already carries rather than overwriting it**, which for SO4731 stock means keeping the one that measured 79/80 on iPhone and 40/40 on Android on 6 August. A container is kept when it is `E1 40` followed by a size byte of up to `28` (320 bytes, the whole part); `27` (312 bytes, everything after block 0) is kept too. Only tags with no valid container get one from this tool, `E1 40 27 01`, written last, and those are the ones to check on a phone first. **DS13304 does not state what block 0 holds on a factory tag**, so `E1 40 27 01` is this tool's figure from the NFC Forum Type 5 layout, not a datasheet value.
 4. **Programming time.** The tool assumes a block write does not return until the byte is committed to EEPROM. If a reader returns on acknowledgement instead, the read back catches it, but catching it once per tag at pack out is expensive.
 5. **Whether protection behaves as modelled.** The simulator implements the password model as the datasheet describes it. The datasheet is not the part.
 6. **Anything to do with RF.** Range, alignment, collisions, writing through the 8 mm bamboo lid, and how forgiving a write is compared with a read. None of it is modelled and none of it can be.
@@ -239,7 +242,7 @@ Run `npm test` and read the count. These are properties of the code and they hol
 Not on SO4731 stock, and not on anything destined for a jar.
 
 1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. The optional binding, `pcsc-mini`, is installed by `npm ci`; see `SETUP-WINDOWS-MAC.md`. The protection half is deliberately unimplemented; see section 6.4.
-2. `chip-cli doctor --transport reader` on a bare tag. Confirm the geometry it reports is 64 blocks of 4 bytes.
+2. `chip-cli doctor --transport reader` on a bare tag. Doctor opens the reader and does not read the tag, so confirm the geometry from the `Tag selected ... 80 blocks of 4 bytes` line that step 3 prints. That line appears only after the probe has read block 79 and seen block 80 refused (DS13304 Rev 7, END_MEM 4Fh).
 3. `chip-cli write --code ps --transport reader` on a bare tag, then tap it with a real phone and confirm the correct blend page opens. That is the check that actually matters, and it is the one people skip.
 4. Repeat with a tag taken from SO4731, to confirm re encoding works on stock as the client has said it does.
 5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. Confirm the tag still reads on a phone afterwards.
@@ -325,7 +328,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 | Code | What happened | What to do |
 |---|---|---|
 | `TAG_ABSENT` | No tag arrived at the reader | Place the tag centred on the reader and retry the unit |
-| `TAG_NOT_ST25TV02KC` | The tag reports a memory size that is not 256 bytes | This is not the part. Check which tags you have. Nothing was written |
+| `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: block 79 would not read (`fewer than 80 blocks`) or block 80 did (`larger than ST25TV02KC`) | This is not the part. Check which tags you have. Nothing was written |
 | `TAG_CHANGED` | A different tag came back into the field partway through a unit | Nothing was locked by that step. Set both tags aside, label them, and rerun the unit with one tag on the reader |
 | `WRITE_FAILED` | The tag refused the write, or the write stopped partway | Rewrite the tag. It cannot be carrying a wrong URL: see section 7.1 |
 | `READBACK_FAILED` | The tag stopped responding during the read back | Hold the tag still and retry the unit |

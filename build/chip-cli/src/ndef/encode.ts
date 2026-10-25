@@ -63,11 +63,11 @@ function validateUri(uri: string): void {
 /**
  * Encodes one URI into a single record NDEF message.
  *
- * The record is always MB + ME + SR with TNF well known, because a URI that fits
- * on a 256 byte chip can never need the long record form. A payload over 255 bytes
- * is rejected here rather than silently switched to the long form, since on this
- * part it could not fit in the NDEF area anyway and the honest failure is better
- * than a record no reader on this project will ever see.
+ * The record is always MB + ME + SR with TNF well known. A payload over 255 bytes
+ * is rejected here rather than silently switched to the long form. On the 320 byte
+ * part such a payload would fit the 312 byte NDEF area, so this, not the area, is
+ * the binding limit, at a URI of about 260 characters. Every URI in the redirect
+ * table is under 40, and an untested long record form is not worth the risk.
  */
 export function encodeUriRecord(uri: string): EncodedUriRecord {
   validateUri(uri);
@@ -83,7 +83,7 @@ export function encodeUriRecord(uri: string): EncodedUriRecord {
     throw new ChipError(
       'NDEF_ENCODE',
       `The URI payload is ${payload.length} bytes, over the 255 byte short record limit.`,
-      'Shorten the URI. Nothing this long fits in the ST25TV02KC NDEF area in any case.',
+      'Shorten the URI. This tool writes short records only, and no URI in the redirect table comes close.',
       { uri, payloadBytes: payload.length },
     );
   }

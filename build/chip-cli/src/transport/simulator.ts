@@ -6,7 +6,8 @@
  * physically breaking a write is a tool whose failure paths are never exercised.
  *
  * What it models faithfully:
- *   - 256 bytes in 64 blocks of 4, and writes that land one block at a time
+ *   - 320 bytes in 80 blocks of 4 (DS13304 Rev 7, END_MEM 4Fh), and writes that
+ *     land one block at a time
  *   - area based password protection, including refusing a write when the password
  *     for that area has not been presented in the current session
  *   - a session that ends when the tag leaves the field, so a presented password
