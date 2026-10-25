@@ -3,7 +3,7 @@
  *
  * The first byte of a URI record payload is an identifier code standing in for a
  * common prefix. Code 0x04 replaces the nine characters of "https://" with one
- * byte. On a 256 byte chip that is not a rounding error, it is 3.5% of the whole
+ * byte. On a 320 byte chip that is not a rounding error, it is 2.5% of the whole
  * memory, and it is free.
  *
  * Source: NFC Forum URI Record Type Definition, table 3. Codes 0x24 and above are

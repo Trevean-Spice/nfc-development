@@ -346,6 +346,9 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
   }
 }
 
+/** The longest single read `chip-cli verify` makes: 63 blocks, 252 bytes, inside a one byte Le. */
+const VERIFY_READ_SPAN_BLOCKS = 63;
+
 async function commandVerify(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
   const table = loadTable(values);
   const expect = str(values, 'expect');
@@ -358,8 +361,15 @@ async function commandVerify(values: Record<string, unknown>, out: (line: string
   await transport.open();
   try {
     await transport.waitForTag(int(values, 'tag-timeout-ms', 10_000));
-    const blocks = Math.ceil(T5T_AREA_BYTES / PART.blockSizeBytes);
-    const image = await transport.readBlocks(0, 1 + blocks);
+    // Block 0 and the whole T5T area is 79 blocks, 316 bytes, which is more than one
+    // Read Binary can carry. Read it in spans no longer than the 63 block read this
+    // command made when the part was modelled as 64 blocks.
+    const blocks = 1 + Math.ceil(T5T_AREA_BYTES / PART.blockSizeBytes);
+    const image = new Uint8Array(blocks * PART.blockSizeBytes);
+    for (let first = 0; first < blocks; first += VERIFY_READ_SPAN_BLOCKS) {
+      const count = Math.min(VERIFY_READ_SPAN_BLOCKS, blocks - first);
+      image.set(await transport.readBlocks(first, count), first * PART.blockSizeBytes);
+    }
     const decoded = decodeUriMessage(unwrapNdefTlv(image.subarray(PART.blockSizeBytes)));
     if (decoded.uri !== uri) {
       throw new ChipError(

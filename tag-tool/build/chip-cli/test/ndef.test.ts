@@ -60,7 +60,7 @@ test('the Trevean tag URI encodes to the exact expected bytes', () => {
   assert.equal(toHex(record.message), expected);
 });
 
-test('the prefix abbreviation saves eight bytes of a 256 byte chip', () => {
+test('the prefix abbreviation saves eight bytes of a 320 byte chip', () => {
   const uri = 'https://treveanspice.com/t/ps';
   const record = encodeUriRecord(uri);
   const withoutAbbreviation = SHORT_RECORD_OVERHEAD_BYTES + 1 + Buffer.byteLength(uri, 'utf8');

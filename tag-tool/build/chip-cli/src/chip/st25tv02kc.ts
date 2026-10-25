@@ -6,8 +6,10 @@
  *
  * Two consequences run through this whole file and the tool around it:
  *
- *   1. Memory is 256 bytes in 64 blocks of 4. Not 888 bytes, which is NTAG216
- *      user memory and the number the previous team's tooling was built around.
+ *   1. User memory is 320 bytes in 80 blocks of 4. Not 888 bytes, which is NTAG216
+ *      user memory and the number the previous team's tooling was built around,
+ *      and not 256 bytes in 64 blocks, which is what this file said until Sunday
+ *      25 October 2026 and which made the reader probe refuse every genuine tag.
  *      Every write is block granular, which is why a partial write is a real
  *      failure mode and why the write plan below is ordered the way it is.
  *
@@ -16,9 +18,10 @@
  *      this package, and there must never be one. If a change ever needs a lock
  *      bit here, the change is wrong. See README, "What this is not".
  *
- * Reference: the ST25TV02KC datasheet and STMicroelectronics application note
- * AN5658. Values sourced from those documents are marked. Nothing in this file has
- * been confirmed against physical silicon by us. See README, section 6.
+ * Reference: the ST25TV02KC datasheet, STMicroelectronics DS13304 Rev 7 (February
+ * 2025), and application note AN5658. Values sourced from those documents are
+ * marked. Nothing in this file has been confirmed against physical silicon by us.
+ * See README, section 6.
  */
 
 import { ChipError } from './errors.js';
@@ -27,10 +30,15 @@ export const PART = {
   partNumber: 'ST25TV02KC',
   nfcForumType: 5,
   airInterface: 'ISO/IEC 15693',
-  /** 2 Kbit EEPROM. */
-  totalBytes: 256,
+  /**
+   * User memory. DS13304 Rev 7, page 1: "Up to 2560 bits (320 bytes) of EEPROM",
+   * "Accessible by blocks of four bytes". Page 7, figure 5 note 3: "80 blocks of 32
+   * bits for ... ST25TV02KC". Page 8, section 4.2: "Value of END_MEM is ... 4Fh for
+   * ... ST25TV02KC", so the last block is 4Fh (79) and there are END_MEM+1 = 80.
+   */
+  totalBytes: 320,
   blockSizeBytes: 4,
-  blockCount: 64,
+  blockCount: 80,
   uidBits: 64,
   passwordBits: 64,
   writeEnduranceCycles: 100_000,
@@ -63,9 +71,14 @@ export const CC_VERSION_AND_ACCESS = 0x40;
  */
 export const CC_FEATURE_FLAGS = 0x01;
 
-/** MLEN is the T5T area size in units of 8 bytes. 252 usable bytes rounds to 31. */
+/**
+ * MLEN is the T5T area size in units of 8 bytes. The 316 bytes after the container
+ * round down to 39 (0x27), so a container this tool writes never declares a byte the
+ * part does not have after block 0. DS13304 does not state a factory container value,
+ * so this is the tool's own figure and not a datasheet one. See `evaluateCc`.
+ */
 export const CC_MLEN = Math.floor((PART.totalBytes - CC_BYTES) / 8);
-/** The area the NDEF TLV lives in: 248 bytes, starting at block 1. */
+/** The area the NDEF TLV lives in: 312 bytes, blocks 1 to 78. Block 79 is never written. */
 export const T5T_AREA_BYTES = CC_MLEN * 8;
 export const T5T_AREA_FIRST_BLOCK = 1;
 export const T5T_AREA_BLOCK_COUNT = T5T_AREA_BYTES / PART.blockSizeBytes;
@@ -115,10 +128,16 @@ export function evaluateCc(cc: Uint8Array): CcAssessment {
   if (mlen === 0) {
     return { valid: false, reason: 'the container declares a zero byte area', declaredAreaBytes };
   }
-  if (declaredAreaBytes > PART.totalBytes - CC_BYTES) {
+  // The bound is the whole user memory, not the memory after the container. Formatting
+  // tools differ over whether MLEN counts block 0: 0x27 (312 bytes) leaves it out and
+  // 0x28 (320 bytes, the "memory size byte for 320 bytes") counts it. Both describe this
+  // part, and refusing either would rewrite a container that may be the one measured
+  // working on handsets. 0x29 and above describe a bigger part and are refused. The
+  // NDEF TLV is still bounded by T5T_AREA_BYTES whatever the container declares.
+  if (declaredAreaBytes > PART.totalBytes) {
     return {
       valid: false,
-      reason: `the container declares ${declaredAreaBytes} bytes, more than the ${PART.totalBytes - CC_BYTES} the part has`,
+      reason: `the container declares ${declaredAreaBytes} bytes, more than the ${PART.totalBytes} the part has`,
       declaredAreaBytes,
     };
   }

@@ -32,6 +32,7 @@ import {
 import { isChipError } from '../src/chip/errors.js';
 import { PART } from '../src/chip/st25tv02kc.js';
 import { ST_COMMANDS } from '../src/chip/st-custom.js';
+import { UnitSession } from '../src/workflow/unit.js';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join(' ');
@@ -40,14 +41,25 @@ const UID_LSB_FIRST = [0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x02, 0xe0];
 /** What an ACS transparent session control command answers: a status TLV, then 90 00. */
 const SESSION_ANSWER = [0xc0, 0x03, 0x00, 0x90, 0x00, ...OK];
 
+/**
+ * DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC, so 80 blocks. Typed in
+ * rather than taken from PART, so the fake tag is the datasheet's and a model that
+ * drifts from it fails the probe here as it would on silicon.
+ */
+const ST25TV02KC_BLOCKS = 0x4f + 1;
+
 /** A tag on a reader, answering the PC/SC storage card commands, and recording every APDU. */
 class FakeTag {
-  readonly memory = new Uint8Array(PART.totalBytes);
+  readonly memory: Uint8Array;
   readonly sent: string[] = [];
   disconnects = 0;
   /** What a transceived ST frame answers. Tests set it to make the probe pass or fail. */
   stAnswer: (frame: Uint8Array) => number[] = () => [0x97, 0x01, 0x00, ...OK];
   failTransmit = false;
+
+  constructor(readonly blockCount: number = ST25TV02KC_BLOCKS) {
+    this.memory = new Uint8Array(blockCount * 4);
+  }
 
   handle(): PcscCardHandle {
     return {
@@ -69,11 +81,11 @@ class FakeTag {
     if (ins === 0xca) return [...UID_LSB_FIRST, ...OK];
     if (ins === 0xb0) {
       const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
-      if (block + count > PART.blockCount) return [0x6a, 0x82];
+      if (block + count > this.blockCount) return [0x6a, 0x82];
       return [...this.memory.subarray(block * 4, (block + count) * 4), ...OK];
     }
     if (ins === 0xd6) {
-      if (block >= PART.blockCount) return [0x6a, 0x82];
+      if (block >= this.blockCount) return [0x6a, 0x82];
       this.memory.set(apdu.subarray(5, 5 + lc), block * 4);
       return OK;
     }
@@ -150,7 +162,78 @@ test('selecting a tag sends the UID read and the two geometry reads, in that ord
   const reader = new FakeReader(ACR1552U);
   const { transport } = await openWith([reader]);
   await transport.waitForTag(200);
-  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff b0 00 3f 04', 'ff b0 00 40 04']);
+  // Block 4Fh (79), END_MEM, must answer and block 50h (80) must not.
+  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff b0 00 4f 04', 'ff b0 00 50 04']);
+  await transport.close();
+});
+
+test('the probe accepts an 80 block tag: block 79 readable, block 80 not', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(80));
+  const { transport } = await openWith([reader]);
+  const identity = await transport.waitForTag(200);
+  assert.equal(identity.blockCount, 80);
+  await transport.close();
+});
+
+for (const [blocks, label, pattern] of [
+  [64, 'a 64 block part, the geometry this tool wrongly assumed until 25 October 2026', /Block 79 could not be read/],
+  [62, 'a TruST25 configured part whose END_MEM DS13304 says may be reduced to 3Dh', /Block 79 could not be read/],
+  [16, 'an ST25TV512C, END_MEM 0Fh', /Block 79 could not be read/],
+  [81, 'a part one block larger', /Block 80 answered a read/],
+  [128, 'a larger ST25 part', /Block 80 answered a read/],
+] as const) {
+  test(`the probe refuses ${label} (${blocks} blocks) and writes nothing`, async () => {
+    const reader = new FakeReader(ACR1552U, new FakeTag(blocks));
+    const { transport } = await openWith([reader]);
+    await assert.rejects(
+      () => transport.waitForTag(200),
+      (error: unknown) => {
+        assert.ok(isChipError(error));
+        assert.equal(error.code, 'TAG_NOT_ST25TV02KC');
+        assert.match(error.message, pattern);
+        return true;
+      },
+    );
+    assert.ok(reader.tag.sent.every((apdu) => !apdu.startsWith('ff d6')), 'no Update Binary may reach a refused tag');
+    await transport.close();
+  });
+}
+
+/** Every block an Update Binary was sent to, in order. */
+function blocksWritten(tag: FakeTag): number[] {
+  return tag.sent.filter((apdu) => apdu.startsWith('ff d6')).map((apdu) => parseInt(apdu.slice(6, 11).replace(' ', ''), 16));
+}
+
+test('a write over PC/SC on an 80 block tag with a 320 byte container touches blocks 1 to 8 only and keeps block 0', async () => {
+  const tag = new FakeTag();
+  tag.memory.set([0xe1, 0x40, 0x28, 0x01], 0);
+  tag.memory[4] = 0xfe;
+  tag.memory.fill(0x5a, 79 * 4);
+  const reader = new FakeReader(ACR1552U, tag);
+  const { transport } = await openWith([reader]);
+  const session = new UnitSession({ transport, uri: 'https://treveanspice.com/t/ps', code: 'ps', tagTimeoutMs: 200 });
+  await session.selectTag();
+  const plan = await session.write();
+  const receipt = await session.verify();
+  assert.equal(receipt.decodedUri, 'https://treveanspice.com/t/ps');
+  assert.equal(plan.ccAction, 'preserve');
+  assert.deepEqual(blocksWritten(tag), [1, 2, 3, 4, 5, 6, 7, 8, 1]);
+  assert.deepEqual(Array.from(tag.memory.subarray(0, 4)), [0xe1, 0x40, 0x28, 0x01], 'the container is untouched');
+  assert.deepEqual(Array.from(tag.memory.subarray(79 * 4)), [0x5a, 0x5a, 0x5a, 0x5a], 'block 79 is untouched');
+  await transport.close();
+});
+
+test('a write over PC/SC on a blank 80 block tag adds block 0 last, with the tool\'s E1 40 27 01', async () => {
+  const tag = new FakeTag();
+  const reader = new FakeReader(ACR1552U, tag);
+  const { transport } = await openWith([reader]);
+  const session = new UnitSession({ transport, uri: 'https://treveanspice.com/t/ps', code: 'ps', tagTimeoutMs: 200 });
+  await session.selectTag();
+  const plan = await session.write();
+  await session.verify();
+  assert.equal(plan.ccAction, 'write');
+  assert.deepEqual(blocksWritten(tag), [1, 2, 3, 4, 5, 6, 7, 8, 1, 0]);
+  assert.deepEqual(Array.from(tag.memory.subarray(0, 4)), [0xe1, 0x40, 0x27, 0x01]);
   await transport.close();
 });
 

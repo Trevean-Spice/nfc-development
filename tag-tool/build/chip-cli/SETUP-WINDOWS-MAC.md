@@ -98,12 +98,14 @@ node bin/chip-cli.mjs write --code ps --transport reader
 **Expected, three lines then OK** (9 or 10 blocks, and `written` or `preserved`, depending on whether the tag arrived with a capability container):
 
 ```
-Tag selected     uid e002..., 64 blocks of 4 bytes
+Tag selected     uid e002..., 80 blocks of 4 bytes
 Written          10 blocks, capability container written
 Verified         https://treveanspice.com/t/ps
 
 OK  ps  Persian Sunrise  https://treveanspice.com/t/ps
 ```
+
+**80 blocks of 4 bytes is the ST25TV02KC user memory** in STMicroelectronics datasheet DS13304 Rev 7, section 4.2 ("Value of END_MEM is ... 4Fh for ... ST25TV02KC"). The tool proves it on each tag by reading block 79 and requiring block 80 to be refused. Only the blocks the URL needs are written: blocks 1 to 8, block 1 twice, and block 0 (the capability container) only when the tag has none, which is the difference between 9 and 10.
 
 **Then tap the tag with a real phone** (screen on, unlocked) and confirm the Persian Sunrise page opens. On an iPhone, tap the banner that appears. **This tap is the check that matters**, README section 6.3 step 3. Write down the UID and what the phone did.
 
@@ -158,7 +160,7 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | doctor: `No PC/SC reader appeared within 10 seconds` | Unplug and replug. Then install the ACS driver (section 2 step 1, section 3 step 1) |
 | doctor names a reader ending `SAM` | Pass the contactless one by name: add `--reader-name PICC` to every command |
 | write: `TAG_ABSENT` | Tag flat and centred, one tag only, then run it again. Close GoToTags |
-| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written |
+| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says `Block 79 could not be read` or `Block 80 answered a read` on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
 | write: `WRITE_FAILED` on a tag that should be blank | Report it with the full message. Try one more blank tag |
 | anything else | Every failure prints a code and a line beginning `What to do:`. README section 7 lists them all |
 

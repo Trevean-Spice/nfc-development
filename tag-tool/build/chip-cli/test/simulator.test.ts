@@ -20,11 +20,14 @@ async function fresh(options: ConstructorParameters<typeof SimulatorTransport>[0
   return simulator;
 }
 
-test('the simulated tag is 64 blocks of 4 bytes and nothing outside it can be touched', async () => {
+test('the simulated tag is 80 blocks of 4 bytes and nothing outside it can be touched', async () => {
   const simulator = await fresh();
   const identity = await simulator.waitForTag(1000);
+  // DS13304 Rev 7: END_MEM is 4Fh on ST25TV02KC, so blocks 0 to 79.
+  assert.equal(identity.blockCount, 80);
   assert.equal(identity.blockCount, PART.blockCount);
   assert.equal(identity.blockSizeBytes, PART.blockSizeBytes);
+  assert.equal((await simulator.readBlocks(79, 1)).length, 4, 'block 79, END_MEM, is readable');
 
   await assert.rejects(
     () => simulator.writeBlock(PART.blockCount, Uint8Array.from([1, 2, 3, 4])),

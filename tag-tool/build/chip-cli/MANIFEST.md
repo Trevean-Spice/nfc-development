@@ -126,7 +126,7 @@ Built into Node.js and covered by the Node.js licence. Not redistributed, not ve
 
 | Item | Holder | Note |
 |---|---|---|
-| ST25TV02KC datasheet | STMicroelectronics | Read and cited. No text, code or figure is copied into this package |
+| ST25TV02KC datasheet, DS13304 Rev 7 (February 2025) | STMicroelectronics | Read and cited. The memory geometry in `src/chip/st25tv02kc.ts`, 320 bytes in 80 blocks of 4 with END_MEM 4Fh, comes from its page 1 and sections 4.1 and 4.2. Short phrases are quoted in comments as citations of fact. No code, figure or table is copied into this package |
 | Application note AN5658 | STMicroelectronics | As above |
 | NFC Forum URI Record Type Definition | NFC Forum | The abbreviation table in `src/ndef/uri-prefixes.ts` is the published list of URI prefixes, which is a specification fact rather than a copyrightable work. Cited in the file |
 | NFC Forum Type 5 Tag Operation Specification | NFC Forum | The capability container and TLV layout in `src/chip/st25tv02kc.ts` and `src/ndef/tlv.ts` follow it. Not reproduced |
