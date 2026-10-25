@@ -94,7 +94,7 @@ node bin/chip-cli.mjs write --code ps
 
 You will see four lines: the tag selected, the blocks written, the read back verified, and `OK`. **The verified line is the one that matters.** A write that reports success only means the tag accepted some bytes. The verified line means the tool read the tag back and the bytes decode to the intended URL.
 
-To use a real reader instead of the simulator, add `--transport reader`. That is the PC/SC transport and it needs the optional binding installed once, with `npm install @pokusew/pcsclite`. **It has never been run against a physical tag**, so the first person to try it is doing section 6.3 rather than routine work, and should read that section first.
+To use a real reader instead of the simulator, add `--transport reader`. That is the PC/SC transport and it needs the optional PC/SC binding, `pcsc-mini`, which `npm ci` (or `npm install`) in this folder installs as a prebuilt binary, with no compiler needed. **Setting up a Windows or Mac machine from nothing, reader driver included, is in `SETUP-WINDOWS-MAC.md`.** **It has never been run against a physical tag**, so the first person to try it is doing section 6.3 rather than routine work, and should read that section first.
 
 ---
 
@@ -238,7 +238,7 @@ Run `npm test` and read the count. These are properties of the code and they hol
 
 Not on SO4731 stock, and not on anything destined for a jar.
 
-1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. Install the optional binding first: `npm install @pokusew/pcsclite`. The protection half is deliberately unimplemented; see section 6.4.
+1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. The optional binding, `pcsc-mini`, is installed by `npm ci`; see `SETUP-WINDOWS-MAC.md`. The protection half is deliberately unimplemented; see section 6.4.
 2. `chip-cli doctor --transport reader` on a bare tag. Confirm the geometry it reports is 64 blocks of 4 bytes.
 3. `chip-cli write --code ps --transport reader` on a bare tag, then tap it with a real phone and confirm the correct blend page opens. That is the check that actually matters, and it is the one people skip.
 4. Repeat with a tag taken from SO4731, to confirm re encoding works on stock as the client has said it does.
@@ -341,7 +341,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 | `TABLE_INVALID` | The redirect table contradicts itself | **Stop. Write nothing.** Report it |
 | `JOURNAL_MISMATCH` | This journal belongs to a different run | Resume the run it belongs to, or start a new file |
 | `JOURNAL_CORRUPT` | A record does not match its own digest, or a line is unreadable | **Do not resume this file.** The list of units already done cannot be trusted. Count the tags physically written, then start a new run into a new journal file for the units that are left |
-| `TRANSPORT_UNAVAILABLE` | No reader reachable, usually the optional PC/SC binding is not installed | `npm install @pokusew/pcsclite`, or use `--transport simulator` |
+| `TRANSPORT_UNAVAILABLE` | No reader reachable, usually the optional PC/SC binding is not installed | Run `npm ci` in `build/chip-cli`, which installs the prebuilt `pcsc-mini` binding. See `SETUP-WINDOWS-MAC.md`. Or use `--transport simulator` |
 
 ### 7.1 Why a failed write cannot leave a tag pointing at the wrong page
 

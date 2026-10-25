@@ -328,7 +328,7 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
     const identity = await session.selectTag();
     out(`Tag selected     uid ${identity.uid ?? 'unknown'}, ${identity.blockCount} blocks of ${identity.blockSizeBytes} bytes`);
     const plan = await session.write();
-    out(`Written          ${plan.blocksWritten} blocks, capability container ${plan.ccAction}d`);
+    out(`Written          ${plan.blocksWritten} blocks, capability container ${plan.ccAction === 'write' ? 'written' : 'preserved'}`);
     const receipt = await session.verify();
     out(`Verified         ${receipt.decodedUri}`);
     if (passwords !== null) {
@@ -590,7 +590,12 @@ async function commandDoctor(values: Record<string, unknown>, out: (line: string
     await transport.open();
     await transport.close();
     transportOk = true;
-    transportNote = transport.isHardware ? 'physical reader responded' : 'simulator, no physical tags are written';
+    // Naming the reader matters on the first run: it is how the operator sees which of
+    // several PC/SC interfaces was picked, and what to pass to --reader-name if wrong.
+    const readerName = transport instanceof PcscTransport ? transport.readerName : null;
+    transportNote = transport.isHardware
+      ? `physical reader responded${readerName ? `: ${readerName}` : ''}`
+      : 'simulator, no physical tags are written';
   } catch (cause) {
     transportNote = asChipError(cause, 'TRANSPORT_UNAVAILABLE', '').message;
   }

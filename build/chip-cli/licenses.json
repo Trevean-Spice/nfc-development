@@ -1,12 +1,12 @@
 {
   "package": "@trevean/chip-cli",
-  "installedPairs": 3,
-  "installedNames": 3,
-  "installedCopies": 3,
-  "resolvedByLockfile": 3,
+  "installedPairs": 6,
+  "installedNames": 6,
+  "installedCopies": 6,
+  "resolvedByLockfile": 18,
   "installedAtMoreThanOneVersion": [],
   "byLicence": {
-    "MIT": 2,
+    "MIT": 5,
     "Apache-2.0": 1
   },
   "nonPermissive": [],
@@ -14,11 +14,32 @@
   "copyleftResolvedButNotInstalledHere": [],
   "packages": [
     {
+      "name": "@pcsc-mini/linux-x86_64-gnu",
+      "version": "0.1.3",
+      "license": "MIT",
+      "homepage": "https://kofi-q.github.io/pcsc-mini",
+      "role": "transitive"
+    },
+    {
+      "name": "@pcsc-mini/linux-x86_64-musl",
+      "version": "0.1.3",
+      "license": "MIT",
+      "homepage": "https://kofi-q.github.io/pcsc-mini",
+      "role": "transitive"
+    },
+    {
       "name": "@types/node",
       "version": "20.19.43",
       "license": "MIT",
       "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
       "role": "development"
+    },
+    {
+      "name": "pcsc-mini",
+      "version": "0.1.3",
+      "license": "MIT",
+      "homepage": "https://kofi-q.github.io/pcsc-mini",
+      "role": "transitive"
     },
     {
       "name": "typescript",

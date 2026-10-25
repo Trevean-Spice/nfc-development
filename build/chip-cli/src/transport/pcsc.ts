@@ -62,26 +62,145 @@ import type { AreaProtectionState, TagIdentity, TagTransport } from './transport
  * worse than one that cannot reach a reader. So the simulator path never touches
  * this, and the failure when it is missing is a sentence telling the operator
  * what to install rather than a stack trace at import time.
+ *
+ * **The binding is `pcsc-mini`, pinned exactly, since Sunday 25 October 2026.** It
+ * replaced `@pokusew/pcsclite`, which was pinned at a version that does not exist
+ * (so npm skipped it without a word) and which, at its real version 0.6.0, compiles
+ * from C++ on install, needing Python and a C++ toolchain on the operator's machine.
+ * On Windows its constructor also asks for administrator rights to reconfigure the
+ * Smart Card service, and with no PC/SC service running it spins on the main thread
+ * forever, so the ten second reader timeout below could never fire. `pcsc-mini` ships
+ * prebuilt binaries for Windows x64 and macOS arm64 and x64, links only the operating
+ * system's own PC/SC library (WinSCard.dll, PCSC.framework), runs no install script,
+ * and fails in milliseconds with `NoService` instead of hanging. See SETUP-WINDOWS-MAC.md.
+ *
+ * Everything the transport needs from a binding is the three small interfaces below,
+ * so the tests can drive the whole transport, gate included, with a fake reader.
  */
-type PcscLite = {
-  on(event: 'reader', cb: (reader: PcscReader) => void): void;
-  on(event: 'error', cb: (err: Error) => void): void;
-  close(): void;
+export interface PcscCardHandle {
+  /** Sends one APDU and resolves with the full response, status word included. */
+  transmit(apdu: Uint8Array): Promise<Uint8Array>;
+  /** Ends the connection and powers the tag down. */
+  disconnectUnpower(): Promise<void>;
+}
+
+export interface PcscReaderHandle {
+  readonly name: string;
+  /** The latest state the PC/SC service reported: a tag is in the field and answering. */
+  tagPresent(): boolean;
+  connect(): Promise<PcscCardHandle>;
+}
+
+export interface PcscBinding {
+  /**
+   * Starts watching for readers. `onReader` is called once for every reader, including
+   * the ones already attached. Throws when the PC/SC service cannot be reached at all.
+   */
+  start(onReader: (reader: PcscReaderHandle) => void, onError: (err: Error) => void): void;
+  /** Stops watching and releases the PC/SC context, so the process can exit. */
+  stop(): void;
+}
+
+export type PcscBindingLoader = () => Promise<PcscBinding>;
+
+/** The part of the `pcsc-mini` module this file uses, typed here so it need not be installed to compile. */
+type PcscMiniStatus = { readonly raw: number };
+type PcscMiniCard = {
+  transmit(input: Uint8Array): Promise<Uint8Array>;
+  disconnect(then: number): Promise<void>;
+};
+type PcscMiniReader = {
+  name(): string;
+  on(event: 'change', cb: (status: PcscMiniStatus) => void): unknown;
+  on(event: 'disconnect', cb: () => void): unknown;
+  connect(mode: number): Promise<PcscMiniCard>;
+};
+type PcscMiniClient = {
+  on(event: 'reader', cb: (reader: PcscMiniReader) => void): unknown;
+  on(event: 'error', cb: (err: Error) => void): unknown;
+  start(): unknown;
+  stop(): void;
+};
+export type PcscMiniModule = {
+  Client: new () => PcscMiniClient;
+  CardMode: { readonly SHARED: number };
+  CardDisposition: { readonly UNPOWER: number };
+  ReaderStatus: { readonly PRESENT: number; readonly MUTE: number };
 };
 
-type PcscReader = {
-  name: string;
-  SCARD_SHARE_SHARED: number;
-  SCARD_STATE_PRESENT: number;
-  SCARD_LEAVE_CARD: number;
-  SCARD_RESET_CARD: number;
-  SCARD_UNPOWER_CARD: number;
-  on(event: 'status', cb: (status: { state: number; atr?: Buffer }) => void): void;
-  on(event: 'error', cb: (err: Error) => void): void;
-  connect(opts: { share_mode: number }, cb: (err: Error | null, protocol: number) => void): void;
-  disconnect(disposition: number, cb: (err: Error | null) => void): void;
-  transmit(data: Buffer, resLen: number, protocol: number, cb: (err: Error | null, res: Buffer) => void): void;
-};
+/**
+ * Adapts `pcsc-mini` to the three interfaces above. Exported for the tests, which feed
+ * it a fake module of the same shape.
+ *
+ * Presence is tracked from the moment a reader is announced, because `pcsc-mini`
+ * reports a reader's state on change only. A listener attached later, when a unit
+ * starts, would never hear about a tag that was already lying on the reader.
+ */
+export function adaptPcscMini(lib: PcscMiniModule): PcscBinding {
+  const client = new lib.Client();
+  return {
+    start(onReader, onError) {
+      client.on('error', onError);
+      client.on('reader', (reader) => {
+        let status = 0;
+        let gone = false;
+        reader.on('change', (next) => {
+          status = next.raw;
+        });
+        reader.on('disconnect', () => {
+          gone = true;
+          status = 0;
+        });
+        onReader({
+          name: reader.name(),
+          tagPresent: () => !gone && (status & lib.ReaderStatus.PRESENT) !== 0 && (status & lib.ReaderStatus.MUTE) === 0,
+          async connect() {
+            const card = await reader.connect(lib.CardMode.SHARED);
+            return {
+              transmit: (apdu) => card.transmit(apdu),
+              disconnectUnpower: () => card.disconnect(lib.CardDisposition.UNPOWER),
+            };
+          },
+        });
+      });
+      client.start();
+    },
+    stop() {
+      client.stop();
+    },
+  };
+}
+
+/** The version in package.json, repeated here so the install remedy names it exactly. */
+export const PCSC_BINDING_PACKAGE = 'pcsc-mini@0.1.3';
+
+async function loadPcscMini(): Promise<PcscBinding> {
+  // Deliberately dynamic. A static import would make the native module a hard
+  // requirement of every code path, including the simulator and the test suite.
+  // The specifier is held in a variable on purpose. It keeps TypeScript from
+  // resolving an OPTIONAL native module at compile time, so `npm run typecheck`
+  // passes on a machine that has never installed it, which is every machine that
+  // only runs the simulator.
+  const specifier = 'pcsc-mini';
+  const mod = (await import(specifier)) as { default?: PcscMiniModule } & Partial<PcscMiniModule>;
+  return adaptPcscMini((mod.default ?? mod) as PcscMiniModule);
+}
+
+/**
+ * True for the SAM slot interface some ACS readers expose beside the contactless one.
+ * A SAM slot can never hold an NFC tag, so with no --reader-name it is passed over
+ * rather than picked because it happened to be announced first.
+ */
+export function isSamSlot(readerName: string): boolean {
+  return /\bSAM\b/i.test(readerName);
+}
+
+export interface PcscTransportOptions {
+  /** For tests. Defaults to loading `pcsc-mini`. */
+  readonly loadBinding?: PcscBindingLoader;
+  /** How long `open` waits for a reader. Ten seconds unless a test says otherwise. */
+  readonly readerTimeoutMs?: number;
+}
 
 /**
  * STANDARD PC/SC CONTACTLESS STORAGE CARD COMMANDS.
@@ -212,80 +331,123 @@ export class PcscTransport implements TagTransport {
   readonly name = 'pcsc';
   readonly isHardware = true;
 
-  private pcsc: PcscLite | null = null;
-  private reader: PcscReader | null = null;
-  private protocol = 0;
+  private binding: PcscBinding | null = null;
+  private reader: PcscReaderHandle | null = null;
+  private card: PcscCardHandle | null = null;
   private connected = false;
   private currentUid: string | null = null;
+  /** The reader this transport last opened. Kept after close so doctor can name it. */
+  private openedReaderName: string | null = null;
   /** Set by verifyOpcodes when the tag itself has confirmed the command path. */
   private opcodesProven = false;
 
-  constructor(private readonly readerNameFilter?: string) {}
+  private readonly loadBinding: PcscBindingLoader;
+  private readonly readerTimeoutMs: number;
+
+  constructor(
+    private readonly readerNameFilter?: string,
+    options: PcscTransportOptions = {},
+  ) {
+    this.loadBinding = options.loadBinding ?? loadPcscMini;
+    this.readerTimeoutMs = options.readerTimeoutMs ?? 10_000;
+  }
+
+  /** The PC/SC name of the reader in use, or null before the first successful open. */
+  get readerName(): string | null {
+    return this.openedReaderName;
+  }
 
   async open(): Promise<void> {
-    let lib: unknown;
+    let binding: PcscBinding;
     try {
-      // Deliberately dynamic. A static import would make the native module a hard
-      // requirement of every code path, including the simulator and the test suite.
-      // The specifier is held in a variable on purpose. It keeps TypeScript from
-      // resolving an OPTIONAL native module at compile time, so `npm run typecheck`
-      // passes on a machine that has never installed it, which is every machine that
-      // only runs the simulator.
-      const specifier = '@pokusew/pcsclite';
-      const mod = (await import(specifier)) as { default?: () => PcscLite };
-      lib = mod.default ?? mod;
+      binding = await this.loadBinding();
     } catch {
       throw new ChipError(
         'TRANSPORT_UNAVAILABLE',
         'The PC/SC binding is not installed, so no reader can be reached.',
-        'Run "npm install @pokusew/pcsclite" in build/chip-cli. It is an optional dependency because it is a native module and the simulator does not need it. On Windows the PC/SC service is built in; on Linux install pcscd and libpcsclite-dev. To carry on without a reader, use --transport simulator, which needs no hardware and writes nothing physical.',
+        `Run "npm ci" in build/chip-cli, which installs it, or "npm install ${PCSC_BINDING_PACKAGE}". It is an optional dependency because it is a native module and the simulator does not need it. It is prebuilt for Windows x64 and macOS, so no compiler is needed. On Linux also install pcscd. To carry on without a reader, use --transport simulator, which needs no hardware and writes nothing physical.`,
       );
     }
+    this.binding = binding;
 
-    this.pcsc = (lib as () => PcscLite)();
+    try {
+      const reader = await new Promise<PcscReaderHandle>((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          settled = true;
+          reject(
+            new ChipError(
+              'TRANSPORT_UNAVAILABLE',
+              `No PC/SC reader appeared within ${Math.round(this.readerTimeoutMs / 1000)} seconds.`,
+              'Check the reader is plugged in and its driver is installed. On Windows, Device Manager lists it as a smart card reader. Close any other application holding it open, GoToTags included: PC/SC gives exclusive access and the second application to ask is the one that fails.',
+            ),
+          );
+        }, this.readerTimeoutMs);
 
-    this.reader = await new Promise<PcscReader>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(
-          new ChipError(
-            'TRANSPORT_UNAVAILABLE',
-            'No PC/SC reader appeared within ten seconds.',
-            'Check the reader is plugged in and its driver is installed. On Windows, Device Manager lists it as a smart card reader. Close any other application holding it open, GoToTags included: PC/SC gives exclusive access and the second application to ask is the one that fails.',
-          ),
-        );
-      }, 10_000);
-
-      this.pcsc!.on('reader', (reader) => {
-        if (this.readerNameFilter && !reader.name.toLowerCase().includes(this.readerNameFilter.toLowerCase())) return;
-        clearTimeout(timer);
-        resolve(reader);
+        try {
+          binding.start(
+            (reader) => {
+              if (settled) return;
+              if (this.readerNameFilter) {
+                if (!reader.name.toLowerCase().includes(this.readerNameFilter.toLowerCase())) return;
+              } else if (isSamSlot(reader.name)) {
+                return;
+              }
+              settled = true;
+              clearTimeout(timer);
+              resolve(reader);
+            },
+            (err) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              reject(
+                new ChipError('TRANSPORT_UNAVAILABLE', `PC/SC reported an error: ${err.message}`, 'Check the reader connection and the PC/SC service.'),
+              );
+            },
+          );
+        } catch (err) {
+          settled = true;
+          clearTimeout(timer);
+          reject(
+            new ChipError(
+              'TRANSPORT_UNAVAILABLE',
+              `The PC/SC service could not be reached: ${err instanceof Error ? err.message : String(err)}`,
+              'Plug the reader in first. On Windows the Smart Card service only starts once a reader is attached, so with none plugged in this is the answer to expect. On a Mac it is built in. On Linux start pcscd. Then run the command again.',
+            ),
+          );
+        }
       });
-      this.pcsc!.on('error', (err) => {
-        clearTimeout(timer);
-        reject(
-          new ChipError('TRANSPORT_UNAVAILABLE', `PC/SC reported an error: ${err.message}`, 'Check the reader connection and the PC/SC service.'),
-        );
-      });
-    });
+      this.reader = reader;
+      this.openedReaderName = reader.name;
+    } catch (cause) {
+      // A binding left running holds the event loop open, and the command would print
+      // its failure and then never exit.
+      this.stopBinding();
+      throw cause;
+    }
   }
 
   async close(): Promise<void> {
     if (this.connected) await this.releaseTag().catch(() => undefined);
-    this.pcsc?.close();
-    this.pcsc = null;
+    this.stopBinding();
     this.reader = null;
+  }
+
+  private stopBinding(): void {
+    try {
+      this.binding?.stop();
+    } catch {
+      // Stopping a client whose service has already gone away is not a failure of the run.
+    }
+    this.binding = null;
   }
 
   async waitForTag(timeoutMs: number): Promise<TagIdentity> {
     const reader = this.requireReader();
     const deadline = Date.now() + timeoutMs;
 
-    let present = false;
-    reader.on('status', (status) => {
-      present = Boolean(status.state & reader.SCARD_STATE_PRESENT);
-    });
-
-    while (!present) {
+    while (!reader.tagPresent()) {
       if (Date.now() > deadline) {
         throw new ChipError(
           'TAG_ABSENT',
@@ -296,15 +458,18 @@ export class PcscTransport implements TagTransport {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }
 
-    this.protocol = await new Promise<number>((resolve, reject) => {
-      reader.connect({ share_mode: reader.SCARD_SHARE_SHARED }, (err, protocol) =>
-        err
-          ? reject(
-              new ChipError('TAG_ABSENT', `The reader saw a tag but could not select it: ${err.message}`, 'Reseat the tag and try again. If it repeats, the tag may not be ISO 15693.'),
-            )
-          : resolve(protocol),
-      );
-    });
+    // An existing connection is reused, as the previous binding did.
+    if (!this.card) {
+      try {
+        this.card = await reader.connect();
+      } catch (err) {
+        throw new ChipError(
+          'TAG_ABSENT',
+          `The reader saw a tag but could not select it: ${err instanceof Error ? err.message : String(err)}`,
+          'Reseat the tag and try again. If it repeats, the tag may not be ISO 15693, or another application (GoToTags included) is holding the reader: close it.',
+        );
+      }
+    }
     this.connected = true;
 
     const response = await this.transmit(getUidApdu(), 32);
@@ -569,15 +734,15 @@ export class PcscTransport implements TagTransport {
   }
 
   async releaseTag(): Promise<void> {
-    const reader = this.reader;
-    if (!reader || !this.connected) return;
+    const card = this.card;
+    if (!this.reader || !this.connected || !card) return;
 
-    await new Promise<void>((resolve) => {
-      // Unpower rather than leave: dropping the field is what makes a presented password
-      // stop applying, which is how the verify step proves protection actually took hold
-      // rather than merely being accepted.
-      reader.disconnect(reader.SCARD_UNPOWER_CARD, () => resolve());
-    });
+    // Unpower rather than leave: dropping the field is what makes a presented password
+    // stop applying, which is how the verify step proves protection actually took hold
+    // rather than merely being accepted. A failure to disconnect is ignored, as before:
+    // the connection is gone either way.
+    await card.disconnectUnpower().catch(() => undefined);
+    this.card = null;
     this.connected = false;
     this.currentUid = null;
   }
@@ -586,24 +751,39 @@ export class PcscTransport implements TagTransport {
     await this.releaseTag();
   }
 
-  private requireReader(): PcscReader {
+  private requireReader(): PcscReaderHandle {
     if (!this.reader) {
       throw new ChipError('TRANSPORT_UNAVAILABLE', 'The transport is not open.', 'Call open() before waiting for a tag. This is a bug in the caller.');
     }
     return this.reader;
   }
 
-  private transmit(apdu: Uint8Array, expectedLen: number): Promise<Uint8Array> {
-    const reader = this.requireReader();
-    return new Promise((resolve, reject) => {
-      reader.transmit(Buffer.from(apdu), expectedLen + 2, this.protocol, (err, res) =>
-        err
-          ? reject(
-              new ChipError('TRANSPORT_UNAVAILABLE', `The reader rejected a command: ${err.message}`, 'Reseat the tag. If it repeats, close any other application holding the reader.'),
-            )
-          : resolve(new Uint8Array(res)),
+  /**
+   * Sends one APDU to the connected tag.
+   *
+   * `expectedLen` records what each call site expects back, and is no longer used to
+   * size the receive buffer. The binding always receives into its maximum, because a
+   * buffer smaller than the answer makes PC/SC refuse the whole exchange
+   * (SCARD_E_INSUFFICIENT_BUFFER), and the ACS transparent session control commands
+   * answer with a status TLV longer than the two bytes they were sized for here.
+   * The length checks that matter, in readBlocks, are unchanged.
+   */
+  private async transmit(apdu: Uint8Array, expectedLen: number): Promise<Uint8Array> {
+    void expectedLen;
+    this.requireReader();
+    const card = this.card;
+    if (!card) {
+      throw new ChipError('TRANSPORT_UNAVAILABLE', 'The reader rejected a command: no tag is connected.', 'Reseat the tag. If it repeats, close any other application holding the reader.');
+    }
+    try {
+      return new Uint8Array(await card.transmit(Uint8Array.from(apdu)));
+    } catch (err) {
+      throw new ChipError(
+        'TRANSPORT_UNAVAILABLE',
+        `The reader rejected a command: ${err instanceof Error ? err.message : String(err)}`,
+        'Reseat the tag. If it repeats, close any other application holding the reader.',
       );
-    });
+    }
   }
 }
 

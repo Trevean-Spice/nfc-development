@@ -334,3 +334,16 @@ test('a journal with a forged line prints a refusal instead of a resume command'
   assert.equal(resumed.code, 2);
   assert.match(resumed.err, /JOURNAL_CORRUPT/);
 });
+
+test('write says the capability container was written or preserved, in plain English', async () => {
+  // A blank tag has no container, so the tool writes one, and the line used to read
+  // "writed". It is on screen in front of the client on the first real run.
+  const blank = await run(['write', '--code', 'ps', '--sim-preload-blank']);
+  assert.equal(blank.code, 0);
+  assert.match(blank.out, /capability container written$/m);
+  assert.doesNotMatch(blank.out, /writed/);
+
+  const encoded = await run(['write', '--code', 'ps', '--sim-preload-uri', 'https://treveanspice.com/t/cs']);
+  assert.equal(encoded.code, 0);
+  assert.match(encoded.out, /capability container preserved$/m);
+});
