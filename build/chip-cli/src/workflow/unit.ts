@@ -47,7 +47,7 @@ import {
 import { decodeUriMessage } from '../ndef/decode.js';
 import { encodeUriRecord, type EncodedUriRecord } from '../ndef/encode.js';
 import { unwrapNdefTlv, wrapNdefTlv } from '../ndef/tlv.js';
-import type { AreaProtectionState, TagIdentity, TagTransport } from '../transport/transport.js';
+import type { AreaProtectionState, OpcodeProbeResult, TagIdentity, TagTransport } from '../transport/transport.js';
 import { bytesEqual, dumpBlocks, firstDifference, toHex } from '../util/hex.js';
 import { createHash } from 'node:crypto';
 
@@ -86,6 +86,8 @@ export interface ProtectionOutcome {
   readonly passwordChanged: boolean;
   /** True when a write to the protected area was attempted after protection and refused. */
   readonly refusalProven: boolean;
+  /** 'passed' when the transport's opcode probe ran on this tag before the irreversible commands. */
+  readonly opcodeProbe: 'passed' | 'not-applicable';
 }
 
 export interface UnitSessionOptions {
@@ -413,9 +415,11 @@ export class UnitSession {
    * Applies area based write protection.
    *
    * Refuses unless the session has verified, and refuses unless the receipt handed
-   * in is a genuine one for this URI. Then proves the protection took by dropping
-   * the tag out of the field, reading the protection state back, confirming the
-   * NDEF still reads, and attempting a write that must be refused.
+   * in is a genuine one for this URI. On a transport with an opcode probe, the probe
+   * must pass on this tag before the first irreversible command. Then proves the
+   * protection took by reading the protection state back, dropping the tag out of the
+   * field, confirming the NDEF still reads, and attempting a write that the tag itself
+   * must refuse for protection.
    *
    * That last attempt writes the bytes that are already there, so if protection
    * somehow did not take, the tag is unchanged and the unit fails loudly instead of
@@ -498,6 +502,41 @@ export class UnitSession {
       }
     }
 
+    // The opcode probe, on this tag, now, before the first irreversible command. It
+    // sends only Present Password, so it cannot change the tag, and on a transport
+    // whose protection opcodes are not proven by construction it is the only thing
+    // that can unlock Write Password and Set Memory Protection. A hardware transport
+    // that has no probe is refused protection outright rather than trusted.
+    let opcodeProbe: ProtectionOutcome['opcodeProbe'] = 'not-applicable';
+    if (transport.verifyOpcodes !== undefined) {
+      let probe: OpcodeProbeResult;
+      try {
+        probe = await transport.verifyOpcodes();
+      } catch (cause) {
+        this.fail(cause, 'PROTECT_FAILED', 'The opcode probe could not run. Nothing has been locked. The tag is written and verified but not protected: set it aside and label it.');
+      }
+      if (!probe.proven) {
+        this.#phase = 'failed';
+        throw new ChipError(
+          'PROTECT_FAILED',
+          `Refusing to protect this tag: the opcode probe did not pass. ${probe.detail}`,
+          'Nothing has been locked: the probe sends only Present Password, which cannot change a tag. The tag is written and verified but not protected: set it aside and label it. The probe passes only on a bare tag whose password is still the factory default, so a tag that already carries a password cannot be protected by this tool on a reader. If this was a sacrificial bare tag, record this message for the bring up notes and stop. See README section 6.4.',
+          { probe: 'not-proven' },
+        );
+      }
+      opcodeProbe = 'passed';
+      // The probe's wrong password may have ended any earlier presentation on the tag.
+      this.#presented.clear();
+    } else if (transport.isHardware) {
+      this.#phase = 'failed';
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `Refusing to protect this tag: the "${transport.name}" transport has no opcode probe, so its protection commands cannot be proven on the tag first.`,
+        'Nothing has been locked. This is a gap in the tool, not an operator mistake. Report it. See README section 6.4.',
+        {},
+      );
+    }
+
     if (!this.#presented.has(passwordNumber)) {
       await this.present(request.currentPassword, passwordNumber);
     }
@@ -525,11 +564,10 @@ export class UnitSession {
       );
     }
 
-    // Prove it took, from a fresh session with no password presented.
-    await transport.releaseTag();
-    this.#presented.clear();
-    await this.reacquire('Keep the tag on the reader until the unit reports done.');
-
+    // Read the protection state back while the tag is still the one the probe ran on.
+    // The state is configuration rather than session, so reading it before the tag
+    // leaves the field proves the same thing as after, and on the PC/SC transport the
+    // read is gated on that same proof: its 0xBA read form is undocumented (README 6.4).
     let state: AreaProtectionState;
     try {
       state = await transport.readAreaProtection(area);
@@ -545,6 +583,11 @@ export class UnitSession {
         { protection: state.protection, area },
       );
     }
+
+    // Prove it took, from a fresh session with no password presented.
+    await transport.releaseTag();
+    this.#presented.clear();
+    await this.reacquire('Keep the tag on the reader until the unit reports done.');
 
     // Confirm protection did not break readability. A protected tag that no phone
     // can read is a scrap tag that passed every other check.
@@ -565,21 +608,18 @@ export class UnitSession {
       this.fail(cause, 'PROTECT_FAILED', 'The tag could not be read after protection. Set it aside and report it.');
     }
 
-    // The conclusive check: a write to the protected area must now be refused.
-    // The bytes attempted are the bytes already there, so a tag that is somehow not
-    // protected is left unchanged and the unit fails rather than passing.
-    let refusalProven = false;
+    // The conclusive check: a write to the protected area must now be refused BY THE
+    // TAG, for protection, and not merely fail. The bytes attempted are the bytes
+    // already there, so a tag that is somehow not protected is left unchanged and the
+    // unit fails rather than passing.
     const headerBlock = plan.areaImage.slice(0, PART.blockSizeBytes);
+    let verdict: 'refused' | 'accepted';
     try {
-      await transport.writeBlock(T5T_AREA_FIRST_BLOCK, headerBlock);
+      verdict = await transport.proveWriteRefused(T5T_AREA_FIRST_BLOCK, headerBlock);
     } catch (cause) {
-      const chip = asChipError(cause, 'PROTECT_FAILED', '');
-      if (chip.code === 'AREA_PROTECTED') refusalProven = true;
-      else {
-        this.fail(cause, 'PROTECT_FAILED', 'The protection proof step failed for an unexpected reason. Set the tag aside and report it.');
-      }
+      this.fail(cause, 'PROTECT_FAILED', 'The protection proof step failed for an unexpected reason. Set the tag aside and report it. Do not record it as protected.');
     }
-    if (!refusalProven) {
+    if (verdict !== 'refused') {
       this.#phase = 'failed';
       throw new ChipError(
         'PROTECT_FAILED',
@@ -588,6 +628,7 @@ export class UnitSession {
         { area, passwordNumber },
       );
     }
+    const refusalProven = true;
 
     this.#phase = 'protected';
     return {
@@ -597,6 +638,7 @@ export class UnitSession {
       passwordFingerprint: request.newPassword.fingerprint(),
       passwordChanged,
       refusalProven,
+      opcodeProbe,
     };
   }
 

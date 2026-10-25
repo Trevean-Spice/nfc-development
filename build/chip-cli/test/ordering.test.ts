@@ -265,6 +265,18 @@ class SwappableReader implements TagTransport {
   readAreaProtection(area: number) {
     return this.#active.readAreaProtection(area);
   }
+  proveWriteRefused(block: number, data: Uint8Array) {
+    return this.#active.proveWriteRefused(block, data);
+  }
+  /**
+   * This double calls itself hardware, and protect() refuses hardware with no probe.
+   * The simulators behind it model the chip rather than a command path, so there is
+   * nothing to prove and the probe passes. The PC/SC probe itself is tested on the
+   * wire in pcsc-binding.test.ts.
+   */
+  async verifyOpcodes() {
+    return { proven: true, detail: 'test double over two simulators' };
+  }
   releaseTag() {
     return this.#active.releaseTag();
   }

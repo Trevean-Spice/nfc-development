@@ -335,6 +335,7 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
       const outcome = await session.protect(receipt, { currentPassword: passwords.current, newPassword: passwords.next });
       out(`Protected        area ${outcome.area}, password ${outcome.passwordNumber}, fingerprint ${outcome.passwordFingerprint}`);
       out(`                 refusal proven: ${outcome.refusalProven ? 'yes' : 'no'}`);
+      if (outcome.opcodeProbe === 'passed') out('                 opcode probe passed on this tag before the irreversible commands');
     }
     await session.finish();
     out('');

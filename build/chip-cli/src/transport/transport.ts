@@ -32,6 +32,12 @@ export interface AreaProtectionState {
   readonly passwordNumber: number;
 }
 
+/** What the opcode probe concluded, and why, in words for the operator. */
+export interface OpcodeProbeResult {
+  readonly proven: boolean;
+  readonly detail: string;
+}
+
 export interface TagTransport {
   /** Short name for the batch record, for example "simulator" or "pcsc". */
   readonly name: string;
@@ -68,6 +74,26 @@ export interface TagTransport {
   readAreaProtection(area: number): Promise<AreaProtectionState>;
 
   /**
+   * The post protection proof. Writes `data`, which must be the bytes `block` already
+   * holds, and reports the tag's own verdict: 'refused' only when the tag refused because
+   * the block is write protected, 'accepted' when the write went through. Anything else,
+   * including a refusal whose reason cannot be told, rejects. A transport must never
+   * report 'refused' for a write that merely failed, because that would record an
+   * unprotected tag as protected.
+   */
+  proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'>;
+
+  /**
+   * Proves, on the tag in the field and without changing it, that the command path the
+   * irreversible protection commands travel is right. Present on transports whose
+   * protection opcodes are not proven by construction, which today means the PC/SC one.
+   * `UnitSession.protect` runs it immediately before the first irreversible command and
+   * refuses to continue unless it passes. A hardware transport without it is refused
+   * protection outright. See README section 6.4.
+   */
+  verifyOpcodes?(): Promise<OpcodeProbeResult>;
+
+  /**
    * Drops the tag out of the field. Any presented password stops applying, which is
    * how the tool proves that protection actually took effect rather than merely
    * being accepted.
@@ -88,8 +114,13 @@ export interface TagTransport {
  */
 export class RecordingTransport implements TagTransport {
   readonly calls: { method: string; args: unknown[] }[] = [];
+  /** Present exactly when the wrapped transport has a probe, so wrapping never adds or hides one. */
+  readonly verifyOpcodes?: () => Promise<OpcodeProbeResult>;
 
-  constructor(private readonly inner: TagTransport) {}
+  constructor(private readonly inner: TagTransport) {
+    const probe = inner.verifyOpcodes?.bind(inner);
+    if (probe !== undefined) this.verifyOpcodes = () => this.record('verifyOpcodes', [], probe);
+  }
 
   get name(): string {
     return this.inner.name;
@@ -144,6 +175,9 @@ export class RecordingTransport implements TagTransport {
   }
   readAreaProtection(area: number): Promise<AreaProtectionState> {
     return this.record('readAreaProtection', [area], () => this.inner.readAreaProtection(area));
+  }
+  proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'> {
+    return this.record('proveWriteRefused', [block], () => this.inner.proveWriteRefused(block, data));
   }
   releaseTag(): Promise<void> {
     return this.record('releaseTag', [], () => this.inner.releaseTag());

@@ -25,17 +25,19 @@
  *     UID, block reads and block writes. **This is the whole encode and verify
  *     path, and therefore the whole acceptance criterion.**
  *
- *   - **Refused, loudly and specifically.** Passwords and area protection. Those
- *     need ST custom commands carried inside a reader specific transparent
- *     session, and **their opcodes are not written here because they are not
- *     verified.** A guessed protection opcode is the worst possible thing to be
- *     wrong about: applied to a real tag it is not reversible without the very
- *     password the command was supposed to set.
+ *   - **Implemented, and gated on the tag.** Passwords and area protection. Those
+ *     need ST custom commands carried inside the ACS transparent session, whose bytes
+ *     are checked against the ACR1552U reference manual (see the session constants
+ *     below), while the ST opcodes themselves are secondary sourced. A wrong
+ *     protection opcode is the worst possible thing to be wrong about: applied to a
+ *     real tag it is not reversible without the very password the command was
+ *     supposed to set. **So Write Password, Set Memory Protection and the 0xBA read
+ *     form send nothing unless `verifyOpcodes` has passed on the tag in the field
+ *     now.** README sections 6.4 and 6.5.
  *
- * `--protect` therefore does not work on this transport yet, which is consistent
- * with README section 5: protection is off unless asked for, and Trevean has not
- * yet decided to apply it. See `PROTECTION_BRING_UP` at the bottom of this file
- * for exactly what finishing that work requires.
+ * `--protect` runs that probe itself, immediately before the first irreversible
+ * command. None of the protection path has run on silicon. `PROTECTION_BRING_UP` at
+ * the bottom of this file was written before it existed and is kept as the checklist.
  */
 
 import {
@@ -49,6 +51,7 @@ import {
   assertPasswordLength,
   FACTORY_DEFAULT_PASSWORD,
   DELIBERATELY_WRONG_PASSWORD,
+  FLAG_HIGH_DATA_RATE,
   type StCommand,
 } from '../chip/st-custom.js';
 import type { AreaProtectionState, TagIdentity, TagTransport } from './transport.js';
@@ -237,21 +240,324 @@ const IC_MFG_STMICROELECTRONICS = 0x02;
  *
  * A standard PC/SC Read Binary cannot express an ST custom command, so the reader has
  * to be put into a mode where it forwards bytes verbatim. On ACS readers that is the
- * transparent session, and these four are its control APDUs.
+ * transparent session, and these are its APDUs.
  *
- * **Same provenance warning as the command codes themselves.** These are from the ACS
- * reader API family and are not confirmed against the ACR1552U manual, which would not
- * download either. **Nothing irreversible is sent through them until the probe in
- * `verifyOpcodes` has shown the whole path behaves as predicted.**
+ * **Checked byte for byte on Sunday 25 October 2026 against the ACS reference manual,
+ * REF-ACR1552U-Series version 1.09, section 5.3.5 "APDU Commands for PC/SC 2.0 Part 3".**
+ * The section numbers below are that manual's. Being in the manual is not the same as
+ * having run on the client's reader, so **nothing irreversible is sent through them
+ * until the probe in `verifyOpcodes` has shown the whole path behaves as predicted.**
+ *
+ * The earlier Switch Protocol bytes, `8F 02 00 03`, selected ISO 14443A layer 3 and
+ * not ISO 15693. The gate made that fail safe. It is recorded here so nobody restores it.
  */
-const ACS_SESSION_START = Uint8Array.from([0xff, 0xc2, 0x00, 0x00, 0x02, 0x81, 0x00]);
-const ACS_SESSION_END = Uint8Array.from([0xff, 0xc2, 0x00, 0x00, 0x02, 0x82, 0x00]);
-/** Switch Protocol, payload 0x03 selecting ISO/IEC 15693. */
-const ACS_SWITCH_ISO15693 = Uint8Array.from([0xff, 0xc2, 0x00, 0x02, 0x04, 0x8f, 0x02, 0x00, 0x03]);
 
-/** Wraps a raw ISO 15693 frame in the ACS transceive pseudo APDU. */
-function acsTransceive(frame: Uint8Array): Uint8Array {
-  return Uint8Array.from([0xff, 0xc2, 0x00, 0x01, frame.length + 2, 0x95, frame.length, ...frame]);
+/**
+ * 5.3.5.3 Manage Session, Start Session data object `81 00` (5.3.5.3.1). Byte for byte
+ * the manual's own example, 5.3.5.6 step 1: "FF C2 00 00 02 81 00". The Le column of
+ * 5.3.5.3 reads "--/00h", so Le is optional, and it is left out exactly as the example
+ * leaves it out. Either way the answer can be `90 00` with a failure inside a C0 data
+ * object, so the C0 object is checked, not only the status word.
+ */
+export const ACS_SESSION_START = Uint8Array.from([0xff, 0xc2, 0x00, 0x00, 0x02, 0x81, 0x00]);
+/** 5.3.5.3.2 End Session data object `82 00`. Byte for byte 5.3.5.6 step 7: "FF C2 00 00 02 82 00". */
+export const ACS_SESSION_END = Uint8Array.from([0xff, 0xc2, 0x00, 0x00, 0x02, 0x82, 0x00]);
+/**
+ * 5.3.5.5 Switch Protocol: "FFh C2h 00h 02h [Cmd Data Length] [Cmd TLV] 00h". Le is
+ * listed as 00h, so it is sent. The data object is `8F 02 [RF] [Layer]` (5.3.5.5.1),
+ * where RF "02h: ISO15693" (00h is ISO14443A) and Layer "03h: Switch or activate to
+ * layer 3". The example in 5.3.5.6 step 4 shows a failed switch answering
+ * `C0 03 01 64 01 90 00`: status word 90 00 with the failure in the C0 object.
+ */
+export const ACS_SWITCH_ISO15693 = Uint8Array.from([0xff, 0xc2, 0x00, 0x02, 0x04, 0x8f, 0x02, 0x02, 0x03, 0x00]);
+
+/**
+ * How long the reader waits for the tag's answer to one transceived frame, in
+ * microseconds.
+ *
+ * 5.3.5.4.3: "If no timer data object was defined in the data field, the reader will
+ * wait for the duration given in the Set Parameter FWTI Data Object. If no FWTI is set,
+ * the reader will wait for about 302 µs." An ISO 15693 tag does not even begin to answer
+ * until about 320 µs after the request (t1 in ISO/IEC 15693-3), and Write Password and
+ * Set Memory Protection program EEPROM before they answer. So every exchange carries
+ * its own Timer data object. **50 ms is deliberately generous**: ISO/IEC 15693-3 lets a
+ * write-alike command answer up to 20 ms after the request (quoted from the standard as
+ * commonly cited, not from a copy in hand), and the ST25TV02KC programming time is not
+ * in hand either. A timeout that is too short is the dangerous direction, because an
+ * irreversible command that took effect would then be reported as failed. 5.3.5.4 says
+ * the actual timeout rounds up to the nearest 302.07 x 2^n µs, which here is 77.3 ms.
+ */
+export const TRANSCEIVE_TIMEOUT_US = 50_000;
+
+/**
+ * Wraps a raw ISO 15693 frame in the ACS Transparent Exchange pseudo APDU.
+ *
+ * 5.3.5.4: "FFh C2h 00h 01h [Cmd Data Length] [Cmd TLV] 00h", Le listed as 00h. Cmd TLVs,
+ * in this order: Timer "5F 46 04h [TIME]: 4 byte value (LSB first) in range 1 us to
+ * 4294967000 us", then Transceive "95h [Size] [Data]". The order matches the manual's
+ * example in 5.3.5.6 step 6, "FF C2 00 01 0E 5F 46 04 40 42 0F 00 95 05 ...". No
+ * Transceive Flag object is sent, so "current protocol value is used" for CRC handling,
+ * which after the Switch Protocol above is ISO 15693's. No Retry Counter is sent either:
+ * an irreversible command is never resent on a timeout.
+ *
+ * Exported for the tests, which assert the bytes without a reader in the room.
+ */
+export function transparentExchangeApdu(frame: Uint8Array): Uint8Array {
+  // 5.3.5.4.3: a one byte BER-TLV length covers 1 to 127 bytes, and every frame this
+  // tool sends is far shorter. Anything else is a caller bug, refused before the wire.
+  if (frame.length < 1 || frame.length > 0x7f) {
+    throw new Error(`A transceived ISO 15693 frame must be 1 to 127 bytes. This one is ${frame.length}.`);
+  }
+  const us = TRANSCEIVE_TIMEOUT_US;
+  const timer = [0x5f, 0x46, 0x04, us & 0xff, (us >>> 8) & 0xff, (us >>> 16) & 0xff, (us >>> 24) & 0xff];
+  const tlvs = [...timer, 0x95, frame.length, ...frame];
+  return Uint8Array.from([0xff, 0xc2, 0x00, 0x01, tlvs.length, ...tlvs, 0x00]);
+}
+
+/** One BER-TLV data object out of an ACS response. Multi byte tags are held as one number, so `5F 51` is 0x5f51. */
+export interface BerTlv {
+  readonly tag: number;
+  readonly value: Uint8Array;
+}
+
+/**
+ * Parses the BER-TLV data field of an ACS PC/SC 2.0 Part 3 response, 5.3.5.2 ("Data Field
+ * BER-TLV encoded"). Returns null for anything malformed, including a length that runs
+ * past the end, so a truncated answer can never be read as a short valid one.
+ */
+export function parseBerTlv(data: Uint8Array): BerTlv[] | null {
+  const out: BerTlv[] = [];
+  let i = 0;
+  while (i < data.length) {
+    let tag = data[i++] ?? 0;
+    if ((tag & 0x1f) === 0x1f) {
+      // Multi byte tag, as in 5F 46, 5F 51 and FF 6E. Subsequent bytes carry bit 8 while more follow.
+      let more = true;
+      let extra = 0;
+      while (more) {
+        if (i >= data.length || extra === 3) return null;
+        const b = data[i++] ?? 0;
+        tag = tag * 256 + b;
+        more = (b & 0x80) !== 0;
+        extra += 1;
+      }
+    }
+    if (i >= data.length) return null;
+    let length = data[i++] ?? 0;
+    if (length === 0x81) {
+      if (i + 1 > data.length) return null;
+      length = data[i++] ?? 0;
+    } else if (length === 0x82) {
+      if (i + 2 > data.length) return null;
+      length = ((data[i] ?? 0) << 8) | (data[i + 1] ?? 0);
+      i += 2;
+    } else if (length > 0x7f) {
+      return null;
+    }
+    if (i + length > data.length) return null;
+    out.push({ tag, value: data.subarray(i, i + length) });
+    i += length;
+  }
+  return out;
+}
+
+/** 5.3.5.2, "C0 data element Format": `C0 03 [XX] [SW1] [SW2]`, where `00 90 00` is "No error occurred". */
+const TLV_STATUS = 0xc0;
+/** 5.3.5.4, Rsp TLV "Receive Bit framing: 92 01h [NumBit]". */
+const TLV_RX_BIT_FRAMING = 0x92;
+/** 5.3.5.4, Rsp TLV "Response Status: 96 02h [Status] 00h", with Status bit 0 CRC, 1 collision, 2 parity, 3 framing error. */
+const TLV_RESPONSE_STATUS = 0x96;
+/** 5.3.5.4, Rsp TLV "Response: 97h [Size] [Data]". */
+const TLV_RESPONSE = 0x97;
+/** 5.3.5.5 Rsp TLV `8F` and 5.3.5.5.2 `5F 51`, which a Switch Protocol answer may carry. */
+const TLV_SWITCH_RESPONSE = 0x8f;
+const TLV_ATR = 0x5f51;
+
+/** Explains the C0 status object, or returns null when it reads `00 90 00`. Exported for the tests. */
+export function c0Problem(value: Uint8Array): string | null {
+  if (value.length !== 3) return `the C0 status object is ${value.length} bytes rather than 3`;
+  if (value[0] === 0x00 && value[1] === 0x90 && value[2] === 0x00) return null;
+  const sw12 = ((value[1] ?? 0) << 8) | (value[2] ?? 0);
+  const meaning =
+    sw12 === 0x6401
+      ? 'no response from the tag (a timeout)'
+      : sw12 === 0x6400
+        ? 'no response from the reader'
+        : sw12 === 0x6a81
+          ? 'data object not supported'
+          : sw12 === 0x6700
+            ? 'data object with unexpected length'
+            : sw12 === 0x6a80
+              ? 'data object with unexpected value'
+              : 'an error status';
+  return `the reader reported ${meaning} in data object ${value[0]}, C0 status ${hex(value)}`;
+}
+
+/**
+ * Checks the answer to a session control or Switch Protocol APDU. Throws unless the
+ * status word is 90 00, the data field parses, any C0 object reads `00 90 00`, and
+ * nothing appears that the manual does not list for that command.
+ */
+function requireControlOk(response: Uint8Array, step: string, allowedTags: readonly number[]): void {
+  const problem = controlProblem(response, allowedTags);
+  if (problem === null) return;
+  throw new ChipError(
+    'PROTECT_FAILED',
+    `The reader did not complete "${step}": ${problem}. The ST command that was to follow was not sent.`,
+    'Nothing irreversible reached the tag. Unplug and replug the reader before the next tag: ACS warns a transparent session used incorrectly can leave it unable to detect tags (ACR1552U reference manual, 5.3.5.3). Record this message for the bring up notes.',
+    { step },
+  );
+}
+
+function controlProblem(response: Uint8Array, allowedTags: readonly number[]): string | null {
+  if (sw(response) !== SW_OK) return `status word 0x${sw(response).toString(16)}`;
+  const tlvs = parseBerTlv(body(response));
+  if (tlvs === null) return `a malformed data field, ${hex(body(response))}`;
+  for (const tlv of tlvs) {
+    if (tlv.tag === TLV_STATUS) {
+      const problem = c0Problem(tlv.value);
+      if (problem !== null) return problem;
+    } else if (!allowedTags.includes(tlv.tag)) {
+      return `an unexpected data object with tag 0x${tlv.tag.toString(16)}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * What the TAG said, as opposed to what the reader said about the exchange.
+ *
+ *   - `ok`: the ISO 15693 response flags byte is exactly 00 and `data` is what followed it.
+ *   - `error`: the flags byte is exactly 01, the error flag, followed by exactly one error code.
+ *   - `no-answer`: anything else, with the reason. A timeout, a CRC, parity, framing or
+ *     collision error, a C0 status other than `00 90 00`, a status word other than 90 00,
+ *     a missing or duplicated object, an object the manual does not list, or flags that
+ *     are neither of the two above. **None of these is evidence about the tag.**
+ */
+export type TagAnswer =
+  | { readonly kind: 'ok'; readonly data: Uint8Array }
+  | { readonly kind: 'error'; readonly errorCode: number }
+  | { readonly kind: 'no-answer'; readonly reason: string };
+
+/** ISO/IEC 15693-3 response flags: bit 1 is the error flag. */
+const ISO15693_RESPONSE_FLAG_ERROR = 0x01;
+
+/**
+ * Reads a Transparent Exchange answer, strictly.
+ *
+ * The shape required is the manual's own, 5.3.5.6 step 6: "C0 03 00 90 00 92 01 00
+ * 96 02 00 00 97 0C [Card Response] 90 00". The C0 object must be present and read
+ * `00 90 00` ("SW1 SW2 from the C0 data object below should also be used", 5.3.5.2).
+ * The 92 and 96 objects are optional, and when present must report all bits valid and
+ * no error. Exactly one 97 object must carry the tag's answer. Exported for the tests.
+ */
+export function parseTransceiveAnswer(response: Uint8Array): TagAnswer {
+  const noAnswer = (reason: string): TagAnswer => ({ kind: 'no-answer', reason });
+  if (sw(response) !== SW_OK) return noAnswer(`status word 0x${sw(response).toString(16)}`);
+  const tlvs = parseBerTlv(body(response));
+  if (tlvs === null) return noAnswer(`a malformed data field, ${hex(body(response))}`);
+
+  const seen = new Set<number>();
+  let status: Uint8Array | null = null;
+  let tagData: Uint8Array | null = null;
+  for (const tlv of tlvs) {
+    if (seen.has(tlv.tag)) return noAnswer(`data object 0x${tlv.tag.toString(16)} appears twice`);
+    seen.add(tlv.tag);
+    if (tlv.tag === TLV_STATUS) {
+      status = tlv.value;
+    } else if (tlv.tag === TLV_RX_BIT_FRAMING) {
+      if (tlv.value.length !== 1 || tlv.value[0] !== 0x00) return noAnswer(`receive bit framing ${hex(tlv.value)}, so the last byte was partial`);
+    } else if (tlv.tag === TLV_RESPONSE_STATUS) {
+      if (tlv.value.length !== 2 || tlv.value[0] !== 0x00 || tlv.value[1] !== 0x00) {
+        return noAnswer(`response status ${hex(tlv.value)} (bit 0 CRC, bit 1 collision, bit 2 parity, bit 3 framing error)`);
+      }
+    } else if (tlv.tag === TLV_RESPONSE) {
+      tagData = tlv.value;
+    } else {
+      return noAnswer(`an unexpected data object with tag 0x${tlv.tag.toString(16)}`);
+    }
+  }
+
+  if (status === null) return noAnswer('no C0 status object');
+  const problem = c0Problem(status);
+  if (problem !== null) return noAnswer(problem);
+  if (tagData === null) return noAnswer('no 97 response object, so the tag said nothing');
+  if (tagData.length === 0) return noAnswer('an empty 97 response object');
+
+  const flags = tagData[0] ?? 0;
+  if (flags === 0x00) return { kind: 'ok', data: tagData.subarray(1) };
+  if (flags === ISO15693_RESPONSE_FLAG_ERROR && tagData.length === 2) return { kind: 'error', errorCode: tagData[1] ?? 0 };
+  return noAnswer(`ISO 15693 response flags 0x${flags.toString(16).padStart(2, '0')} with ${tagData.length - 1} byte(s) after them, which is neither a plain success nor a plain error`);
+}
+
+/**
+ * ISO/IEC 15693-3 error codes that mean the tag did not understand the request as a
+ * command it implements: 01 command not supported, 02 command not recognised, 03 option
+ * not supported. A wrong password answered with one of these proves nothing about the
+ * password, only that the frame was not taken as Present Password.
+ */
+const ISO15693_ERRORS_NOT_UNDERSTOOD: readonly number[] = [0x01, 0x02, 0x03];
+
+/**
+ * ISO/IEC 15693-3 error code 12: "the specified block is locked and its content cannot
+ * be changed". The only answer to a write that the post protection proof accepts as a
+ * protection refusal. **Taken from ISO 15693-3 as commonly cited, not from the ST25TV02KC
+ * datasheet, which is not in hand.** If the part answers a password protected block with
+ * a different code, the proof fails closed: the unit is recorded PROTECT_FAILED, never
+ * protected, and the code seen is in the message.
+ */
+export const ISO15693_ERROR_BLOCK_LOCKED = 0x12;
+
+/** ISO/IEC 15693-3 Write Single Block. A standard command, in the ACS supported list (5.3.4.2.2, 21h, "Yes"). */
+const ISO15693_WRITE_SINGLE_BLOCK = 0x21;
+
+/** Builds an ISO 15693 Write Single Block frame: flags, 21, block number, data. Exported for the tests. */
+export function writeSingleBlockFrame(block: number, data: Uint8Array): Uint8Array {
+  if (block < 0 || block > 0xff) throw new Error(`Block ${block} does not fit a one byte block number.`);
+  return Uint8Array.from([FLAG_HIGH_DATA_RATE, ISO15693_WRITE_SINGLE_BLOCK, block, ...data]);
+}
+
+/**
+ * Decides whether the opcode probe proved the command path. Pure, so every way it can
+ * go wrong is tested without a reader. Exported for the tests.
+ *
+ * **"Different" is not enough. Both halves must be explicitly correct:**
+ *   - the factory default must be an explicit tag level success: flags 00, nothing after;
+ *   - the deliberately wrong password must be an explicit tag level error: flags 01 and
+ *     one error code, and not a code saying the command itself was not understood.
+ * A timeout and a CRC error differ from each other, and proved nothing under the old rule.
+ */
+export function judgeOpcodeProbe(wrong: TagAnswer, right: TagAnswer): { proven: boolean; detail: string } {
+  const describe = (a: TagAnswer) =>
+    a.kind === 'ok'
+      ? `success with ${a.data.length} byte(s) after the flags`
+      : a.kind === 'error'
+        ? `tag error code 0x${a.errorCode.toString(16).padStart(2, '0')}`
+        : `no usable answer (${a.reason})`;
+  const seen = `The deliberately wrong password got ${describe(wrong)}. The factory default got ${describe(right)}.`;
+
+  if (right.kind !== 'ok' || right.data.length !== 0) {
+    return {
+      proven: false,
+      detail: `${seen} The factory default must be an explicit success (ISO 15693 flags 00, nothing after them) and was not, so the command path is unproven and the irreversible commands stay locked. Either this tag already carries a password, or a byte in the opcode, the flags, the session framing or the reader wrapper is wrong.`,
+    };
+  }
+  if (wrong.kind !== 'error') {
+    return {
+      proven: false,
+      detail: `${seen} The wrong password must be refused with the ISO 15693 error flag and was not, so a right password and a wrong one cannot be told apart and the irreversible commands stay locked.`,
+    };
+  }
+  if (ISO15693_ERRORS_NOT_UNDERSTOOD.includes(wrong.errorCode)) {
+    return {
+      proven: false,
+      detail: `${seen} Error code 0x${wrong.errorCode.toString(16).padStart(2, '0')} means the tag did not take the frame as a command it implements, so the refusal says nothing about the password. The irreversible commands stay locked.`,
+    };
+  }
+  return {
+    proven: true,
+    detail: `${seen} The tag accepted the factory default and explicitly refused the wrong password, so the Present Password path is confirmed on this tag.`,
+  };
 }
 
 /** Generous. A person is placing a tag on a reader by hand. */
@@ -338,8 +644,14 @@ export class PcscTransport implements TagTransport {
   private currentUid: string | null = null;
   /** The reader this transport last opened. Kept after close so doctor can name it. */
   private openedReaderName: string | null = null;
-  /** Set by verifyOpcodes when the tag itself has confirmed the command path. */
-  private opcodesProven = false;
+  /**
+   * The UID of the one physical tag on which verifyOpcodes has confirmed the command
+   * path, or null. **The proof belongs to that tag and that connection only.** It is
+   * cleared when any tag is selected, when the tag is released, when the transport is
+   * opened or closed, and on any transport error, and the irreversible commands also
+   * re-read the UID from the field and require it to match before sending anything.
+   */
+  private provenUid: string | null = null;
 
   private readonly loadBinding: PcscBindingLoader;
   private readonly readerTimeoutMs: number;
@@ -358,6 +670,7 @@ export class PcscTransport implements TagTransport {
   }
 
   async open(): Promise<void> {
+    this.resetProof();
     let binding: PcscBinding;
     try {
       binding = await this.loadBinding();
@@ -429,6 +742,7 @@ export class PcscTransport implements TagTransport {
   }
 
   async close(): Promise<void> {
+    this.resetProof();
     if (this.connected) await this.releaseTag().catch(() => undefined);
     this.stopBinding();
     this.reader = null;
@@ -444,6 +758,10 @@ export class PcscTransport implements TagTransport {
   }
 
   async waitForTag(timeoutMs: number): Promise<TagIdentity> {
+    // A selection, of the same tag or another, ends any proof. The probe has to be run
+    // again on whatever is in the field now.
+    this.resetProof();
+    this.currentUid = null;
     const reader = this.requireReader();
     const deadline = Date.now() + timeoutMs;
 
@@ -594,12 +912,20 @@ export class PcscTransport implements TagTransport {
   // whether the irreversible pair is allowed to run at all.
   // -------------------------------------------------------------------------
 
-  /** Sends one ST custom frame inside a transparent session and returns the raw response. */
-  private async stCommand(command: StCommand, params: readonly number[] = []): Promise<Uint8Array> {
-    await this.transmit(ACS_SESSION_START, 2);
+  /**
+   * Sends one raw ISO 15693 frame inside a transparent session and returns what the TAG
+   * said. Throws, with nothing further sent, when the session start or the protocol
+   * switch is refused, including a refusal hidden in a C0 object under a 90 00. A
+   * transport error throws too, and clears the proof.
+   */
+  private async transceive(frame: Uint8Array, step: string): Promise<TagAnswer> {
+    requireControlOk(await this.transmit(ACS_SESSION_START, 2), `start transparent session for ${step}`, []);
     try {
-      await this.transmit(ACS_SWITCH_ISO15693, 2);
-      return await this.transmit(acsTransceive(stRequest(command, params)), 32);
+      requireControlOk(await this.transmit(ACS_SWITCH_ISO15693, 2), `switch protocol to ISO 15693 for ${step}`, [
+        TLV_SWITCH_RESPONSE,
+        TLV_ATR,
+      ]);
+      return parseTransceiveAnswer(await this.transmit(transparentExchangeApdu(frame), 32));
     } finally {
       // Always closes, even on failure. A reader left in a transparent session stops
       // auto polling and looks broken to the next person who picks it up.
@@ -607,115 +933,146 @@ export class PcscTransport implements TagTransport {
     }
   }
 
+  /** Sends one ST custom command. See `transceive`. */
+  private stCommand(command: StCommand, params: readonly number[] = []): Promise<TagAnswer> {
+    return this.transceive(stRequest(command, params), command.name);
+  }
+
   /**
    * Proves the command path on the tag in front of you, without changing it.
    *
-   * This is the bring up step README section 6.3 asks for, made executable. It
-   * presents a deliberately wrong password and then the factory default, and requires
-   * the chip to answer those two DIFFERENTLY. If it does, the opcode, the manufacturer
-   * byte, the flag byte, the transparent session framing and the reader transceive
-   * wrapper are all demonstrably right, because nothing else produces a discriminating
-   * answer.
+   * This is the bring up step README section 6.3 asks for, made executable, and since
+   * Sunday 25 October 2026 it runs inside `--protect` itself, immediately before the
+   * first irreversible command (see `UnitSession.protect`). It presents a deliberately
+   * wrong password and then the factory default, and requires the factory default to be
+   * an EXPLICIT success and the wrong one an EXPLICIT tag level error. See
+   * `judgeOpcodeProbe` for exactly what counts. Only then are the opcode, the
+   * manufacturer byte, the flag byte, the transparent session framing and the reader
+   * transceive wrapper shown to be right, because nothing else produces that pair.
    *
-   * If both attempts return the same thing, nothing is proven, whatever that thing is,
-   * and the irreversible commands stay locked. A transport that cannot tell a right
-   * password from a wrong one must not be trusted to set one.
+   * Any timeout, CRC error, transport error or unexpected shape on either attempt means
+   * NOT proven. The proof is recorded against this tag's UID and is lost when any tag is
+   * selected, when the tag is released, and on reopen or any transport error.
    *
-   * Run it on a SACRIFICIAL BARE TAG. It is safe by construction, but the point of a
-   * bring up is that you find out on a tag you do not mind losing.
+   * It passes only on a bare tag whose password 1 is still the factory default. Run it
+   * on a SACRIFICIAL BARE TAG. It is safe by construction, but the point of a bring up
+   * is that you find out on a tag you do not mind losing.
    */
   async verifyOpcodes(): Promise<{ proven: boolean; detail: string }> {
-    const cmd = ST_COMMANDS.PRESENT_PASSWORD;
-
-    const wrong = await this.stCommand(cmd, [1, ...DELIBERATELY_WRONG_PASSWORD]);
-    const right = await this.stCommand(cmd, [1, ...FACTORY_DEFAULT_PASSWORD]);
-
-    const wrongSw = sw(wrong);
-    const rightSw = sw(right);
-    const same = wrongSw === rightSw && hex(body(wrong)) === hex(body(right));
-
-    if (same) {
-      this.opcodesProven = false;
-      return {
-        proven: false,
-        detail:
-          'A wrong password and the factory default both answered 0x' +
-          wrongSw.toString(16) +
-          '. That is not a discriminating result, so the command path is unproven and the ' +
-          'irreversible commands stay locked. Either this tag already carries a password, or one ' +
-          'of the opcodes, the flag byte or the transparent session framing is wrong. Get the ' +
-          'ST25TV02KC datasheet before going further.',
-      };
+    this.resetProof();
+    const uid = this.currentUid;
+    if (!this.connected || uid === null) {
+      return { proven: false, detail: 'No tag is selected, so there is nothing to prove the command path on.' };
     }
 
-    this.opcodesProven = true;
-    return {
-      proven: true,
-      detail:
-        'Wrong password answered 0x' +
-        wrongSw.toString(16) +
-        ' and the factory default answered 0x' +
-        rightSw.toString(16) +
-        '. The chip distinguishes them, so the command path is confirmed on real silicon.',
-    };
+    const cmd = ST_COMMANDS.PRESENT_PASSWORD;
+    let verdict: { proven: boolean; detail: string };
+    try {
+      const wrong = await this.stCommand(cmd, [1, ...DELIBERATELY_WRONG_PASSWORD]);
+      const right = await this.stCommand(cmd, [1, ...FACTORY_DEFAULT_PASSWORD]);
+      verdict = judgeOpcodeProbe(wrong, right);
+    } catch (cause) {
+      this.resetProof();
+      return {
+        proven: false,
+        detail: `The probe did not complete: ${cause instanceof Error ? cause.message : String(cause)} The irreversible commands stay locked.`,
+      };
+    }
+    if (!verdict.proven) return verdict;
+
+    // The two answers came from whatever was in the field. Require it to be the tag
+    // that was selected, read from the field now rather than remembered.
+    const now = await this.readUidNow();
+    if (now !== uid) {
+      this.resetProof();
+      return {
+        proven: false,
+        detail: `The probe answered correctly, but the tag in the field now reads uid ${now ?? 'unreadable'} and the selected tag was ${uid}. Nothing is proven.`,
+      };
+    }
+    this.provenUid = uid;
+    return verdict;
   }
 
   async presentPassword(passwordNumber: number, password: Uint8Array): Promise<void> {
     assertPasswordLength(password);
-    const response = await this.stCommand(ST_COMMANDS.PRESENT_PASSWORD, [passwordNumber, ...password]);
+    const answer = await this.stCommand(ST_COMMANDS.PRESENT_PASSWORD, [passwordNumber, ...password]);
 
-    if (sw(response) !== SW_OK) {
+    if (answer.kind === 'error') {
       throw new ChipError(
         'PASSWORD_REJECTED',
-        'The tag refused password ' + passwordNumber + ' with status 0x' + sw(response).toString(16) + '.',
+        `The tag refused password ${passwordNumber} with ISO 15693 error code 0x${answer.errorCode.toString(16).padStart(2, '0')}.`,
         'Either the password is wrong or this area is governed by a different password number. On an SO4731 tag it is wrong, and Trevean does not hold the right one. See "Decision log", D45.',
+        { passwordNumber, errorCode: answer.errorCode },
+      );
+    }
+    if (answer.kind !== 'ok' || answer.data.length !== 0) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `Present Password got no usable answer from the tag: ${answer.kind === 'no-answer' ? answer.reason : `success flags with ${answer.data.length} unexpected byte(s) after them`}.`,
+        'This is not evidence of a wrong password, and nothing was written. It is the ST command path through the reader failing. Set the tag aside and record this message for the bring up notes.',
+        { passwordNumber },
       );
     }
   }
 
   async writePassword(passwordNumber: number, password: Uint8Array): Promise<void> {
     assertPasswordLength(password);
-    this.requireProvenOpcodes('change a password');
+    await this.requireProvenOpcodes('change a password');
 
-    const response = await this.stCommand(ST_COMMANDS.WRITE_PASSWORD, [passwordNumber, ...password]);
-    if (sw(response) !== SW_OK) {
+    const answer = await this.stCommand(ST_COMMANDS.WRITE_PASSWORD, [passwordNumber, ...password]);
+    if (answer.kind !== 'ok' || answer.data.length !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
-        'Writing password ' + passwordNumber + ' failed with status 0x' + sw(response).toString(16) + '.',
-        'The current password must be presented in this same session before it can be changed.',
+        `Writing password ${passwordNumber} was not confirmed by the tag: ${describeAnswer(answer)}.`,
+        'Set the tag aside, label it, and do not record it as protected. If the tag gave no answer, it may or may not now hold the new password, which is the one in the secret store: write down the fingerprint the tool printed with this run. Do not retry on this tag.',
+        { passwordNumber },
       );
     }
   }
 
   async setAreaProtection(area: number, protection: AreaProtection, passwordNumber: number): Promise<void> {
-    this.requireProvenOpcodes('apply area protection');
+    await this.requireProvenOpcodes('apply area protection');
 
     const bits = protection === 'none' ? 0x00 : protection === 'write_protected' ? 0x01 : 0x03;
-    const response = await this.stCommand(ST_COMMANDS.SET_MEMORY_PROTECTION, [area, (passwordNumber << 4) | bits]);
-
-    if (sw(response) !== SW_OK) {
+    const answer = await this.stCommand(ST_COMMANDS.SET_MEMORY_PROTECTION, [area, (passwordNumber << 4) | bits]);
+    if (answer.kind !== 'ok' || answer.data.length !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
-        'Setting protection on area ' + area + ' failed with status 0x' + sw(response).toString(16) + '.',
-        'The governing password must be presented in this same session first.',
+        `Setting protection on area ${area} was not confirmed by the tag: ${describeAnswer(answer)}.`,
+        'Set the tag aside, label it, and do not record it as protected. If the tag gave no answer, the area may or may not now be protected under the password in the secret store. Do not retry on this tag.',
+        { area, passwordNumber },
       );
     }
   }
 
+  /**
+   * Reads an area's protection with the 0xBA "read form", a single parameter.
+   *
+   * **GATED, like the irreversible pair, since Sunday 25 October 2026.** 0xBA is the
+   * same code as Set Memory Protection, and the one parameter "read form" is described
+   * only by secondary sources. **No documented safe read of the area protection is in
+   * hand**: the ST25TV02KC datasheet is not, and the ACS manual documents only the
+   * transport. A bet on an undocumented form of an irreversible opcode is not "read
+   * only", so this refuses, sending nothing, unless the probe has passed on this very
+   * tag in this very connection. The consequence is stated plainly in README 6.4: it can
+   * no longer be pointed at an SO4731 tag to find out what the supplier applied, because
+   * the probe cannot pass on a tag that carries a password.
+   */
   async readAreaProtection(area = 1): Promise<AreaProtectionState> {
-    // Read only, so it is allowed without the probe. Answering "what protection does
-    // this tag carry" is the single most useful thing this transport can do today: it
-    // is the open question on the 1,000 SO4731 jars.
-    const response = await this.stCommand(ST_COMMANDS.SET_MEMORY_PROTECTION, [area]);
-    if (sw(response) !== SW_OK) {
+    await this.requireProvenOpcodes('read area protection with the undocumented 0xBA read form');
+
+    const answer = await this.stCommand(ST_COMMANDS.SET_MEMORY_PROTECTION, [area]);
+    if (answer.kind !== 'ok' || answer.data.length !== 1) {
       throw new ChipError(
         'PROTECT_FAILED',
-        'The tag would not report protection for area ' + area + ', status 0x' + sw(response).toString(16) + '.',
-        'Some parts refuse this without a password presented. Try presenting one first, and if that fails the state cannot be read from here.',
+        `The tag did not report protection for area ${area}: ${describeAnswer(answer)}.`,
+        'The 0xBA read form is undocumented and this is the first thing to record at bring up. The protection command before it may still have taken effect. Set the tag aside, label it, and do not record it as protected.',
+        { area },
       );
     }
 
-    const value = body(response)[0] ?? 0;
+    const value = answer.data[0] ?? 0;
     const bits = value & 0x03;
     return {
       protection: bits === 0x00 ? 'none' : bits === 0x01 ? 'write_protected' : 'read_and_write_protected',
@@ -723,17 +1080,75 @@ export class PcscTransport implements TagTransport {
     };
   }
 
-  /** The gate. Irreversible commands do not run on unproven opcodes. */
-  private requireProvenOpcodes(action: string): void {
-    if (this.opcodesProven) return;
+  /**
+   * The post protection proof: rewrites `data`, which must be what the block already
+   * holds, and reports the tag's own verdict.
+   *
+   * A refused PC/SC Update Binary cannot be used for this. The ACS manual gives it one
+   * error row, "6X XXh Fail" (5.3.3.5), so a write refused by protection and a write
+   * lost to RF look the same, and calling the second "protected" would record an
+   * unprotected tag as protected. So this sends the standard ISO 15693 Write Single Block
+   * (21h) in a transparent session and reads the tag's flags and error code. Only error
+   * 0x12 counts as refused by protection. A plain success means the write went through,
+   * leaving the block unchanged because the bytes are the ones already there. Anything
+   * else throws.
+   *
+   * It is not gated by the probe. It cannot be: the proof runs after the tag has left the
+   * field, which clears the probe, and after the password has changed, so the probe cannot
+   * pass again. It writes nothing that is not already there, so it is no more dangerous
+   * than the Update Binary it replaces.
+   */
+  async proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'> {
+    if (data.length !== PART.blockSizeBytes) {
+      throw new ChipError('PROTECT_FAILED', `The proof write must be exactly ${PART.blockSizeBytes} bytes.`, 'This is a bug in the caller. Report it.');
+    }
+    const answer = await this.transceive(writeSingleBlockFrame(block, data), 'Write Single Block');
+    if (answer.kind === 'ok' && answer.data.length === 0) return 'accepted';
+    if (answer.kind === 'error' && answer.errorCode === ISO15693_ERROR_BLOCK_LOCKED) return 'refused';
     throw new ChipError(
       'PROTECT_FAILED',
-      'Refusing to ' + action + ': the ST custom command path has not been proven on this tag.',
-      'Run the opcode probe on a sacrificial bare tag first. The opcodes come from secondary sources rather than the datasheet, and an irreversible command sent on an unproven path can lock a tag with a value nobody holds. See chip/st-custom.ts and "Decision log", D45.',
+      `The proof write to block ${block} got neither a plain success nor the "block locked" refusal (ISO 15693 error 0x12): ${describeAnswer(answer)}.`,
+      'Set the tag aside, label it, and do not record it as protected. If the answer was a tag error code other than 0x12, write the code down: it may be how this part reports a password protected block, which the datasheet would settle.',
+      { block },
     );
   }
 
+  /**
+   * The gate. Irreversible commands, and the undocumented 0xBA read form, do not run
+   * unless the probe passed on the tag that is in the field right now.
+   *
+   * Three conditions, all checked before a single byte of the command is sent: the probe
+   * passed in this connection, the selected UID is the proven one, and the UID read from
+   * the field now is the proven one. The last costs one Get Data and catches a tag
+   * swapped without the tool being told.
+   */
+  private async requireProvenOpcodes(action: string): Promise<void> {
+    const proven = this.provenUid;
+    if (proven !== null && this.connected && this.currentUid === proven) {
+      const now = await this.readUidNow();
+      if (now === proven) return;
+      this.resetProof();
+      throw gateRefusal(action, `the tag in the field reads uid ${now ?? 'unreadable'}, not the uid ${proven} the probe ran on`);
+    }
+    this.resetProof();
+    throw gateRefusal(action, 'the ST custom command path has not been proven on this tag');
+  }
+
+  /** The UID read from the field now, MSB first, or null if it cannot be read as an ST ISO 15693 UID. */
+  private async readUidNow(): Promise<string | null> {
+    try {
+      const response = await this.transmit(getUidApdu(), 32);
+      if (sw(response) !== SW_OK) return null;
+      const normalised = normaliseUid(body(response));
+      if (!normalised || !isStMicroelectronics(normalised.uid)) return null;
+      return hex(normalised.uid);
+    } catch {
+      return null;
+    }
+  }
+
   async releaseTag(): Promise<void> {
+    this.resetProof();
     const card = this.card;
     if (!this.reader || !this.connected || !card) return;
 
@@ -745,6 +1160,10 @@ export class PcscTransport implements TagTransport {
     this.card = null;
     this.connected = false;
     this.currentUid = null;
+  }
+
+  private resetProof(): void {
+    this.provenUid = null;
   }
 
   async completeUnit(): Promise<void> {
@@ -778,6 +1197,8 @@ export class PcscTransport implements TagTransport {
     try {
       return new Uint8Array(await card.transmit(Uint8Array.from(apdu)));
     } catch (err) {
+      // Whatever happened, the tag that was proven may not be the tag that answers next.
+      this.resetProof();
       throw new ChipError(
         'TRANSPORT_UNAVAILABLE',
         `The reader rejected a command: ${err instanceof Error ? err.message : String(err)}`,
@@ -785,6 +1206,21 @@ export class PcscTransport implements TagTransport {
       );
     }
   }
+}
+
+function describeAnswer(answer: TagAnswer): string {
+  if (answer.kind === 'no-answer') return answer.reason;
+  if (answer.kind === 'error') return `tag error code 0x${answer.errorCode.toString(16).padStart(2, '0')}`;
+  return `success flags with ${answer.data.length} unexpected byte(s) after them`;
+}
+
+function gateRefusal(action: string, reason: string): ChipError {
+  return new ChipError(
+    'PROTECT_FAILED',
+    `Refusing to ${action}: ${reason}. Nothing was sent to the tag.`,
+    'The opcode probe runs automatically as part of --protect, on the tag in the field, immediately before the first irreversible command, and passes only on a bare tag whose password is still the factory default. Use a sacrificial bare tag for bring up. The opcodes come from secondary sources rather than the datasheet, and an irreversible command sent on an unproven path can lock a tag with a value nobody holds. See README section 6.4, chip/st-custom.ts and "Decision log", D45.',
+    { action },
+  );
 }
 
 function protectionUnavailable(action: string): ChipError {

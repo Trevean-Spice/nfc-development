@@ -134,16 +134,26 @@ node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
 set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 ```
 
-**What to expect, and why it is not a fault.** The tool **will not apply protection on this reader yet.** The two commands that cannot be undone (Write Password and Set Memory Protection) only run after a probe on the tag has proven the command path, and nothing in the tool runs that probe from the command line today (README section 6.4, "Decision log", D66). So one of these happens:
+**Before you run it, accept this:** since Sunday 25 October 2026 the opcode probe runs inside `--protect`, so on a bare tag this run **can now really protect the tag**, with a password that is discarded a minute later. That tag is then locked for good. That is what the SACRIFICIAL label is for. **Never run it on any other tag, and never on SO4731 stock.**
 
-- `Tag selected`, `Written`, `Verified`, then `FAILED  PROTECT_FAILED` and `Refusing to change a password: the ST custom command path has not been proven on this tag.` That is the gate working.
-- Or an earlier failure (`PASSWORD_REJECTED`, `TRANSPORT_UNAVAILABLE` or `WRITE_FAILED`), because the step before the gate, presenting the factory password inside an ACS transparent session, is itself unproven on this reader.
+**What to expect.** Everything in the protection path is unverified on silicon (README sections 6.4 and 6.5), so the likeliest result is a safe refusal. Read the last lines printed and find them here. **Every "STOP" means: do not run anything else on this tag, do not retry with a change, unplug and replug the reader, and write down the full message word for word.**
 
-**In every case no password and no protection reaches the tag.** Afterwards:
+| What it prints | What it means | What to do |
+|---|---|---|
+| `PROTECT_FAILED`, "The reader did not complete ..." or "Present Password got no usable answer", before `Written` | The ACS session or the ST command path failed. Nothing irreversible was sent | **STOP.** The tag is unharmed |
+| `PASSWORD_REJECTED` before `Written` | The tag refused the factory password. It is not a bare tag, or the path is wrong | **STOP.** Do not try any other password |
+| `Verified`, then `PROTECT_FAILED`, "Refusing to protect this tag: the opcode probe did not pass" | The gate working. The message lists what the tag answered to both passwords | **STOP.** Nothing was locked. This line is the most useful thing the session can produce |
+| `PROTECT_FAILED`, "Writing password 1 was not confirmed" or "Setting protection on area 1 was not confirmed" | An irreversible command got no clean answer. It may have taken effect | **STOP.** Label the tag "LOCKED? password discarded". Never reuse it |
+| `PROTECT_FAILED`, "did not report protection for area 1" | Protection was probably applied. The undocumented 0xBA read form failed | **STOP.** Label it "LOCKED, password discarded" |
+| `PROTECT_FAILED`, "The proof write to block 1 got neither ..." | Probably protected, but the tag refused the proof write with a code other than 0x12, or gave no clean answer | **STOP.** Write down the code in the message: it is how this part reports a protected block. Label it locked |
+| `PROTECT_FAILED`, "The area still accepted a write" | The commands were accepted and protection did not take | **STOP and report it the same day.** This is the one result that means the tool is wrong in a way the gate cannot catch |
+| `Protected`, `refusal proven: yes`, `opcode probe passed on this tag`, then `OK` | The whole path worked on this tag | Tap it with a phone: the Persian Sunrise page must open (**STOP** if it does not: the tag is scrap). Then run `node bin/chip-cli.mjs verify --expect ps --transport reader`, which must pass. Label the tag "PROTECTED, password discarded" |
 
-- **Unplug the reader and plug it back in.** The ACS manual warns that a transparent session can leave the reader unable to see tags until it is reconnected.
-- Keep the sacrificial tag labelled and set aside, and write down exactly what was printed.
-- **If it ever prints `Protected` and `refusal proven`, stop and report it.** By design that cannot happen on this reader today.
+**Afterwards, whatever happened:**
+
+- `unset TREVEAN_TAG_PASSWORD` (Mac) or `set TREVEAN_TAG_PASSWORD=` (Windows), if not done already. The value is never written down anywhere.
+- **Unplug the reader and plug it back in.** The ACS manual warns that a transparent session can leave the reader unable to see tags until it is reconnected (section 5.3.5.3).
+- Keep the sacrificial tag labelled and set aside, and send what was printed. Nobody edits the tool during the session.
 
 ---
 

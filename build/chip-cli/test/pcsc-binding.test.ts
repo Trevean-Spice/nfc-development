@@ -24,100 +24,15 @@ import {
   PcscTransport,
   adaptPcscMini,
   isSamSlot,
-  type PcscBinding,
-  type PcscCardHandle,
   type PcscMiniModule,
   type PcscReaderHandle,
 } from '../src/transport/pcsc.js';
 import { isChipError } from '../src/chip/errors.js';
 import { PART } from '../src/chip/st25tv02kc.js';
 import { ST_COMMANDS } from '../src/chip/st-custom.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, OK, carriesSt, hex } from './fake-acr1552u.js';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join(' ');
-const OK = [0x90, 0x00];
-const UID_LSB_FIRST = [0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x02, 0xe0];
-/** What an ACS transparent session control command answers: a status TLV, then 90 00. */
-const SESSION_ANSWER = [0xc0, 0x03, 0x00, 0x90, 0x00, ...OK];
-
-/** A tag on a reader, answering the PC/SC storage card commands, and recording every APDU. */
-class FakeTag {
-  readonly memory = new Uint8Array(PART.totalBytes);
-  readonly sent: string[] = [];
-  disconnects = 0;
-  /** What a transceived ST frame answers. Tests set it to make the probe pass or fail. */
-  stAnswer: (frame: Uint8Array) => number[] = () => [0x97, 0x01, 0x00, ...OK];
-  failTransmit = false;
-
-  handle(): PcscCardHandle {
-    return {
-      transmit: async (apdu) => {
-        this.sent.push(hex(apdu));
-        if (this.failTransmit) throw new Error('[ RemovedCard ] - Error in native function');
-        return Uint8Array.from(this.answer(apdu));
-      },
-      disconnectUnpower: async () => {
-        this.disconnects += 1;
-      },
-    };
-  }
-
-  private answer(apdu: Uint8Array): number[] {
-    const [cla, ins, p1 = 0, p2 = 0, lc = 0] = apdu;
-    if (cla !== 0xff) return [0x6e, 0x00];
-    const block = (p1 << 8) | p2;
-    if (ins === 0xca) return [...UID_LSB_FIRST, ...OK];
-    if (ins === 0xb0) {
-      const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
-      if (block + count > PART.blockCount) return [0x6a, 0x82];
-      return [...this.memory.subarray(block * 4, (block + count) * 4), ...OK];
-    }
-    if (ins === 0xd6) {
-      if (block >= PART.blockCount) return [0x6a, 0x82];
-      this.memory.set(apdu.subarray(5, 5 + lc), block * 4);
-      return OK;
-    }
-    if (ins === 0xc2 && p2 === 0x01) return this.stAnswer(apdu.subarray(7));
-    if (ins === 0xc2) return SESSION_ANSWER;
-    return [0x6d, 0x00];
-  }
-}
-
-class FakeReader implements PcscReaderHandle {
-  present: boolean;
-  connects = 0;
-  constructor(
-    readonly name: string,
-    readonly tag: FakeTag = new FakeTag(),
-    present = true,
-  ) {
-    this.present = present;
-  }
-  tagPresent(): boolean {
-    return this.present;
-  }
-  async connect(): Promise<PcscCardHandle> {
-    this.connects += 1;
-    return this.tag.handle();
-  }
-}
-
-class FakeBinding implements PcscBinding {
-  stops = 0;
-  constructor(
-    private readonly readers: FakeReader[],
-    private readonly startError?: Error,
-  ) {}
-  start(onReader: (reader: PcscReaderHandle) => void): void {
-    if (this.startError) throw this.startError;
-    for (const reader of this.readers) onReader(reader);
-  }
-  stop(): void {
-    this.stops += 1;
-  }
-}
-
-const ACR1552U = 'ACS ACR1552 1S CL Reader PICC 0';
 
 async function openWith(readers: FakeReader[], filter?: string): Promise<{ transport: PcscTransport; binding: FakeBinding }> {
   const binding = new FakeBinding(readers);
@@ -218,10 +133,9 @@ test('releasing the tag powers it down, and the next unit connects afresh', asyn
 /* THE GATE, on the wire. "Decision log", D66, and README section 6.4.       */
 /* ------------------------------------------------------------------------ */
 
-const WRITE_PASSWORD_BYTE = ST_COMMANDS.WRITE_PASSWORD.code.toString(16).padStart(2, '0');
-const SET_PROTECTION_BYTE = ST_COMMANDS.SET_MEMORY_PROTECTION.code.toString(16).padStart(2, '0');
-/** An ACS transceive APDU carrying an ST custom command: ff c2 00 01 len 95 len flags CODE 02 ... */
-const carries = (apdu: string, code: string) => apdu.startsWith('ff c2 00 01') && apdu.split(' ')[8] === code;
+const WRITE_PASSWORD_BYTE = ST_COMMANDS.WRITE_PASSWORD.code;
+const SET_PROTECTION_BYTE = ST_COMMANDS.SET_MEMORY_PROTECTION.code;
+const carries = carriesSt;
 
 for (const [label, call] of [
   ['writePassword', (t: PcscTransport) => t.writePassword(1, Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]))],
@@ -239,6 +153,7 @@ for (const [label, call] of [
 
   test(`${label} stays locked when the probe gets the same answer to both passwords`, async () => {
     const reader = new FakeReader(ACR1552U);
+    reader.tag.tagOverride = () => [0x01, 0x0f];
     const { transport } = await openWith([reader]);
     await transport.waitForTag(200);
     const probe = await transport.verifyOpcodes();
@@ -251,9 +166,8 @@ for (const [label, call] of [
 }
 
 test('the probe that unlocks the pair sends only Present Password, never either irreversible opcode', async () => {
+  // The fake tag accepts the factory default (eight zero bytes) and refuses anything else.
   const reader = new FakeReader(ACR1552U);
-  // The factory default (eight zero bytes) is accepted and anything else is refused.
-  reader.tag.stAnswer = (frame) => (frame.subarray(4).every((b) => b === 0) ? [0x97, 0x01, 0x00, ...OK] : [0x97, 0x02, 0x01, 0x0f, ...OK]);
   const { transport } = await openWith([reader]);
   await transport.waitForTag(200);
   const probe = await transport.verifyOpcodes();
@@ -264,7 +178,6 @@ test('the probe that unlocks the pair sends only Present Password, never either 
 
 test('the unproven state is per transport: a new transport starts locked even after another proved the path', async () => {
   const reader = new FakeReader(ACR1552U);
-  reader.tag.stAnswer = (frame) => (frame.subarray(4).every((b) => b === 0) ? [0x97, 0x01, 0x00, ...OK] : [0x97, 0x02, 0x01, 0x0f, ...OK]);
   const first = await openWith([reader]);
   await first.transport.waitForTag(200);
   assert.equal((await first.transport.verifyOpcodes()).proven, true);

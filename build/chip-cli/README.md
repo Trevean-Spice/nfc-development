@@ -189,10 +189,10 @@ node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
 
 Applying protection and being told "accepted" is not proof. For every protected unit the tool then:
 
-1. drops the tag out of the field, so no password is presented any more,
-2. reads the protection state back and requires it to say write protected,
+1. reads the protection state back and requires it to say write protected. Since Sunday 25 October 2026 this happens **before** the tag leaves the field, because on a reader that read is only allowed while the opcode probe still stands on that tag (section 6.4). The state is configuration, not session, so it reads the same either side,
+2. drops the tag out of the field, so no password is presented any more,
 3. reads the NDEF back and requires it to still decode to the right URL, because a protected tag no phone can read is a scrap tag that passed every other check,
-4. attempts a write, and **requires it to be refused**. The bytes it attempts are the bytes already there, so if protection somehow did not take, the tag is unchanged and the unit fails rather than being recorded as protected.
+4. attempts a write, and **requires the tag itself to refuse it because the block is protected**. A write that merely fails is not enough: on a reader that is ISO 15693 error code 0x12 from the tag, and nothing else counts (section 6.5). The bytes it attempts are the bytes already there, so if protection somehow did not take, the tag is unchanged and the unit fails rather than being recorded as protected.
 
 ### 5.5 Custody
 
@@ -207,7 +207,7 @@ Applying protection and being told "accepted" is not proof. For every protected 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 143 automated tests against a software model of the ST25TV02KC. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 278 automated tests (Sunday 25 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 
@@ -238,11 +238,11 @@ Run `npm test` and read the count. These are properties of the code and they hol
 
 Not on SO4731 stock, and not on anything destined for a jar.
 
-1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. The optional binding, `pcsc-mini`, is installed by `npm ci`; see `SETUP-WINDOWS-MAC.md`. The protection half is deliberately unimplemented; see section 6.4.
+1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. The optional binding, `pcsc-mini`, is installed by `npm ci`; see `SETUP-WINDOWS-MAC.md`. The protection half is implemented and gated on the probe, and unverified on silicon; see sections 6.4 and 6.5.
 2. `chip-cli doctor --transport reader` on a bare tag. Confirm the geometry it reports is 64 blocks of 4 bytes.
 3. `chip-cli write --code ps --transport reader` on a bare tag, then tap it with a real phone and confirm the correct blend page opens. That is the check that actually matters, and it is the one people skip.
 4. Repeat with a tag taken from SO4731, to confirm re encoding works on stock as the client has said it does.
-5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. Confirm the tag still reads on a phone afterwards.
+5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. The opcode probe runs inside it, on that tag, before anything irreversible (section 6.4). Confirm the tag still reads on a phone afterwards.
 6. Only then, protection on anything real.
 
 Until step 3 has been done and written down, **no claim about hardware behaviour should be made to the client**, including by us.
@@ -273,9 +273,9 @@ that, so the day somebody upgrades one, they have to think about whether it is t
 | Command | Code | Reversible | Allowed |
 |---|---|---|---|
 | **Present Password** | `0xB3` | **Yes.** Wrong opcode or wrong password both just fail | **Always** |
-| **Read protection state** | `0xBA` read form | **Yes.** Read only | **Always** |
-| Write Password | `0xB1` | **NO** | **Only after the probe passes** |
-| Set Memory Protection | `0xBA` | **NO** | **Only after the probe passes** |
+| Read protection state | `0xBA`, one parameter "read form" | **Unknown.** Same code as Set Memory Protection, and the read form is described only by secondary sources | **Only after the probe passes, on that tag, in that connection** (since Sunday 25 October 2026) |
+| Write Password | `0xB1` | **NO** | **Only after the probe passes, on that tag, in that connection** |
+| Set Memory Protection | `0xBA` | **NO** | **Only after the probe passes, on that tag, in that connection** |
 
 **Present Password cannot damage a tag.** It is either accepted for the session or
 refused, and nothing is written either way. That makes it probe-able, and a probe that
@@ -286,16 +286,36 @@ wrapper. **Nothing else in the chain produces a discriminating answer.**
 #### The probe
 
 `verifyOpcodes()` presents a **deliberately wrong** password, then the **factory
-default**, and requires the chip to answer those two **differently**.
+default**. **Since Sunday 25 October 2026 "different" is no longer enough; both answers
+must be explicitly correct:**
 
-- **Different answers:** the path is confirmed on real silicon, and the irreversible
-  pair unlocks **for that session only**.
-- **Same answer:** nothing is proven, whatever the answer was, and the irreversible
-  pair stays locked. Either the tag already carries a password, or one of the bytes is
-  wrong.
+- the factory default must come back as an **explicit success**: C0 status `00 90 00`,
+  no CRC, collision, parity or framing error, and a `97` response holding exactly the
+  ISO 15693 flags byte `00`;
+- the wrong password must come back as an **explicit tag level error**: same reader
+  checks, and a `97` response holding flags `01` and one error code, which must not be
+  01, 02 or 03 (those mean the tag did not understand the command at all).
 
-**Run it on a sacrificial bare tag.** It is safe by construction, but the point of a
-bring up is finding out on a tag you do not mind losing.
+**Anything else on either attempt means NOT proven**: a timeout, a CRC error, a transport
+error, a missing or extra data object, extra bytes, odd flags. A timeout on one attempt and
+a CRC error on the other used to count as "different" and unlock the pair. They do not now.
+
+**The proof belongs to one physical tag and one connection.** It is recorded against the
+tag's UID and wiped when any tag is selected, when the tag is released, when the transport
+is opened or closed, and on any transport error. Before each irreversible command the
+transport also reads the UID from the field again and refuses, sending nothing, if it is
+not the proven tag.
+
+**It runs by itself inside `--protect`**, in `UnitSession.protect`, after the pre
+protection read back and immediately before the first irreversible command. There is no
+separate probe command. If it does not pass, the run stops with `PROTECT_FAILED`,
+"Refusing to protect this tag: the opcode probe did not pass", and nothing is locked. A
+hardware transport with no probe at all is refused protection outright.
+
+**It passes only on a bare tag whose password 1 is still the factory default.** So this
+tool cannot protect, on a reader, a tag that already carries a password. That is
+deliberate. **Use a sacrificial bare tag for bring up.** It is safe by construction, but
+the point of a bring up is finding out on a tag you do not mind losing.
 
 #### Why the gate exists rather than a flag somebody can set
 
@@ -312,9 +332,44 @@ than guesses, which is a different and better failure than the one section 6.2
 describes, but it is **not** the same as working. Section 6.3 is still the bring up
 sequence, and step 3, a real tag and a real phone, is still the step that matters.
 
-**The most useful thing this transport can do today needs no probe at all:**
-`readAreaProtection` is read only and answers the question open since September, which
-is what protection the supplier actually applied to SO4731.
+**Withdrawn on Sunday 25 October 2026:** this section used to say `readAreaProtection`
+"is read only" and could be pointed at an SO4731 tag to find out what the supplier
+applied. **It sends `0xBA`, the code of the irreversible Set Memory Protection,** with one
+parameter, and that read form is not in any document in hand. No documented safe read of
+the area protection is in hand either: the ST25TV02KC datasheet is not, and the ACS manual
+documents only the transport. So it is now gated exactly like the irreversible pair. The
+consequence is that **it can no longer answer the SO4731 question**, because the probe
+cannot pass on a tag that carries a password. That question waits for the datasheet.
+
+### 6.5 What changed on Sunday 25 October 2026, against the ACR1552U manual
+
+**Every item below was checked against the ACS reference manual REF-ACR1552U-Series
+version 1.09, and every one of them is still unverified on silicon.** Nothing in this
+section has touched a reader or a tag. The tests prove the tool sends the manual's bytes
+and reads answers the manual's way, against a fake reader written from the same manual.
+The ST opcodes are still secondary sourced (6.4), and the ST25TV02KC datasheet is still
+not in hand.
+
+| # | What was wrong | What it is now | Manual section |
+|---|---|---|---|
+| D1 | Switch Protocol sent `8F 02 00 03`, which selects **ISO 14443A** layer 3 | `FF C2 00 02 04 8F 02 02 03 00`: RF `02h` ISO 15693, layer 3, Le `00` | 5.3.5.5, 5.3.5.5.1 |
+| D2 | Transparent Exchange had no timer, so the reader would wait "about 302 µs", and no Le | Every exchange carries Timer `5F 46 04` of 50 ms (LSB first), then `95 [len] [frame]`, then Le `00` | 5.3.5.4, 5.3.5.4.3, 5.3.5.4.4 |
+| D3 | Only the outer status word was read. A refusal or a timeout arrives as `90 00` with the failure inside the C0 object | Every answer is parsed as BER-TLV. C0 must read `00 90 00`, 92 and 96 must report no error, exactly one 97 must carry the tag's answer, and the ISO 15693 flags byte inside it decides success (`00`) or error (`01` plus one code). Session start and Switch Protocol are checked the same way | 5.3.5.2, 5.3.5.3, 5.3.5.4, 5.3.5.6 |
+| D4 | The probe unlocked the pair on any two different answers | Both answers must be explicitly correct, as in 6.4 above | 5.3.5.2, 5.3.5.4 |
+| D5 | One pass unlocked the pair for every later tag in the session | The proof is per UID and per connection, as in 6.4 above | (tool rule, not manual) |
+| D6 | `readAreaProtection` sent the 0xBA read form with no gate | Gated like the irreversible pair. Not replaced, because no documented safe read is in hand | (datasheet not in hand) |
+| D7 | The proof write used Update Binary and needed `AREA_PROTECTED`, but the transport threw `WRITE_FAILED`, so a real protection would be recorded `PROTECT_FAILED` | The proof write is ISO 15693 Write Single Block (21h) in a transparent session, and only tag error 0x12 ("block locked", ISO/IEC 15693-3) counts as refused. Update Binary was not usable: the manual gives it a single error row, "6X XXh Fail", so a protection refusal and an RF failure look the same | 5.3.3.5, 5.3.4.2.2 |
+| D8 | `verifyOpcodes` was not reachable from any command, yet the `PROTECT_FAILED` remedy said to "run the opcode probe" | It runs inside `--protect` before any irreversible command, with a clear refusal; the remedy now says so | n/a |
+
+**What a bring up has to watch for, because only silicon can settle it:** whether the
+ACR1552U in the client's hands accepts these exact APDUs; whether its `97` object carries
+the tag's answer without CRC bytes (the strict parser treats extra bytes as no answer);
+whether a password presented in one transparent session still applies in the next (each
+ST command opens and closes its own session, and if the reader drops the field between
+them, Write Password will be refused, which is the safe direction); what error code the
+ST25TV02KC gives a wrong password and a write to a protected block; and what the 0xBA one
+parameter form actually returns. **The operator steps for that session, with the points
+at which to stop, are in `SETUP-WINDOWS-MAC.md` section 4.3.**
 
 ---
 
@@ -395,7 +450,7 @@ Keep these files. They are the record of which tags carry which code, and they a
 
 ## 10. For the engineer wiring up a real reader
 
-The hardware boundary is `src/transport/transport.ts`, a twelve method interface. Everything above it is pure logic with no I/O. There are three implementations: `simulator.ts`, a model of the memory and what the tests run against; `pcsc.ts`, the real one, covering the encode and verify half and never yet run on silicon; and `reader-stub.ts`, which refuses everything and is kept for attributing bring up failures.
+The hardware boundary is `src/transport/transport.ts`, a thirteen method interface plus the optional opcode probe `verifyOpcodes`, which a hardware transport must have before `--protect` will run on it. Everything above it is pure logic with no I/O. There are three implementations: `simulator.ts`, a model of the memory and what the tests run against; `pcsc.ts`, the real one, covering the encode and verify half and never yet run on silicon; and `reader-stub.ts`, which refuses everything and is kept for attributing bring up failures.
 
 **Adding hardware means filling in one file.** Nothing else changes, and the whole test suite continues to apply, because the tests exercise the layers above the boundary.
 

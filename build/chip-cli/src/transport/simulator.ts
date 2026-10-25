@@ -24,7 +24,7 @@
  * See README section 6. This is a model of the memory, not a model of the radio.
  */
 
-import { ChipError } from '../chip/errors.js';
+import { ChipError, isChipError } from '../chip/errors.js';
 import {
   DEFAULT_AREA,
   DEFAULT_AREA_PASSWORD_NUMBER,
@@ -397,6 +397,22 @@ export class SimulatorTransport implements TagTransport {
   async readAreaProtection(area: number): Promise<AreaProtectionState> {
     const tag = this.requireTag();
     return tag.areas.get(area) ?? { protection: 'none', passwordNumber: DEFAULT_AREA_PASSWORD_NUMBER };
+  }
+
+  /**
+   * The model's own refusal is the AREA_PROTECTED it throws for a protected block with
+   * no password presented, so that, and only that, is reported as refused. An injected
+   * write fault is rethrown, exactly as a write fault on a real reader must not be read
+   * as protection.
+   */
+  async proveWriteRefused(block: number, data: Uint8Array): Promise<'refused' | 'accepted'> {
+    try {
+      await this.writeBlock(block, data);
+      return 'accepted';
+    } catch (cause) {
+      if (isChipError(cause) && cause.code === 'AREA_PROTECTED') return 'refused';
+      throw cause;
+    }
   }
 
   async releaseTag(): Promise<void> {
