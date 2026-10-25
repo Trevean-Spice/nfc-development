@@ -1,0 +1,31 @@
+{
+  "name": "@trevean/chip-cli",
+  "version": "1.0.0",
+  "private": true,
+  "license": "LicenseRef-Trevean-Work-For-Hire",
+  "description": "Chip programming tooling for Trevean Spice. Encodes STMicroelectronics ST25TV02KC tags (NFC Forum Type 5 / ISO 15693) with the NDEF URI record derived from the canonical redirect table, verifies every unit by read back, and applies area based 64 bit password write protection. Not NTAG lock bit tooling.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "bin": {
+    "chip-cli": "./bin/chip-cli.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "test:only": "node scripts/run-tests.mjs",
+    "ci": "npm run typecheck && npm run test",
+    "chip-cli": "node bin/chip-cli.mjs",
+    "licences": "node scripts/licenses.mjs",
+    "licences:check": "node scripts/licenses.mjs --check"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "typescript": "^5.9.3"
+  },
+  "optionalDependencies": {
+    "pcsc-mini": "0.1.3"
+  }
+}
