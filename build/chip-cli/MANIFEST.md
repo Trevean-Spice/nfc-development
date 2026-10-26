@@ -101,11 +101,14 @@ Built into Node.js and covered by the Node.js licence. Not redistributed, not ve
 
 | Module | Used by | For |
 |---|---|---|
-| `node:crypto` | `chip/password.ts`, `table/redirect-table.ts`, `workflow/journal.ts`, `workflow/unit.ts` | SHA-256 for password fingerprints, the redirect table digest, journal record digests and the verification receipt digest. `timingSafeEqual` for password comparison. `randomUUID` for run identifiers |
-| `node:fs` | `table/redirect-table.ts`, `workflow/journal.ts`, `cli/main.ts` | Reading the redirect table and password files, appending and flushing the batch journal |
-| `node:os` | `workflow/batch.ts`, tests | Operator and host names in the run header, temporary directories in tests |
+| `node:crypto` | `chip/password.ts`, `table/redirect-table.ts`, `workflow/journal.ts`, `workflow/unit.ts`, `app/controller.ts` | SHA-256 for password fingerprints, the redirect table digest, journal record digests and the verification receipt digest. `timingSafeEqual` for password comparison. `randomUUID` for run identifiers |
+| `node:fs` | `table/redirect-table.ts`, `workflow/journal.ts`, `cli/main.ts`, `app/` | Reading the redirect table and password files, appending and flushing the batch journal. In the Tag Tool, reading its page and creating its journal folder |
+| `node:os` | `workflow/batch.ts`, `app/controller.ts`, tests | Operator and host names in the run header, temporary directories in tests |
 | `node:path`, `node:url` | throughout | Resolving the redirect table path relative to this package, on Windows and on Linux |
-| `node:util` | `cli/main.ts` | `parseArgs`, the standard library argument parser. This is why there is no commander, yargs or minimist in this package |
+| `node:util` | `cli/main.ts`, `app/main.ts` | `parseArgs`, the standard library argument parser. This is why there is no commander, yargs or minimist in this package |
+| `node:http` | `app/server.ts` | The Tag Tool's page and its live feed, served on 127.0.0.1 only. This is why there is no Express or similar in this package |
+| `node:net` | `app/server.ts` (a type only), tests | The listening address type; in the tests, checking the server cannot be reached on any address but 127.0.0.1 |
+| `node:child_process` | `app/main.ts` | Opening the default browser on the Tag Tool page (`start` on Windows, `open` on a Mac) |
 | `node:readline/promises` | `cli/main.ts` | Waiting for the operator between tags in interactive batch mode |
 | `node:test`, `node:assert` | tests | The test runner, built into Node 20 and later. This is why there is no Jest, Mocha, Vitest or Chai in this package |
 

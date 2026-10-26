@@ -7,6 +7,19 @@
 
 ---
 
+## The easy way: Start Tag Tool
+
+**For writing many tags in a row, double click `Start Tag Tool.cmd` (Windows) or `start-tag-tool.command` (Mac) in the tag tool folder.** It installs and builds on the first run, then opens a page in the browser that shows the reader and the tag live, takes a product code from a list of the writable codes, and writes and verifies each tag as it is put on the reader, with desktop notifications when the reader is ready, a tag is seen, a tag is written, and on any error. A box turns on writing the same code to every new tag automatically. Step by step, in plain words: the first section of `SETUP-WINDOWS-MAC.md`.
+
+What it is underneath, for the engineer:
+
+- `src/app/`: a Node `http` server on **127.0.0.1 only** (the address is a constant, not an option), first free port from 10350 to 10359, live state over server sent events with polling as the fallback. `node bin/tag-tool.mjs --help` for its options; `--simulator` rehearses with no reader and adds buttons to put a tag down, lift it, and unplug the reader.
+- **Each tag goes through the same `UnitSession` select, write and verify path as `chip-cli write` and `batch`, unchanged**, two attempts per tag as the batch does, and is journalled in the batch journal format (section 9) to `runs/tag-tool/`, one file per product code per session.
+- **It never protects a tag.** It has no password or protection control, never calls the protect step, and wraps the transport so the three password and protection commands are refused before they reach the reader. Tests check all three. Protection stays in `chip-cli` (section 5).
+- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does. **It has not been run on Windows, on a Mac, with a physical reader or on a physical tag**; the tests run it against the simulator and a scripted reader.
+
+---
+
 ## 1. What this is, and what it is not
 
 **It is a command line tool that encodes STMicroelectronics ST25TV02KC tags with one NDEF URI record, reads every tag back to prove what it holds, and applies area based 64 bit password write protection, in that order, for batches of up to several hundred units.**
@@ -512,6 +525,9 @@ chip-cli verify --expect ps             read one tag and check it carries the ri
 chip-cli batch --code ps --count 125 --journal runs/ps.jsonl
 chip-cli status --journal runs/ps.jsonl progress of a batch
 chip-cli doctor                         preflight checks
+
+node bin/tag-tool.mjs                   the Tag Tool page (what Start Tag Tool runs)
+node bin/tag-tool.mjs --simulator       the same, with no reader and no tags
 ```
 
 Common options: `--table <path>`, `--transport simulator|reader`, `--dry-run`, `--json`.
@@ -531,6 +547,8 @@ Run `chip-cli --help` for the full list.
 The journal is one line of JSON per event. The first line describes the run, then one line per unit attempt, then one line closing the run. Every line carries a digest of itself. It is append only: a retried unit's earlier failure stays visible rather than being overwritten.
 
 Keep these files. They are the record of which tags carry which code, and they are what a recall or a customer complaint would be answered from. Suggested naming: `runs/YYYY-MM-DD-<code>.jsonl`.
+
+The Tag Tool writes the same journal, in the same format, to `runs/tag-tool/tag-tool-<start time>-<code>.jsonl`: one file per product code each time it is started, with `targetCount` 0 in the header because it writes until it is closed.
 
 **The password is never in this file.** Only its fingerprint. A test asserts it.
 

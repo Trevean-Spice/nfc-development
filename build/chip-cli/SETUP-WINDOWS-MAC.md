@@ -6,6 +6,32 @@
 
 ---
 
+## The easy way: Start Tag Tool
+
+For writing tags one after another. You click, you type a product code, you swap tags. No commands.
+
+**Once, before the first time:** install Node.js (section 2, step 2 on Windows, or section 3 on a Mac), plug the reader in, and close GoToTags.
+
+1. **Open the tag tool folder**, the one with the `build` folder inside it, and **double click `Start Tag Tool`**. On a Mac it is `start-tag-tool.command`, and the very first time you right click it, choose Open, then Open again.
+2. **A black window opens.** The first time, it sets itself up: that needs the internet and takes a minute or two. Then your web browser opens on the Tag Tool page by itself. **Keep the black window open while you work.** Closing it stops the Tag Tool.
+3. **Click "Turn on desktop notifications"** at the top of the page and choose Allow. Then a message pops up in the corner of the screen when the reader is ready, when a tag is seen, when a tag is written, and when something goes wrong. If you skip this, the same messages show on the page.
+4. **Wait for "Reader ready"**, then put one tag flat on the reader. The page says **Tag seen** and shows the tag's UID.
+5. **Type the product code** (`ps`, `cs`, `sr` or `nm`), or pick it from the list, which shows each blend's name. Press **Write**. The page says **Writing**, then **Written and verified**, with the web address it read back off the tag. `kg` cannot be written yet, and the page says so.
+6. **Take the tag off and put the next one on.** The page says **Tag seen** again. Press Write again.
+7. **To go faster,** tick **Write this code to every new tag automatically**. From then on, each new tag is written the moment it is put down, so all you do is swap tags and watch for the green **Written and verified**. A tag that has just been written is never written again while it sits on the reader. Untick the box to stop.
+8. **If something goes wrong,** the page turns red and shows the error code, what happened, and what to do, in that order. A tag that fails twice: take it off, set it aside, and label it.
+
+Good to know:
+
+- **It never locks a tag** and never asks for a password. Protection is a separate step, in section 4.3.
+- **Every tag is recorded**, written or failed, in the `build\chip-cli\runs\tag-tool` folder: one file per product code each time the Tag Tool is started.
+- **Double clicking it a second time** just brings the page back up. It does not start a second copy.
+- **If the black window says Node.js is missing,** install it as in section 2, step 2, then double click again. If it stops for any other reason, it stays open and says why: take a photo of it and send it to Serene Labs.
+
+**Not checked yet, plainly:** the Tag Tool has only been run on Linux, against the simulated reader. It has not been run on Windows, on a Mac, with the ACR1552U, or on a real tag. On the call on Monday 26 October 2026 the reader was found but the tag was not seen; that is being fixed in the reader code, and the Tag Tool needs the same fix before it can see a tag.
+
+---
+
 ## 0. Read this first: what has NOT been checked
 
 **No ACR1552U, no ST25TV02KC tag, no Windows computer and no Mac were available when this was written.** So, plainly:
