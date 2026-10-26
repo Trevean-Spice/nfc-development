@@ -110,7 +110,11 @@ export function renderBatchSummary(summary: BatchSummary): string {
     lines.push('');
     lines.push('The run was interrupted. Nothing was lost: every finished unit is on disk.');
   }
-  if (summary.aborted) {
+  if (summary.stoppedAtUnsafeUnit !== null) {
+    lines.push('');
+    lines.push(bold(`The run stopped at unit ${summary.stoppedAtUnsafeUnit}: its tag may be locked, or holds a password 1 nobody knows.`));
+    lines.push('Take that tag off the reader and label it as its message says. Report it the same day, before resuming. Nothing was started on another tag.');
+  } else if (summary.aborted) {
     lines.push('');
     lines.push('The run stopped because too many units failed. Check the reader and the tags before resuming.');
   }

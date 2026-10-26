@@ -1,0 +1,4 @@
+# The Tag Tool launchers are stored byte for byte. A .cmd file needs Windows line
+# endings and a .command file must not have them, whatever the checkout settings.
+*.cmd -text
+*.command -text
