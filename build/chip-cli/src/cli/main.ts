@@ -14,17 +14,18 @@ import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { ChipError, asChipError, isChipError } from '../chip/errors.js';
 import { FACTORY_DEFAULT_HEX, TagPassword, loadPassword } from '../chip/password.js';
-import { PART, T5T_AREA_BYTES, type CcPolicy } from '../chip/st25tv02kc.js';
+import { PART, READ_SPAN_MAX_BLOCKS, T5T_AREA_BYTES, type CcPolicy } from '../chip/st25tv02kc.js';
 import { decodeUriMessage } from '../ndef/decode.js';
 import { unwrapNdefTlv } from '../ndef/tlv.js';
 import { RedirectTable, DEFAULT_TABLE_PATH } from '../table/redirect-table.js';
 import { PhysicalReaderTransport } from '../transport/reader-stub.js';
-import { PcscTransport } from '../transport/pcsc.js';
+import { PcscTransport, type PcscTransportOptions } from '../transport/pcsc.js';
 import { SimulatorTransport, type SimulatorFaultKind } from '../transport/simulator.js';
 import type { TagTransport } from '../transport/transport.js';
 import { fromHex } from '../util/hex.js';
 import { runBatch, type BatchEvent } from '../workflow/batch.js';
 import { readJournal, resumeState } from '../workflow/journal.js';
+import { DEFAULT_PORTS as TAG_TOOL_PORTS, probeExisting } from '../app/server.js';
 import { UnitSession, planEncoding } from '../workflow/unit.js';
 import { compactRanges, renderBatchSummary, renderEncoding, renderError, resumeCommand, rule } from './render.js';
 
@@ -84,7 +85,9 @@ COMMANDS
   batch --code <code> --count <n> --journal <path>
                               Run a batch, resumable, one journal line per unit
   status --journal <path>     Report progress of a batch journal
-  doctor                      Check the tool, the table and the transport before a run
+  doctor                      Check the tool, the table and the transport before a run.
+                              With --transport reader, also says whether a tag is on
+                              the reader (present, mute or absent) and reads its UID
 
 COMMON OPTIONS
   --table <path>              Redirect table. Default: the one in build/edge
@@ -107,7 +110,8 @@ PROTECTION OPTIONS
 BATCH OPTIONS
   --count <n>                 Units in this batch
   --journal <path>            Batch journal. Rerun the same command to resume it
-  --attempts <n>              Attempts per unit before it is recorded failed. Default 2
+  --attempts <n>              Attempts per unit before it is recorded failed. Default 2.
+                              Never applies once a unit's opcode probe has passed
   --max-failures <n>          Stop the run after this many failures. Default 10
   --prompt / --no-prompt      Wait for the operator between tags. Default: on with
                               a real reader and an interactive terminal
@@ -162,12 +166,12 @@ function loadTable(values: Record<string, unknown>): RedirectTable {
   return RedirectTable.load(str(values, 'table') ?? DEFAULT_TABLE_PATH);
 }
 
-function buildTransport(values: Record<string, unknown>): TagTransport {
+function buildTransport(values: Record<string, unknown>, pcsc?: PcscTransportOptions): TagTransport {
   const name = str(values, 'transport') ?? 'simulator';
   // "reader" is the real one and is PC/SC. The old stub is kept reachable under its own
   // name so the bring up in README section 6.3 can be rehearsed against something that
   // refuses predictably, rather than against hardware that might be at fault instead.
-  if (name === 'reader' || name === 'pcsc') return new PcscTransport(str(values, 'reader-name'));
+  if (name === 'reader' || name === 'pcsc') return new PcscTransport(str(values, 'reader-name'), pcsc);
   if (name === 'stub') return new PhysicalReaderTransport();
   if (name !== 'simulator') {
     throw new ChipError('USAGE', `Unknown transport "${name}".`, 'Use --transport simulator, --transport reader, or --transport stub.', { name });
@@ -218,6 +222,28 @@ function loadPasswords(values: Record<string, unknown>): Passwords {
   }
   const current = loadPassword({ env: currentEnv, file: currentFile }, 'current', (p) => readFileSync(p, 'utf8'));
   return { current: current.password, next: loaded.password, origin: loaded.origin };
+}
+
+/**
+ * The Tag Tool and chip-cli can both open the reader at once: PC/SC connects in
+ * shared mode and nothing in either program stops the other. A Tag Tool polling in
+ * the middle of a protection sequence would reset the tag under it. So protection on
+ * a real reader is refused while a Tag Tool answers on this computer: before the
+ * reader is opened, and again just before the protect step, which is the one that
+ * matters, since the Tag Tool may have been started while the tag was being written.
+ *
+ * The ports are probed together, so one check costs one probe timeout at most.
+ */
+async function refuseWhileTagToolRuns(ports: readonly number[], nothingDone: string): Promise<void> {
+  const answers = await Promise.all(ports.map((port) => probeExisting(port)));
+  const port = ports.find((_, i) => answers[i]);
+  if (port === undefined) return;
+  throw new ChipError(
+    'USAGE',
+    `Close the Tag Tool first: both programs can open the reader at the same time and nothing stops them. A Tag Tool is running at http://127.0.0.1:${port}/.`,
+    `Close the Tag Tool's black window, then run this command again. ${nothingDone}`,
+    { port },
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -290,7 +316,12 @@ function commandDecode(values: Record<string, unknown>, out: (line: string) => v
   return EXIT_OK;
 }
 
-async function commandWrite(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+async function commandWrite(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+  tagToolPorts: readonly number[] = TAG_TOOL_PORTS,
+): Promise<number> {
   const table = loadTable(values);
   const code = str(values, 'code');
   if (code === undefined) throw new ChipError('USAGE', 'write needs --code.', 'For example: chip-cli write --code ps', {});
@@ -310,8 +341,10 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
     return EXIT_OK;
   }
 
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
   const passwords = protect ? loadPasswords(values) : null;
+  const guardReader = passwords !== null && transport.isHardware;
+  if (guardReader) await refuseWhileTagToolRuns(tagToolPorts, 'Nothing was sent to the tag.');
 
   await transport.open();
   try {
@@ -332,9 +365,14 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
     const receipt = await session.verify();
     out(`Verified         ${receipt.decodedUri}`);
     if (passwords !== null) {
+      if (guardReader) {
+        await refuseWhileTagToolRuns(tagToolPorts, 'The tag is written and verified but not protected. Run the same command again to protect it.');
+      }
       const outcome = await session.protect(receipt, { currentPassword: passwords.current, newPassword: passwords.next });
       out(`Protected        area ${outcome.area}, password ${outcome.passwordNumber}, fingerprint ${outcome.passwordFingerprint}`);
       out(`                 refusal proven: ${outcome.refusalProven ? 'yes' : 'no'}`);
+      out(`                 unlock proven: ${outcome.unlockProven ? 'yes' : 'no'}`);
+      if (outcome.opcodeProbe === 'passed') out('                 opcode probe passed on this tag before the irreversible commands');
     }
     await session.finish();
     out('');
@@ -347,16 +385,20 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
 }
 
 /** The longest single read `chip-cli verify` makes: 63 blocks, 252 bytes, inside a one byte Le. */
-const VERIFY_READ_SPAN_BLOCKS = 63;
+const VERIFY_READ_SPAN_BLOCKS = READ_SPAN_MAX_BLOCKS;
 
-async function commandVerify(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+async function commandVerify(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+): Promise<number> {
   const table = loadTable(values);
   const expect = str(values, 'expect');
   if (expect === undefined) {
     throw new ChipError('USAGE', 'verify needs --expect with the code the tag should carry.', 'For example: chip-cli verify --expect ps', {});
   }
   const { entry, uri } = table.uriFor(expect);
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
 
   await transport.open();
   try {
@@ -388,7 +430,12 @@ async function commandVerify(values: Record<string, unknown>, out: (line: string
   }
 }
 
-async function commandBatch(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+async function commandBatch(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+  tagToolPorts: readonly number[] = TAG_TOOL_PORTS,
+): Promise<number> {
   const table = loadTable(values);
   const code = str(values, 'code');
   const journalPath = str(values, 'journal');
@@ -407,12 +454,25 @@ async function commandBatch(values: Record<string, unknown>, out: (line: string)
 
   const dryRun = bool(values, 'dry-run');
   const protect = bool(values, 'protect');
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
   const passwords = protect ? loadPasswords(values) : null;
 
   const interactive =
     bool(values, 'prompt') || (!bool(values, 'no-prompt') && transport.isHardware && process.stdin.isTTY === true);
   const readline = interactive ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  // Checked before the reader is opened and again before every unit, after the
+  // operator presses Enter, ahead of that unit's protect step. A refusal stops the run
+  // with the unit not attempted, so rerunning the same command resumes it.
+  const guardReader = passwords !== null && !dryRun && transport.isHardware;
+  const beforeUnit =
+    readline !== null || guardReader
+      ? async (seq: number, total: number): Promise<void> => {
+          if (readline !== null) await readline.question(`Present tag ${seq} of ${total}, then press Enter. `);
+          if (guardReader) {
+            await refuseWhileTagToolRuns(tagToolPorts, 'This unit was not attempted. Rerun the same command to resume the batch.');
+          }
+        }
+      : undefined;
 
   let stopRequested = false;
   const onSignal = (): void => {
@@ -424,6 +484,7 @@ async function commandBatch(values: Record<string, unknown>, out: (line: string)
   process.on('SIGINT', onSignal);
 
   try {
+    if (guardReader) await refuseWhileTagToolRuns(tagToolPorts, 'Nothing was sent to a tag.');
     const summary = await runBatch({
       table,
       code,
@@ -442,11 +503,7 @@ async function commandBatch(values: Record<string, unknown>, out: (line: string)
       toolVersion: TOOL_VERSION,
       ...(str(values, 'operator') !== undefined ? { operator: str(values, 'operator') as string } : {}),
       shouldStop: () => stopRequested,
-      beforeUnit: readline
-        ? async (seq, total) => {
-            await readline.question(`Present tag ${seq} of ${total}, then press Enter. `);
-          }
-        : undefined,
+      beforeUnit,
       onEvent: (event) => reportBatchEvent(event, out),
     });
 
@@ -499,7 +556,11 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
   const path = str(values, 'journal');
   if (path === undefined) throw new ChipError('USAGE', 'status needs --journal.', 'For example: chip-cli status --journal runs/ps.jsonl', {});
   const parsed = readJournal(path);
-  const state = resumeState(parsed, parsed.header.targetCount);
+  // A batch always has a target of at least one. Zero is a Tag Tool journal, which is
+  // open ended: every unit it numbered counts, and there is nothing to resume.
+  const openEnded = parsed.header.targetCount === 0;
+  const state = resumeState(parsed, openEnded ? Math.max(0, ...parsed.units.map((u) => u.seq)) : parsed.header.targetCount);
+  const remaining = openEnded ? [] : state.remaining;
   const damaged = parsed.digestFailures.length > 0 || parsed.badLines > 0;
 
   if (bool(values, 'json')) {
@@ -508,7 +569,7 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
         {
           header: parsed.header,
           done: state.done.length,
-          remaining: state.remaining,
+          remaining,
           previouslyFailed: state.previouslyFailed,
           truncatedTail: parsed.truncatedTail,
           badLines: parsed.badLines,
@@ -521,7 +582,7 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
       ),
     );
     if (damaged) return EXIT_FAILURE;
-    return state.remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
+    return remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
   }
 
   out('');
@@ -530,8 +591,12 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
   out(`Code           ${parsed.header.code}  ${parsed.header.blendName}`);
   out(`URL            ${parsed.header.uri}`);
   out(`Table digest   ${parsed.header.tableDigest}`);
-  out(`Done           ${state.done.length} of ${parsed.header.targetCount}`);
-  out(`Remaining      ${state.remaining.length}${state.remaining.length > 0 ? `: ${compactRanges(state.remaining)}` : ''}`);
+  if (openEnded) {
+    out(`Done           ${state.done.length} verified (Tag Tool session, no target)`);
+  } else {
+    out(`Done           ${state.done.length} of ${parsed.header.targetCount}`);
+    out(`Remaining      ${remaining.length}${remaining.length > 0 ? `: ${compactRanges(remaining)}` : ''}`);
+  }
   if (state.previouslyFailed.length > 0) {
     out(`Failed before  ${compactRanges(state.previouslyFailed)}`);
   }
@@ -554,15 +619,27 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
     out('Do not resume this journal. A record does not match its own digest, so the list of units already done cannot be trusted.');
     out('Count the tags physically written, then start a new run into a new journal file for the units that are left.');
     out('');
-  } else if (state.remaining.length > 0) {
+  } else if (remaining.length > 0) {
     for (const line of resumeCommand(parsed.header, path)) out(line);
     out('');
   }
   if (damaged) return EXIT_FAILURE;
-  return state.remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
+  return remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
 }
 
-async function commandDoctor(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+/**
+ * How long doctor waits for a tag on a real reader. A tag already lying on the reader
+ * is reported with the reader itself, so this is mostly the MUTE grace in
+ * src/transport/pcsc.ts plus a margin. --tag-timeout-ms lengthens it, which lets the
+ * operator start doctor and then put a tag down.
+ */
+const DOCTOR_TAG_WAIT_MS = 1_500;
+
+async function commandDoctor(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+): Promise<number> {
   const checks: { name: string; ok: boolean; note: string }[] = [];
 
   let table: RedirectTable | null = null;
@@ -593,23 +670,42 @@ async function commandDoctor(values: Record<string, unknown>, out: (line: string
     });
   }
 
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
   let transportOk = false;
   let transportNote = '';
+  let tagCheck: { name: string; ok: boolean; note: string } | null = null;
   try {
     await transport.open();
-    await transport.close();
+    try {
+      // With a real reader, say whether a tag is on it and whether it can be selected,
+      // using the same wait and MUTE policy as a write. Reads the UID and nothing else.
+      // No tag is not a failure: doctor is usually run before the first tag goes down.
+      if (transport instanceof PcscTransport) {
+        const tag = await transport.inspectTag(int(values, 'tag-timeout-ms', DOCTOR_TAG_WAIT_MS));
+        const uid = tag.uid !== null ? `, uid ${tag.uid}` : '';
+        tagCheck = {
+          name: 'tag on the reader',
+          ok: tag.presence === 'absent' || tag.selected,
+          note: `${tag.presence}${uid}, ${tag.note}. Reader state ${tag.readerState}`,
+        };
+      }
+    } finally {
+      await transport.close();
+    }
     transportOk = true;
     // Naming the reader matters on the first run: it is how the operator sees which of
     // several PC/SC interfaces was picked, and what to pass to --reader-name if wrong.
     const readerName = transport instanceof PcscTransport ? transport.readerName : null;
+    const others = transport instanceof PcscTransport ? transport.otherReaders : [];
+    const otherNote = others.length > 0 ? ` (also attached: ${others.join(', ')})` : '';
     transportNote = transport.isHardware
-      ? `physical reader responded${readerName ? `: ${readerName}` : ''}`
+      ? `physical reader responded${readerName ? `: ${readerName}` : ''}${otherNote}`
       : 'simulator, no physical tags are written';
   } catch (cause) {
     transportNote = asChipError(cause, 'TRANSPORT_UNAVAILABLE', '').message;
   }
   checks.push({ name: `transport "${transport.name}"`, ok: transportOk, note: transportNote });
+  if (tagCheck !== null) checks.push(tagCheck);
 
   if (bool(values, 'protect')) {
     try {
@@ -640,6 +736,10 @@ async function commandDoctor(values: Record<string, unknown>, out: (line: string
 export interface MainOptions {
   readonly out?: (line: string) => void;
   readonly err?: (line: string) => void;
+  /** For tests: how --transport reader reaches PC/SC. Defaults to pcsc-mini. */
+  readonly pcsc?: PcscTransportOptions;
+  /** For tests: where --protect looks for a running Tag Tool. Defaults to the Tag Tool's own ports. */
+  readonly tagToolPorts?: readonly number[];
 }
 
 export async function main(argv: string[], io: MainOptions = {}): Promise<number> {
@@ -667,15 +767,15 @@ export async function main(argv: string[], io: MainOptions = {}): Promise<number
       case 'decode':
         return commandDecode(values, out);
       case 'write':
-        return await commandWrite(values, out);
+        return await commandWrite(values, out, io.pcsc, io.tagToolPorts);
       case 'verify':
-        return await commandVerify(values, out);
+        return await commandVerify(values, out, io.pcsc);
       case 'batch':
-        return await commandBatch(values, out);
+        return await commandBatch(values, out, io.pcsc, io.tagToolPorts);
       case 'status':
         return commandStatus(values, out);
       case 'doctor':
-        return await commandDoctor(values, out);
+        return await commandDoctor(values, out, io.pcsc);
       default:
         throw new ChipError('USAGE', `Unknown command "${command}".`, 'Run "chip-cli --help" for the command list.', { command });
     }

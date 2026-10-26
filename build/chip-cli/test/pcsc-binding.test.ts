@@ -15,125 +15,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
   PCSC_BINDING_PACKAGE,
   PcscTransport,
+  READER_STATE_FLAGS,
   adaptPcscMini,
+  describePcscError,
+  describeReaderState,
   isSamSlot,
-  type PcscBinding,
-  type PcscCardHandle,
+  tagPresence,
   type PcscMiniModule,
   type PcscReaderHandle,
+  type PcscReaderState,
+  type PcscTransportOptions,
 } from '../src/transport/pcsc.js';
+import { main } from '../src/cli/main.js';
 import { isChipError } from '../src/chip/errors.js';
 import { PART } from '../src/chip/st25tv02kc.js';
 import { ST_COMMANDS } from '../src/chip/st-custom.js';
+import { readJournal } from '../src/workflow/journal.js';
 import { UnitSession } from '../src/workflow/unit.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, OK, carriesSt, hex, pcscError } from './fake-acr1552u.js';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join(' ');
-const OK = [0x90, 0x00];
-const UID_LSB_FIRST = [0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x02, 0xe0];
-/** What an ACS transparent session control command answers: a status TLV, then 90 00. */
-const SESSION_ANSWER = [0xc0, 0x03, 0x00, 0x90, 0x00, ...OK];
 
-/**
- * DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC, so 80 blocks. Typed in
- * rather than taken from PART, so the fake tag is the datasheet's and a model that
- * drifts from it fails the probe here as it would on silicon.
- */
-const ST25TV02KC_BLOCKS = 0x4f + 1;
+const { PRESENT, EMPTY, MUTE, CHANGED, EXCLUSIVE } = READER_STATE_FLAGS;
 
-/** A tag on a reader, answering the PC/SC storage card commands, and recording every APDU. */
-class FakeTag {
-  readonly memory: Uint8Array;
-  readonly sent: string[] = [];
-  disconnects = 0;
-  /** What a transceived ST frame answers. Tests set it to make the probe pass or fail. */
-  stAnswer: (frame: Uint8Array) => number[] = () => [0x97, 0x01, 0x00, ...OK];
-  failTransmit = false;
-
-  constructor(readonly blockCount: number = ST25TV02KC_BLOCKS) {
-    this.memory = new Uint8Array(blockCount * 4);
-  }
-
-  handle(): PcscCardHandle {
-    return {
-      transmit: async (apdu) => {
-        this.sent.push(hex(apdu));
-        if (this.failTransmit) throw new Error('[ RemovedCard ] - Error in native function');
-        return Uint8Array.from(this.answer(apdu));
-      },
-      disconnectUnpower: async () => {
-        this.disconnects += 1;
-      },
-    };
-  }
-
-  private answer(apdu: Uint8Array): number[] {
-    const [cla, ins, p1 = 0, p2 = 0, lc = 0] = apdu;
-    if (cla !== 0xff) return [0x6e, 0x00];
-    const block = (p1 << 8) | p2;
-    if (ins === 0xca) return [...UID_LSB_FIRST, ...OK];
-    if (ins === 0xb0) {
-      const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
-      if (block + count > this.blockCount) return [0x6a, 0x82];
-      return [...this.memory.subarray(block * 4, (block + count) * 4), ...OK];
-    }
-    if (ins === 0xd6) {
-      if (block >= this.blockCount) return [0x6a, 0x82];
-      this.memory.set(apdu.subarray(5, 5 + lc), block * 4);
-      return OK;
-    }
-    if (ins === 0xc2 && p2 === 0x01) return this.stAnswer(apdu.subarray(7));
-    if (ins === 0xc2) return SESSION_ANSWER;
-    return [0x6d, 0x00];
-  }
-}
-
-class FakeReader implements PcscReaderHandle {
-  present: boolean;
-  connects = 0;
-  constructor(
-    readonly name: string,
-    readonly tag: FakeTag = new FakeTag(),
-    present = true,
-  ) {
-    this.present = present;
-  }
-  tagPresent(): boolean {
-    return this.present;
-  }
-  async connect(): Promise<PcscCardHandle> {
-    this.connects += 1;
-    return this.tag.handle();
-  }
-}
-
-class FakeBinding implements PcscBinding {
-  stops = 0;
-  constructor(
-    private readonly readers: FakeReader[],
-    private readonly startError?: Error,
-  ) {}
-  start(onReader: (reader: PcscReaderHandle) => void): void {
-    if (this.startError) throw this.startError;
-    for (const reader of this.readers) onReader(reader);
-  }
-  stop(): void {
-    this.stops += 1;
-  }
-}
-
-const ACR1552U = 'ACS ACR1552 1S CL Reader PICC 0';
-
-async function openWith(readers: FakeReader[], filter?: string): Promise<{ transport: PcscTransport; binding: FakeBinding }> {
+async function openWith(
+  readers: FakeReader[],
+  filter?: string,
+  options: PcscTransportOptions = {},
+): Promise<{ transport: PcscTransport; binding: FakeBinding }> {
   const binding = new FakeBinding(readers);
-  const transport = new PcscTransport(filter, { loadBinding: async () => binding, readerTimeoutMs: 50 });
+  const transport = new PcscTransport(filter, { loadBinding: async () => binding, readerTimeoutMs: 50, ...options });
   await transport.open();
   return { transport, binding };
 }
@@ -298,13 +218,489 @@ test('releasing the tag powers it down, and the next unit connects afresh', asyn
 });
 
 /* ------------------------------------------------------------------------ */
+/* TAG_ABSENT, case by case. Field report, Monday 26 October 2026: doctor     */
+/* said Ready on Windows with an ACR1552U, and write failed TAG_ABSENT.       */
+/* ------------------------------------------------------------------------ */
+
+/** A TAG_ABSENT naming its case, the reader and the raw state, as every one must. */
+function tagAbsent(which: string, flags: RegExp) {
+  return (error: unknown) => {
+    assert.ok(isChipError(error));
+    assert.equal(error.code, 'TAG_ABSENT');
+    assert.match(error.message, new RegExp(`^Case ${which}\\. `));
+    assert.ok(error.message.includes(`Reader "${ACR1552U}"`), error.message);
+    assert.match(error.message, /state 0x[0-9a-f]{8} /);
+    assert.match(error.message, flags);
+    assert.equal(error.detail.case, which);
+    assert.equal(error.detail.readerName, ACR1552U);
+    return true;
+  };
+}
+
+test('no tag: case NO_TAG, with the EMPTY state, and the other readers named so a wrong pick shows', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  const other = new FakeReader('Broadcom Corp Contacted SmartCard 0');
+  const { transport } = await openWith([reader, other]);
+  await assert.rejects(() => transport.waitForTag(50), (error: unknown) => {
+    tagAbsent('NO_TAG', /EMPTY/)(error);
+    assert.ok(isChipError(error) && error.message.includes('Other readers attached: "Broadcom Corp Contacted SmartCard 0"'));
+    return true;
+  });
+  assert.equal(reader.connects, 0);
+  await transport.close();
+});
+
+test('a reader that never reported a state says so rather than EMPTY', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  reader.raw = 0;
+  const { transport } = await openWith([reader]);
+  await assert.rejects(() => transport.waitForTag(20), tagAbsent('NO_TAG', /0x00000000 no flags, nothing reported yet/));
+  await transport.close();
+});
+
+test('an unplugged reader: case READER_GONE, at once rather than at the timeout', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  reader.gone = true;
+  const { transport } = await openWith([reader]);
+  const started = Date.now();
+  await assert.rejects(() => transport.waitForTag(5_000), tagAbsent('READER_GONE', /reader disconnected/));
+  assert.ok(Date.now() - started < 1_000);
+  await transport.close();
+});
+
+test('a tag that stays PRESENT with MUTE is connected to after the grace, and goes through every check', async () => {
+  // Before, this waited out the whole timeout and reported "No tag arrived".
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | MUTE | CHANGED;
+  const { transport } = await openWith([reader], undefined, { muteGraceMs: 30 });
+  const identity = await transport.waitForTag(5_000);
+  assert.equal(identity.uid, 'e002112233445566');
+  assert.equal(reader.connects, 1);
+  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff b0 00 4f 04', 'ff b0 00 50 04'], 'the same UID and geometry checks, nothing written');
+  await transport.close();
+});
+
+test('a mute tag is given the grace to clear by itself before the tool connects', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | MUTE;
+  setTimeout(() => {
+    reader.raw = PRESENT;
+  }, 150);
+  const { transport } = await openWith([reader], undefined, { muteGraceMs: 2_000 });
+  const started = Date.now();
+  await transport.waitForTag(5_000);
+  const waited = Date.now() - started;
+  assert.ok(waited >= 100 && waited < 1_500, `connected when MUTE cleared, after ${waited} ms`);
+  assert.equal(reader.connects, 1);
+  await transport.close();
+});
+
+test('a mute tag is tried at the deadline when the timeout is shorter than the grace', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | MUTE;
+  const { transport } = await openWith([reader], undefined, { muteGraceMs: 60_000 });
+  await transport.waitForTag(50);
+  assert.equal(reader.connects, 1);
+  await transport.close();
+});
+
+test('a mute tag that will not connect: case TAG_MUTE, with the PC/SC error name, and nothing sent', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = 0x00020000 | PRESENT | MUTE | CHANGED;
+  reader.connectError = () => pcscError('UnresponsiveCard');
+  const { transport } = await openWith([reader], undefined, { muteGraceMs: 10 });
+  await assert.rejects(() => transport.waitForTag(5_000), (error: unknown) => {
+    tagAbsent('TAG_MUTE', /0x00020222 CHANGED\|PRESENT\|MUTE/)(error);
+    assert.ok(isChipError(error));
+    assert.match(error.message, /UnresponsiveCard \(SCARD_W_UNRESPONSIVE_CARD\)/);
+    assert.match(error.remedy, /edge of the reader field/);
+    return true;
+  });
+  assert.equal(reader.connects, 1, 'one attempt, not a loop against the reader');
+  assert.deepEqual(reader.tag.sent, []);
+  await transport.close();
+});
+
+test('another application holding the reader: case CONNECT_FAILED, SCARD_E_SHARING_VIOLATION, and the remedy says close it', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | EXCLUSIVE | CHANGED;
+  reader.connectError = () => pcscError('SharingViolation');
+  const { transport } = await openWith([reader]);
+  await assert.rejects(() => transport.waitForTag(200), (error: unknown) => {
+    tagAbsent('CONNECT_FAILED', /PRESENT\|EXCLUSIVE/)(error);
+    assert.ok(isChipError(error));
+    assert.match(error.message, /SharingViolation \(SCARD_E_SHARING_VIOLATION\): \[ Client\.TaskConnect \] Async task error/);
+    assert.match(error.remedy, /holds the reader exclusively/);
+    return true;
+  });
+  await transport.close();
+});
+
+for (const [code, name, remedy] of [
+  ['ProtoMismatch', 'SCARD_E_PROTO_MISMATCH', /may not be ISO 15693/],
+  ['RemovedCard', 'SCARD_W_REMOVED_CARD', /left the field/],
+  ['UnresponsiveCard', 'SCARD_W_UNRESPONSIVE_CARD', /edge of the reader field/],
+] as const) {
+  test(`a connect failing ${code} without MUTE is CONNECT_FAILED naming ${name}`, async () => {
+    const reader = new FakeReader(ACR1552U);
+    reader.connectError = () => pcscError(code);
+    const { transport } = await openWith([reader]);
+    await assert.rejects(() => transport.waitForTag(200), (error: unknown) => {
+      tagAbsent('CONNECT_FAILED', /PRESENT/)(error);
+      assert.ok(isChipError(error));
+      assert.ok(error.message.includes(`${code} (${name})`), error.message);
+      assert.match(error.remedy, remedy);
+      return true;
+    });
+    await transport.close();
+  });
+}
+
+test('a reader that will not give the UID: case UID_REFUSED, with the status word', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.tag.uidAnswer = [0x6a, 0x81];
+  const { transport } = await openWith([reader]);
+  await assert.rejects(() => transport.waitForTag(200), (error: unknown) => {
+    tagAbsent('UID_REFUSED', /PRESENT/)(error);
+    assert.ok(isChipError(error) && error.message.includes('status 0x6a81'));
+    return true;
+  });
+  await transport.close();
+});
+
+test('a command the reader rejects names the PC/SC error, not only "Async task error"', async () => {
+  const reader = new FakeReader(ACR1552U);
+  const { transport } = await openWith([reader]);
+  await transport.waitForTag(200);
+  reader.tag.failTransmit = true;
+  await assert.rejects(() => transport.readBlocks(0, 1), (error: unknown) => {
+    assert.ok(isChipError(error));
+    assert.equal(error.code, 'TRANSPORT_UNAVAILABLE');
+    assert.match(error.message, /RemovedCard/);
+    return true;
+  });
+  await transport.close();
+});
+
+test('reader state flags are decoded by name, with the event count in the high word left as raw hex', () => {
+  assert.equal(describeReaderState({ raw: 0x00030222, gone: false }), '0x00030222 CHANGED|PRESENT|MUTE');
+  assert.equal(describeReaderState({ raw: 0x00000012, gone: false }), '0x00000012 CHANGED|EMPTY');
+  assert.equal(describeReaderState({ raw: 0x000001a2, gone: false }), '0x000001a2 CHANGED|PRESENT|EXCLUSIVE|INUSE');
+  assert.equal(describeReaderState({ raw: 0, gone: true }), '0x00000000 no flags, nothing reported yet, reader disconnected');
+  assert.equal(tagPresence({ raw: PRESENT | MUTE, gone: false }), 'mute');
+  assert.equal(tagPresence({ raw: PRESENT | READER_STATE_FLAGS.INUSE, gone: false }), 'present');
+  assert.equal(tagPresence({ raw: EMPTY, gone: false }), 'absent');
+  assert.equal(tagPresence({ raw: PRESENT, gone: true }), 'reader-gone');
+});
+
+test('PC/SC errors are described by their code, and plain errors are left alone', () => {
+  assert.equal(describePcscError(pcscError('NoSmartCard')), 'NoSmartCard (SCARD_E_NO_SMARTCARD): [ Client.TaskConnect ] Async task error');
+  assert.equal(describePcscError(pcscError('Mystery')), 'Mystery: [ Client.TaskConnect ] Async task error');
+  assert.equal(describePcscError(new Error('[ RemovedCard ] - Error in native function')), '[ RemovedCard ] - Error in native function');
+  assert.equal(describePcscError('text'), 'text');
+});
+
+test('the state flags match the ReaderStatus pcsc-mini declares, when it is installed', (t) => {
+  const declarations = join(PACKAGE_ROOT, 'node_modules', 'pcsc-mini', 'build', 'addon.node.d.ts');
+  let text: string;
+  try {
+    text = readFileSync(declarations, 'utf8');
+  } catch {
+    t.skip('pcsc-mini is not installed here');
+    return;
+  }
+  const block = /export enum ReaderStatus \{([^}]*)\}/.exec(text)?.[1] ?? '';
+  const declared = Object.fromEntries(Array.from(block.matchAll(/(\w+) = (\d+)/g), (m) => [m[1]!.replace('_', ''), Number(m[2])]));
+  for (const [name, bit] of Object.entries(READER_STATE_FLAGS)) {
+    assert.equal(declared[name], bit, `${name}`);
+  }
+});
+
+/* ------------------------------------------------------------------------ */
+/* What doctor says about the tag on the reader.                             */
+/* ------------------------------------------------------------------------ */
+
+test('inspectTag on a tag lying on the reader reads its UID, sends nothing else, and powers it down', async () => {
+  const reader = new FakeReader(ACR1552U);
+  const { transport } = await openWith([reader]);
+  const tag = await transport.inspectTag(200);
+  assert.equal(tag.presence, 'present');
+  assert.equal(tag.selected, true);
+  assert.equal(tag.uid, 'e002112233445566');
+  assert.match(tag.note, /STMicroelectronics/);
+  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00']);
+  assert.equal(reader.tag.disconnects, 1);
+  await transport.close();
+});
+
+test('inspectTag with no tag says absent with the state, and connects to nothing', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  const { transport } = await openWith([reader]);
+  const tag = await transport.inspectTag(30);
+  assert.equal(tag.presence, 'absent');
+  assert.equal(tag.selected, false);
+  assert.equal(tag.uid, null);
+  assert.match(tag.readerState, /EMPTY/);
+  assert.equal(reader.connects, 0);
+  await transport.close();
+});
+
+test('inspectTag on a mute tag connects anyway, and says so either way', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | MUTE;
+  const { transport } = await openWith([reader], undefined, { muteGraceMs: 10 });
+  const ok = await transport.inspectTag(500);
+  assert.equal(ok.presence, 'mute');
+  assert.equal(ok.selected, true);
+  assert.equal(ok.uid, 'e002112233445566');
+  assert.match(ok.note, /after the tool connected to a mute tag/);
+
+  reader.connectError = () => pcscError('UnresponsiveCard');
+  const refused = await transport.inspectTag(500);
+  assert.equal(refused.presence, 'mute');
+  assert.equal(refused.selected, false);
+  assert.match(refused.note, /does not answer activation, and connecting again failed: UnresponsiveCard \(SCARD_W_UNRESPONSIVE_CARD\)/);
+  assert.match(refused.readerState, /PRESENT\|MUTE/);
+  await transport.close();
+});
+
+test('inspectTag on a tag that is not ST says whose it is and does not count it as selected', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.tag.uidAnswer = [0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x04, 0xe0, ...OK];
+  const { transport } = await openWith([reader]);
+  const tag = await transport.inspectTag(200);
+  assert.equal(tag.selected, false);
+  assert.equal(tag.uid, 'e004112233445566');
+  assert.match(tag.note, /manufacturer code 0x04, so not STMicroelectronics/);
+  await transport.close();
+});
+
+async function cli(args: string[], readers: FakeReader[], options: PcscTransportOptions = {}) {
+  const out: string[] = [];
+  const binding = new FakeBinding(readers);
+  const code = await main(args, {
+    out: (line) => out.push(line),
+    err: (line) => out.push(line),
+    pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50, ...options },
+  });
+  return { code, out: out.join('\n'), binding };
+}
+
+test('doctor --transport reader with a tag on the reader prints present, the UID and the state, and is Ready', async () => {
+  const result = await cli(['doctor', '--transport', 'reader'], [new FakeReader(ACR1552U)]);
+  assert.match(result.out, /ok {4}tag on the reader {12}present, uid e002112233445566, ISO 15693, STMicroelectronics\. Reader state 0x00000022 CHANGED\|PRESENT/);
+  assert.match(result.out, new RegExp(`physical reader responded: ${ACR1552U}`));
+  assert.match(result.out, /Ready\./);
+  assert.equal(result.code, 0);
+  assert.equal(result.binding.stops, 1);
+});
+
+test('doctor --transport reader with no tag says absent and is still Ready', async () => {
+  const result = await cli(['doctor', '--transport', 'reader', '--tag-timeout-ms', '20'], [new FakeReader(ACR1552U, new FakeTag(), false)]);
+  assert.match(result.out, /ok {4}tag on the reader {12}absent, no tag seen within 20 ms\. Reader state 0x00000012 CHANGED\|EMPTY/);
+  assert.match(result.out, /Ready\./);
+});
+
+test('doctor --transport reader with a mute tag it cannot select fails, naming mute, the error and the state', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | MUTE;
+  reader.connectError = () => pcscError('UnresponsiveCard');
+  const result = await cli(['doctor', '--transport', 'reader'], [reader], { muteGraceMs: 10 });
+  assert.match(result.out, /FAIL {2}tag on the reader {12}mute, it does not answer activation, and connecting again failed: UnresponsiveCard/);
+  assert.match(result.out, /PRESENT\|MUTE/);
+  assert.ok(!result.out.includes('Ready.'));
+  assert.notEqual(result.code, 0);
+});
+
+test('doctor names the other readers attached beside the one it picked', async () => {
+  const result = await cli(
+    ['doctor', '--transport', 'reader'],
+    [new FakeReader('ACS ACR1552 1S CL Reader SAM 0'), new FakeReader(ACR1552U)],
+  );
+  assert.match(result.out, /physical reader responded: ACS ACR1552 1S CL Reader PICC 0 \(also attached: ACS ACR1552 1S CL Reader SAM 0\)/);
+});
+
+test('write --transport reader that meets a mute tag prints the case, the state and the reader', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.raw = PRESENT | MUTE;
+  reader.connectError = () => pcscError('UnresponsiveCard');
+  const result = await cli(['write', '--code', 'ps', '--transport', 'reader', '--tag-timeout-ms', '200'], [reader], { muteGraceMs: 10 });
+  assert.match(result.out, /FAILED {2}TAG_ABSENT/);
+  assert.match(result.out, /Case TAG_MUTE\. .*UnresponsiveCard.* Reader "ACS ACR1552 1S CL Reader PICC 0", state 0x00000220 PRESENT\|MUTE\./);
+  assert.deepEqual(reader.tag.sent, []);
+});
+
+/* ------------------------------------------------------------------------ */
+/* --protect and a running Tag Tool. Both can open the reader in shared mode. */
+/* Servers here listen on 10375 and 10376.                                    */
+/* ------------------------------------------------------------------------ */
+
+/** Answers /api/ping the way the Tag Tool does, once `running` is true. Before that it is some other program. */
+async function fakeTagTool(port: number, running: boolean): Promise<{ server: Server; set: (on: boolean) => void }> {
+  let on = running;
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(on ? { app: 'trevean-tag-tool', version: 'test' } : { app: 'something-else' }));
+  });
+  await new Promise<void>((r) => server.listen({ host: '127.0.0.1', port }, () => r()));
+  return { server, set: (value) => (on = value) };
+}
+
+const closeServer = (server: Server) => new Promise<void>((r) => server.close(() => r()));
+const ST_COMMAND_BYTES = Object.values(ST_COMMANDS).map((c) => c.code);
+const carriesAnySt = (apdus: string[]) => apdus.filter((a) => ST_COMMAND_BYTES.some((code) => carriesSt(a, code)));
+
+async function withPassword<T>(run: () => Promise<T>): Promise<T> {
+  const previous = process.env['TEST_TAG_TOOL_GUARD_PASSWORD'];
+  process.env['TEST_TAG_TOOL_GUARD_PASSWORD'] = 'a1b2c3d4e5f60718';
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env['TEST_TAG_TOOL_GUARD_PASSWORD'];
+    else process.env['TEST_TAG_TOOL_GUARD_PASSWORD'] = previous;
+  }
+}
+
+const PROTECT = ['--transport', 'reader', '--protect', '--password-env', 'TEST_TAG_TOOL_GUARD_PASSWORD', '--tag-timeout-ms', '200'];
+
+test('write and batch --protect on a reader refuse to start while a Tag Tool is running, before anything reaches the reader', async () => {
+  const tagTool = await fakeTagTool(10375, true);
+  const journalDir = mkdtempSync(join(tmpdir(), 'chip-cli-guard-'));
+  const journal = join(journalDir, 'ps.jsonl');
+  try {
+    await withPassword(async () => {
+      for (const args of [
+        ['write', '--code', 'ps', ...PROTECT],
+        ['batch', '--code', 'ps', '--count', '1', '--journal', journal, '--no-prompt', ...PROTECT],
+      ]) {
+        const reader = new FakeReader(ACR1552U);
+        const out: string[] = [];
+        const binding = new FakeBinding([reader]);
+        const code = await main(args, {
+          out: (line) => out.push(line),
+          err: (line) => out.push(line),
+          pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+          tagToolPorts: [10376, 10375],
+        });
+        const text = out.join('\n');
+        assert.equal(code, 1, `${args[0]}: ${text}`);
+        assert.match(text, /FAILED {2}USAGE/);
+        assert.match(text, /Close the Tag Tool first: both programs can open the reader at the same time and nothing stops them\./);
+        assert.match(text, /http:\/\/127\.0\.0\.1:10375\//);
+        assert.deepEqual(reader.tag.sent, [], `${args[0]}: nothing reaches the reader`);
+      }
+    });
+    assert.equal(existsSync(journal), false, 'the batch stopped before its journal was started');
+  } finally {
+    await closeServer(tagTool.server);
+    rmSync(journalDir, { recursive: true, force: true });
+  }
+});
+
+test('write --protect checks again before the protect step, and protects nothing if a Tag Tool started meanwhile', async () => {
+  // Some other program on the port first, so the check before opening the reader passes.
+  const tagTool = await fakeTagTool(10376, false);
+  try {
+    await withPassword(async () => {
+      const reader = new FakeReader(ACR1552U);
+      const binding = new FakeBinding([reader]);
+      const out: string[] = [];
+      let sentBeforeTagTool = -1;
+      const code = await main(['write', '--code', 'ps', ...PROTECT], {
+        out: (line) => {
+          out.push(line);
+          if (line.startsWith('Verified')) {
+            // The Tag Tool is started while the tag is being written.
+            tagTool.set(true);
+            sentBeforeTagTool = reader.tag.sent.length;
+          }
+        },
+        err: (line) => out.push(line),
+        pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+        tagToolPorts: [10376],
+      });
+      const text = out.join('\n');
+      assert.ok(sentBeforeTagTool > 0, `the tag was written and verified first: ${text}`);
+      assert.equal(code, 1, text);
+      assert.match(text, /Close the Tag Tool first/);
+      assert.match(text, /written and verified but not protected/);
+      assert.doesNotMatch(text, /Protected {8}/);
+      assert.deepEqual(carriesAnySt(reader.tag.sent.slice(sentBeforeTagTool)), [], 'not one password or protection command, not even the probe');
+      assert.equal(reader.tag.areaProtection, 0);
+    });
+  } finally {
+    await closeServer(tagTool.server);
+  }
+});
+
+test('batch --protect checks again before each unit, and stops with the next unit not attempted if a Tag Tool started meanwhile', async () => {
+  const tagTool = await fakeTagTool(10376, false);
+  const journalDir = mkdtempSync(join(tmpdir(), 'chip-cli-guard-'));
+  const journal = join(journalDir, 'ps.jsonl');
+  try {
+    await withPassword(async () => {
+      const reader = new FakeReader(ACR1552U);
+      const binding = new FakeBinding([reader]);
+      const out: string[] = [];
+      let sentBeforeTagTool = -1;
+      const code = await main(['batch', '--code', 'ps', '--count', '2', '--journal', journal, '--no-prompt', ...PROTECT], {
+        out: (line) => {
+          out.push(line);
+          if (/^ {5}1 {2}protected /.test(line)) {
+            tagTool.set(true);
+            sentBeforeTagTool = reader.tag.sent.length;
+          }
+        },
+        err: (line) => out.push(line),
+        pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+        tagToolPorts: [10376],
+      });
+      const text = out.join('\n');
+      assert.ok(sentBeforeTagTool > 0, `unit 1 was protected first: ${text}`);
+      assert.equal(code, 1, text);
+      assert.match(text, /Close the Tag Tool first/);
+      assert.match(text, /This unit was not attempted\. Rerun the same command to resume the batch\./);
+      assert.deepEqual(reader.tag.sent.slice(sentBeforeTagTool), [], 'nothing reached the reader for unit 2');
+      const units = readJournal(journal).units;
+      assert.deepEqual(units.map((u) => [u.seq, u.outcome]), [[1, 'protected']]);
+    });
+  } finally {
+    await closeServer(tagTool.server);
+    rmSync(journalDir, { recursive: true, force: true });
+  }
+});
+
+test('write --protect on a reader still protects when nothing on the Tag Tool ports is a Tag Tool', async () => {
+  const other = await fakeTagTool(10376, false);
+  try {
+    await withPassword(async () => {
+      const reader = new FakeReader(ACR1552U);
+      const binding = new FakeBinding([reader]);
+      const out: string[] = [];
+      const code = await main(['write', '--code', 'ps', ...PROTECT], {
+        out: (line) => out.push(line),
+        err: (line) => out.push(line),
+        pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+        tagToolPorts: [10375, 10376],
+      });
+      const text = out.join('\n');
+      assert.equal(code, 0, text);
+      assert.match(text, /Protected {8}area 1/);
+    });
+  } finally {
+    await closeServer(other.server);
+  }
+});
+
+/* ------------------------------------------------------------------------ */
 /* THE GATE, on the wire. "Decision log", D66, and README section 6.4.       */
 /* ------------------------------------------------------------------------ */
 
-const WRITE_PASSWORD_BYTE = ST_COMMANDS.WRITE_PASSWORD.code.toString(16).padStart(2, '0');
-const SET_PROTECTION_BYTE = ST_COMMANDS.SET_MEMORY_PROTECTION.code.toString(16).padStart(2, '0');
-/** An ACS transceive APDU carrying an ST custom command: ff c2 00 01 len 95 len flags CODE 02 ... */
-const carries = (apdu: string, code: string) => apdu.startsWith('ff c2 00 01') && apdu.split(' ')[8] === code;
+const WRITE_PASSWORD_BYTE = ST_COMMANDS.WRITE_PASSWORD.code;
+const SET_PROTECTION_BYTE = ST_COMMANDS.WRITE_CONFIGURATION.code;
+/** ToggleDiscreetSilent (DS13304 6.4.23), which the tool used to send as "Set Memory Protection". */
+const TOGGLE_DISCREET_SILENT = 0xba;
+const carries = carriesSt;
 
 for (const [label, call] of [
   ['writePassword', (t: PcscTransport) => t.writePassword(1, Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]))],
@@ -322,6 +718,7 @@ for (const [label, call] of [
 
   test(`${label} stays locked when the probe gets the same answer to both passwords`, async () => {
     const reader = new FakeReader(ACR1552U);
+    reader.tag.tagOverride = () => [0x01, 0x0f];
     const { transport } = await openWith([reader]);
     await transport.waitForTag(200);
     const probe = await transport.verifyOpcodes();
@@ -333,21 +730,20 @@ for (const [label, call] of [
   });
 }
 
-test('the probe that unlocks the pair sends only Present Password, never either irreversible opcode', async () => {
+test('the probe that unlocks the pair sends only non destructive commands, never either irreversible opcode', async () => {
+  // The fake tag accepts the factory defaults (DS13304 Tables 17 and 19) and refuses anything else.
   const reader = new FakeReader(ACR1552U);
-  // The factory default (eight zero bytes) is accepted and anything else is refused.
-  reader.tag.stAnswer = (frame) => (frame.subarray(4).every((b) => b === 0) ? [0x97, 0x01, 0x00, ...OK] : [0x97, 0x02, 0x01, 0x0f, ...OK]);
   const { transport } = await openWith([reader]);
   await transport.waitForTag(200);
   const probe = await transport.verifyOpcodes();
   assert.equal(probe.proven, true);
   assert.equal(reader.tag.sent.filter((a) => carries(a, WRITE_PASSWORD_BYTE) || carries(a, SET_PROTECTION_BYTE)).length, 0);
+  assert.equal(reader.tag.sent.filter((a) => carries(a, TOGGLE_DISCREET_SILENT)).length, 0);
   await transport.close();
 });
 
 test('the unproven state is per transport: a new transport starts locked even after another proved the path', async () => {
   const reader = new FakeReader(ACR1552U);
-  reader.tag.stAnswer = (frame) => (frame.subarray(4).every((b) => b === 0) ? [0x97, 0x01, 0x00, ...OK] : [0x97, 0x02, 0x01, 0x0f, ...OK]);
   const first = await openWith([reader]);
   await first.transport.waitForTag(200);
   assert.equal((await first.transport.verifyOpcodes()).proven, true);
@@ -480,7 +876,6 @@ function fakePcscMini() {
     Client: Client as unknown as PcscMiniModule['Client'],
     CardMode: { SHARED: 2 },
     CardDisposition: { UNPOWER: 2 },
-    ReaderStatus: { PRESENT: STATUS.PRESENT, MUTE: STATUS.MUTE },
   };
   /** Mimics pcsc-mini: "reader" is emitted, then the first "change" right after it. */
   const announce = (name: string, raw: number) => {
@@ -500,22 +895,23 @@ test('the adapter hears the state reported together with the reader announcement
   const raw = fake.announce(ACR1552U, STATUS.PRESENT);
   assert.equal(seen.length, 1);
   assert.equal(seen[0]!.name, ACR1552U);
-  assert.equal(seen[0]!.tagPresent(), true);
+  assert.equal(tagPresence(seen[0]!.state()), 'present');
   raw.emit('change', { raw: STATUS.EMPTY });
-  assert.equal(seen[0]!.tagPresent(), false);
+  assert.equal(tagPresence(seen[0]!.state()), 'absent');
 });
 
-test('the adapter treats a mute tag and an unplugged reader as no tag', () => {
+test('the adapter passes the raw state through, so mute and an unplugged reader can each be named', () => {
   const fake = fakePcscMini();
   const binding = adaptPcscMini(fake.module);
   const seen: PcscReaderHandle[] = [];
   binding.start((r) => seen.push(r), () => undefined);
-  const raw = fake.announce(ACR1552U, STATUS.PRESENT | STATUS.MUTE);
-  assert.equal(seen[0]!.tagPresent(), false);
+  const raw = fake.announce(ACR1552U, 0x00030000 | STATUS.PRESENT | STATUS.MUTE);
+  assert.deepEqual(seen[0]!.state(), { raw: 0x00030000 | STATUS.PRESENT | STATUS.MUTE, gone: false });
+  assert.equal(tagPresence(seen[0]!.state()), 'mute');
   raw.emit('change', { raw: STATUS.PRESENT });
-  assert.equal(seen[0]!.tagPresent(), true);
+  assert.equal(tagPresence(seen[0]!.state()), 'present');
   raw.emit('disconnect');
-  assert.equal(seen[0]!.tagPresent(), false);
+  assert.equal(tagPresence(seen[0]!.state()), 'reader-gone');
 });
 
 test('the adapter connects shared, passes APDUs through, unpowers on release, and stop stops the client', async () => {

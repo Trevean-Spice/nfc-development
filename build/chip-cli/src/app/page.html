@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tag Tool</title>
+<style>
+  :root {
+    --ink: #1d1d1b; --muted: #5d5d58; --line: #d9d6cf; --paper: #faf8f4; --card: #ffffff;
+    --wait: #5d5d58; --ready: #1f5fa8; --seen: #7a4fb5; --busy: #b36b00; --good: #1e7a3c; --bad: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.45 system-ui, "Segoe UI", -apple-system, sans-serif; color: var(--ink); background: var(--paper); }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 20px 48px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  #sim-flag { display: none; margin: 12px 0 0; padding: 8px 12px; border: 2px dashed var(--busy); border-radius: 8px; background: #fff6e8; font-weight: 600; }
+  #banner { display: none; margin: 14px 0 0; padding: 12px 14px; border-radius: 8px; color: #fff; font-weight: 600; }
+  #banner.reader-ready { background: var(--ready); }
+  #banner.tag-seen { background: var(--seen); }
+  #banner.written { background: var(--good); }
+  #banner.error { background: var(--bad); }
+  #banner .body { font-weight: 400; }
+  #status { margin: 16px 0; padding: 22px 22px 18px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); border-left: 12px solid var(--wait); }
+  #status.reader-ready, #status.waiting-for-tag { border-left-color: var(--ready); }
+  #status.tag-seen { border-left-color: var(--seen); }
+  #status.writing { border-left-color: var(--busy); }
+  #status.written { border-left-color: var(--good); }
+  #status.error, #status.reader-not-found { border-left-color: var(--bad); }
+  #status-title { font-size: 30px; font-weight: 700; margin: 0 0 6px; }
+  #status-detail { font-size: 18px; margin: 0; }
+  #status-uid, #status-url { font-family: ui-monospace, Consolas, monospace; }
+  #status-error { display: none; margin-top: 12px; }
+  #status-error .code { font-family: ui-monospace, Consolas, monospace; font-weight: 700; }
+  #status-error pre { white-space: pre-wrap; font: 14px/1.4 ui-monospace, Consolas, monospace; margin: 6px 0; }
+  #status-error .remedy { font-weight: 600; }
+  #reader-line { margin: 0 0 4px; }
+  section.controls { padding: 18px 22px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); }
+  label { font-weight: 600; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  #code { font-size: 22px; width: 8em; padding: 8px 10px; border: 2px solid var(--line); border-radius: 8px; text-transform: lowercase; }
+  #code:focus { outline: none; border-color: var(--ready); }
+  #code-note { font-size: 17px; }
+  #code-note.bad { color: var(--bad); font-weight: 600; }
+  button { font: inherit; font-size: 18px; padding: 10px 22px; border-radius: 8px; border: 0; background: var(--ready); color: #fff; cursor: pointer; }
+  button:disabled { background: #b9b6ae; cursor: not-allowed; }
+  button.quiet { font-size: 15px; padding: 6px 12px; background: #e9e6df; color: var(--ink); }
+  #write { font-size: 22px; padding: 10px 34px; background: var(--good); }
+  #write:disabled { background: #b9b6ae; }
+  .check { font-weight: 400; display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .check input { width: 20px; height: 20px; }
+  #write-error { color: var(--bad); font-weight: 600; margin-top: 8px; min-height: 1.4em; }
+  #codes-help { margin-top: 6px; }
+  #sim { display: none; margin-top: 16px; padding: 14px 22px; border-radius: 12px; border: 2px dashed var(--busy); background: #fff6e8; }
+  #sim .row { margin-top: 6px; }
+  #session { margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.mono { font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
+  td.ok { color: var(--good); font-weight: 600; }
+  td.fail { color: var(--bad); font-weight: 600; }
+  #connection { display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px; background: #fde8e6; color: var(--bad); font-weight: 600; }
+  footer { margin-top: 22px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Trevean Tag Tool</h1>
+    <span class="row" style="margin:0">
+      <span id="notify-state" class="muted small"></span>
+      <button id="notify" class="quiet" type="button">Turn on desktop notifications</button>
+    </span>
+  </header>
+
+  <div id="sim-flag">SIMULATOR. No reader is used and no real tag is written.</div>
+  <div id="connection">Lost contact with the Tag Tool. Is its window still open? Trying again.</div>
+  <div id="banner" role="status" aria-live="polite"><span class="title"></span> <span class="body"></span></div>
+
+  <div id="status" class="starting" aria-live="polite">
+    <p id="reader-line" class="muted">Reader: looking</p>
+    <p id="status-title">Looking for the reader</p>
+    <p id="status-detail">This can take up to ten seconds.</p>
+    <div id="status-error">
+      <div><span class="code" id="error-code"></span> <span id="error-plain"></span></div>
+      <pre id="error-message"></pre>
+      <div class="remedy">What to do: <span id="error-remedy"></span></div>
+    </div>
+  </div>
+
+  <section class="controls">
+    <label for="code">Product code</label>
+    <div class="row">
+      <input id="code" list="code-list" autocomplete="off" spellcheck="false">
+      <datalist id="code-list"></datalist>
+      <span id="code-note" class="muted"></span>
+    </div>
+    <div id="codes-help" class="muted small"></div>
+    <div class="row" style="margin-top:14px">
+      <button id="write" type="button" disabled>Write</button>
+      <span id="write-hint" class="muted"></span>
+    </div>
+    <label class="check"><input id="auto" type="checkbox"> Write this code to every new tag automatically</label>
+    <div id="write-error"></div>
+  </section>
+
+  <section id="sim">
+    <strong>Simulated bench</strong> <span class="muted small">(only with --simulator)</span>
+    <div class="row">
+      <button class="quiet" type="button" data-sim="place">Put a tag on</button>
+      <button class="quiet" type="button" data-sim="remove">Take the tag off</button>
+      <button class="quiet" type="button" data-sim="unplug">Unplug the reader</button>
+      <button class="quiet" type="button" data-sim="plug">Plug the reader in</button>
+      <span id="sim-state" class="muted small"></span>
+    </div>
+  </section>
+
+  <section id="session">
+    <p><strong id="count">0</strong> <span id="count-noun">tags</span> written and verified since the Tag Tool started<span id="failed-count"></span>.</p>
+    <table>
+      <thead><tr><th>Time</th><th>Code</th><th>Tag UID</th><th>Result</th></tr></thead>
+      <tbody id="recent"><tr><td colspan="4" class="muted">Nothing written yet.</td></tr></tbody>
+    </table>
+    <p class="muted small">Every tag is recorded in <span id="journals">a file in the runs folder</span>.</p>
+  </section>
+
+  <footer class="muted small">
+    This tool writes a tag, reads it back and checks the web address on it. It never locks a tag.
+  </footer>
+</main>
+<script src="/page.js"></script>
+</body>
+</html>
