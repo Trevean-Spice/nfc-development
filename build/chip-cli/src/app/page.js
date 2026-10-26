@@ -257,6 +257,12 @@
         title = 'Waiting for a tag';
         detail = 'Put one tag flat on the reader.';
         break;
+      case 'tag-not-ready':
+        // The reader sees a tag and lost it before it could be read. Not reader trouble.
+        title = 'Tag not ready, retrying';
+        detail = 'The reader sees a tag but lost it before it could be read. The Tag Tool keeps trying by itself. Keep the tag flat and still in the centre of the reader.';
+        showError = true;
+        break;
       case 'tag-seen':
         title = 'Tag seen';
         if (s.tagAlreadyAttempted) detail = again;
@@ -285,6 +291,7 @@
   function writeHint(s, writable) {
     if (s.phase === 'writing') return 'Writing...';
     if (s.phase === 'starting' || s.phase === 'reader-not-found') return 'Waiting for the reader.';
+    if (s.phase === 'tag-not-ready') return 'Waiting for the tag to be ready.';
     if (!canWrite(s)) return 'Put a tag on the reader first.';
     return writable ? '' : 'Choose a product code.';
   }

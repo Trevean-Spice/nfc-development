@@ -117,8 +117,12 @@ export interface TagTransport {
    * Drops the tag out of the field. Any presented password stops applying, which is
    * how the tool proves that protection actually took effect rather than merely
    * being accepted.
+   *
+   * `'leave'` lets go of the tag without powering it down, on a transport where that
+   * differs (PC/SC). Only for a read only detection, the Tag Tool's polls: it would leave a
+   * presented password applying, so the write and protection paths never pass it.
    */
-  releaseTag(): Promise<void>;
+  releaseTag(disposition?: 'unpower' | 'leave'): Promise<void>;
 
   /**
    * Signals that this unit is finished and the next tag will be a different one.
@@ -208,8 +212,8 @@ export class RecordingTransport implements TagTransport {
   get irreversibleFramesSent(): number | undefined {
     return this.inner.irreversibleFramesSent;
   }
-  releaseTag(): Promise<void> {
-    return this.record('releaseTag', [], () => this.inner.releaseTag());
+  releaseTag(disposition?: 'unpower' | 'leave'): Promise<void> {
+    return this.record('releaseTag', disposition === undefined ? [] : [disposition], () => this.inner.releaseTag(disposition));
   }
   completeUnit(): Promise<void> {
     return this.record('completeUnit', [], () => this.inner.completeUnit());

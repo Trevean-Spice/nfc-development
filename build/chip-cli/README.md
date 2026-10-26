@@ -16,7 +16,7 @@ What it is underneath, for the engineer:
 - `src/app/`: a Node `http` server on **127.0.0.1 only** (the address is a constant, not an option), first free port from 10350 to 10359, live state over server sent events with polling as the fallback. `node bin/tag-tool.mjs --help` for its options; `--simulator` rehearses with no reader and adds buttons to put a tag down, lift it, and unplug the reader.
 - **Each tag goes through the same `UnitSession` select, write and verify path as `chip-cli write` and `batch`, unchanged**, two attempts per tag as the batch does, and is journalled in the batch journal format (section 9) to `runs/tag-tool/`, one file per product code per session.
 - **It never protects a tag.** It has no password or protection control, never calls the protect step, and wraps the transport (`src/app/write-only.ts`) so that every member on the protection path is refused before it reaches the reader: presenting, changing or applying a password, the protection read, the opcode probe, and the two proofs that follow protection. A test lists every `TagTransport` member and which side of that line it is on, and the build fails until a new member is placed. Protection stays in `chip-cli` (section 5).
-- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does, including the named `TAG_ABSENT` cases and the connect to a mute tag (section 6.8). A reader that is unplugged shows "Reader not found"; a tag the reader sees but cannot read shows "The reader cannot read the tag" with the case.
+- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does, including the named `TAG_ABSENT` cases and the connect to a mute tag (section 6.8). A reader that is unplugged shows "Reader not found"; a tag the reader sees but cannot read shows "The reader cannot read the tag" with the case; a tag the reader connects to and then loses before the first read (`TAG_NOT_READY`, section 6.9) shows "Tag not ready, retrying", and is retried with a growing pause while the reader stays open.
 - **It has been driven in a real browser** (Chromium, against `--simulator`, Monday 26 October 2026): reader ready, a tag seen with its UID, `ps` written and read back, the next tag, automatic writing on and off, `kg` refused, the reader unplugged and plugged back, and desktop notifications. **It has not been run on Windows, on a Mac, in Edge, with a physical reader or on a physical tag.**
 
 ---
@@ -235,7 +235,7 @@ The three reads of the tag image (at verify, immediately before protection, and 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 457 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 476 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 
@@ -498,6 +498,41 @@ WritePassword, area protection and both proofs is unchanged; the files in `src/c
 `src/workflow/` are unchanged. Only the shared connect in `waitForTag` changed, plus the
 wording of one transport error.
 
+### 6.9 What changed on Monday 26 October 2026, evening: a tag that is not ready is not reader trouble
+
+Dan's first Tag Tool run on Windows 11 with the ACR1552U, after a reboot, found the reader
+and then printed, about eleven times in three seconds and without stopping:
+
+`Reader trouble, reconnecting: The reader rejected a command: NoSmartCard (SCARD_E_NO_SMARTCARD): [ Session.TaskTransmit ] Async task error`
+
+`Session.TaskTransmit` is pcsc-mini's SCardTransmit, so the connect to the tag had succeeded
+and the first command after it found no card. Every transport error was treated as reader
+trouble: the Tag Tool closed the reader (powering the tag down), opened it again and connected
+again at once, so the tag never had a moment to come up, and the page went on saying
+"Waiting for a tag". Reproduced exactly on the fake reader (`test/tag-not-ready.test.ts`).
+
+- **`TAG_ABSENT`, case `TAG_NOT_READY`.** When selecting a tag, SCARD_E_NO_SMARTCARD,
+  SCARD_W_REMOVED_CARD, SCARD_W_RESET_CARD, SCARD_W_UNPOWERED_CARD or
+  SCARD_W_UNRESPONSIVE_CARD from a transmit is about the tag, not the reader. The transport
+  lets go of the dead connection and tries again, three times in all with 0.25 s and 0.5 s
+  between, then raises `TAG_NOT_READY`, naming the command the tag was lost at.
+- **The Tag Tool keeps the reader open** for it, shows "Tag not ready, retrying", and waits
+  0.5 s, 1 s, 2 s, then 4 s between polls. A tag already seen gets one quietly first. Real
+  reader trouble that repeats on the very next poll also waits longer each time now.
+- **The Tag Tool's polls let go of the tag with SCARD_LEAVE_CARD**, not SCARD_UNPOWER_CARD.
+  Powering the tag down on every poll made the reader drop it and find it again, and the next
+  poll's connect raced that.
+- **A tag that arrives while the tool watches is left 0.3 s** before the first command. The
+  ACR1552U manual, 5.3.2, says Windows Smart Card Plug and Play sends its own APDUs to a card
+  at the moment it is presented.
+
+**Unchanged:** the write path and every release on the protection path still power the tag
+down (SCARD_UNPOWER_CARD), and a test checks a full `--protect` never leaves it powered. In
+`src/transport/pcsc.ts` the gate, the probe, the sessions, the frames, WritePassword, area
+protection and both proofs are untouched; `transmit` keeps its code and message and now also
+records the PC/SC error name in the error's detail. `src/chip/` and `src/workflow/` are
+unchanged. Not yet run on the ACR1552U.
+
 ---
 
 ## 7. If something goes wrong
@@ -506,7 +541,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 
 | Code | What happened | What to do |
 |---|---|---|
-| `TAG_ABSENT` | No tag could be selected. The message starts with the case: `NO_TAG` (the reader never reported one), `TAG_MUTE` (the reader detects a tag that does not answer activation), `CONNECT_FAILED` (with the PC/SC error, for example `SharingViolation` when another application holds the reader), `UID_REFUSED` or `READER_GONE`, then the reader name and its raw state | Place the tag centred on the reader and retry the unit. Follow the remedy printed for the case, and send the whole message when reporting it |
+| `TAG_ABSENT` | No tag could be selected. The message starts with the case: `NO_TAG` (the reader never reported one), `TAG_MUTE` (the reader detects a tag that does not answer activation), `CONNECT_FAILED` (with the PC/SC error, for example `SharingViolation` when another application holds the reader), `UID_REFUSED`, `READER_GONE` or `TAG_NOT_READY` (the reader connected and then found no tag, three times: `SCARD_E_NO_SMARTCARD` and its kind, with the command it was lost at), then the reader name and its raw state | Place the tag centred on the reader and retry the unit. Follow the remedy printed for the case, and send the whole message when reporting it. For `TAG_NOT_READY` the Tag Tool retries by itself; if it never clears, close GoToTags and unplug and replug the reader |
 | `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: block 79 would not read (`fewer than 80 blocks`) or block 80 did (`larger than ST25TV02KC`) | This is not the part. Check which tags you have. Nothing was written |
 | `TAG_CHANGED` | A different tag came back into the field partway through a unit | Nothing was locked by that step. Set both tags aside, label them, and rerun the unit with one tag on the reader |
 | `WRITE_FAILED` | The tag refused the write, or the write stopped partway | Rewrite the tag. It cannot be carrying a wrong URL: see section 7.1 |

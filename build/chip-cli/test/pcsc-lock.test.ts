@@ -835,6 +835,11 @@ test('D8: a full --protect on the fake reader runs the probe first and ends prot
   const firstIrreversible = st.findIndex((c) => c === B1 || c === A1);
   assert.deepEqual(st.slice(0, 2), [B4, B3], 'the unlock presentation at select');
   assert.ok(st.slice(2, firstIrreversible).filter((c) => c === B3).length >= 3, 'the probe precedes the first irreversible frame');
+  // The Tag Tool's polls let go with SCARD_LEAVE_CARD (26 October 2026). This path never does:
+  // every release is the default, SCARD_UNPOWER_CARD, so the field drops as the proofs assume.
+  assert.ok(transport.calls.filter((c) => c.method === 'releaseTag').every((c) => c.args.length === 0));
+  assert.equal(reader.tag.leaves, 0);
+  assert.ok(reader.tag.disconnects >= 1);
   await transport.close();
 });
 
