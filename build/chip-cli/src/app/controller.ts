@@ -2,8 +2,9 @@
  * The Tag Tool's state machine: one reader, one tag at a time, many tags in a row.
  *
  *   starting  ->  reader not found  <->  waiting for a tag  ->  tag seen  ->  writing
- *                                              ^                                 |
- *                                              |                     written, or error
+ *                                              ^       |                         |
+ *                                              |  tag not ready,      written, or error
+ *                                              |  retrying                       |
  *                                              +------- tag taken off -----------+
  *
  * One loop owns the transport. It opens the reader (retrying until one appears),
@@ -44,7 +45,7 @@ import { Journal, JOURNAL_FORMAT, type EndRecord, type RunHeaderRecord, type Uni
 import { UnitSession, planEncoding } from '../workflow/unit.js';
 import { WriteOnlyTransport } from './write-only.js';
 
-export type Phase = 'starting' | 'reader-not-found' | 'waiting-for-tag' | 'tag-seen' | 'writing' | 'written' | 'error';
+export type Phase = 'starting' | 'reader-not-found' | 'waiting-for-tag' | 'tag-not-ready' | 'tag-seen' | 'writing' | 'written' | 'error';
 
 export type NoticeKind = 'reader-ready' | 'tag-seen' | 'written' | 'error';
 
@@ -89,6 +90,12 @@ export interface Snapshot {
   /** The URL read back off the tag and decoded. Only set once verified. */
   readonly url: string | null;
   readonly error: PlainError | null;
+  /**
+   * Why the Tag Tool believes another program is reading the tags (GoToTags, usually), or
+   * null. The page then shows ANOTHER_PROGRAM_ADVICE instead of a generic error. Cleared
+   * by the next tag that reads properly.
+   */
+  readonly anotherProgram: string | null;
   /** True when the tag on the reader is the one most recently attempted. */
   readonly tagAlreadyAttempted: boolean;
   readonly auto: { readonly enabled: boolean; readonly code: string | null; readonly blendName: string | null };
@@ -120,6 +127,11 @@ export interface ControllerOptions {
   readonly idleMs?: number;
   /** Pause between attempts to open a reader that is not there. */
   readonly reopenMs?: number;
+  /**
+   * First pause after a tag that is on the reader but not ready to be read. It doubles each
+   * time in a row, up to eight times this, and the reader stays open throughout.
+   */
+  readonly notReadyMs?: number;
   /** Polls in a row a tag has to be missing for before it counts as taken off. */
   readonly removalPolls?: number;
   /** Attempts per Write press before the unit is recorded failed. The batch default is 2. */
@@ -145,6 +157,13 @@ interface PendingWrite {
 }
 
 const MAX_NOTICES = 12;
+
+/**
+ * What the page says when another program is reading the tags. The page has the same
+ * sentence (page.js), because it also says it on its own when it sees a tag's ID typed in.
+ */
+export const ANOTHER_PROGRAM_ADVICE =
+  'Another program is reading the tags and typing their ID (usually GoToTags). Exit it from the icon near the clock (right click, Exit), or end it in Task Manager, then try again.';
 
 /** A refusal the page should show as it is, with the HTTP status that fits it. */
 export class AppRefusal extends Error {
@@ -192,6 +211,7 @@ export class TagToolController {
   #blendName: string | null = null;
   #url: string | null = null;
   #error: PlainError | null = null;
+  #anotherProgram: string | null = null;
   #auto: { enabled: boolean; code: string | null; blendName: string | null } = { enabled: false, code: null, blendName: null };
   /** UIDs whose latest write this session was verified. */
   readonly #verifiedUids = new Set<string>();
@@ -208,6 +228,10 @@ export class TagToolController {
   #absentStreak = 0;
   /** Polls in a row where a tag was there but could not be read. */
   #unreadableStreak = 0;
+  /** Polls in a row where a tag was there but not ready (TAG_ABSENT, case TAG_NOT_READY). */
+  #notReadyStreak = 0;
+  /** Reader trouble in a row, each one reopened. The second and later wait before polling again. */
+  #troubleStreak = 0;
   #lastAttemptUid: string | null = null;
   #pending: PendingWrite | null = null;
   #stopping = false;
@@ -291,6 +315,7 @@ export class TagToolController {
       blendName: this.#blendName,
       url: this.#url,
       error: this.#error,
+      anotherProgram: this.#anotherProgram,
       tagAlreadyAttempted: this.#present !== null && this.#present.uid !== null && this.#present.uid === this.#lastAttemptUid,
       auto: { ...this.#auto },
       writtenCount: this.writtenCount(),
@@ -328,6 +353,13 @@ export class TagToolController {
         code: 'TRANSPORT_UNAVAILABLE',
         message: 'There is no reader to write with.',
         remedy: 'Plug the reader in. The page changes to "Reader ready" when it is found.',
+      });
+    }
+    if (this.#phase === 'tag-not-ready') {
+      throw new AppRefusal(409, {
+        code: 'TAG_ABSENT',
+        message: 'The tag on the reader is not ready yet.',
+        remedy: 'Wait for "Tag seen", then press Write. If it does not come, lift the tag and lay it flat and still in the centre of the reader.',
       });
     }
     if (this.#present === null || this.#present.bad) {
@@ -405,6 +437,7 @@ export class TagToolController {
     this.#open = true;
     this.#present = null;
     this.#absentStreak = 0;
+    this.#anotherProgram = null;
     const name = this.#options.readerName?.() ?? this.#transport.name;
     this.#log(`Reader ready: ${name}`);
     this.update({ phase: 'waiting-for-tag', readerName: name, uid: null, error: null, url: null, code: null, blendName: null });
@@ -420,36 +453,54 @@ export class TagToolController {
     } catch (cause) {
       const error = asChipError(cause, 'TAG_ABSENT', 'Put one tag flat on the reader.');
       // A transport may say which kind of TAG_ABSENT it is. Only "no tag" means no tag:
-      // a reader that went away is reader trouble, and a tag that is there but will not
-      // answer is shown, once it has failed to answer twice in a row.
+      // a reader that went away is reader trouble, a tag that is there but not ready is
+      // retried with the reader left open, and a tag that is there but will not answer is
+      // shown, once it has failed to answer twice in a row.
       const absentCase = error.code === 'TAG_ABSENT' ? error.detail.case : undefined;
       if (error.code === 'TRANSPORT_UNAVAILABLE' || absentCase === 'READER_GONE') {
         this.#unreadableStreak = 0;
+        this.#notReadyStreak = 0;
         await this.onReaderTrouble(error);
         return;
       }
+      this.#troubleStreak = 0;
+      if (absentCase === 'TAG_NOT_READY') {
+        this.#unreadableStreak = 0;
+        await this.release('leave');
+        await this.onNotReady(error);
+        return;
+      }
+      this.#notReadyStreak = 0;
       if (error.code === 'TAG_ABSENT' && (absentCase === undefined || absentCase === 'NO_TAG')) {
         this.#unreadableStreak = 0;
         this.onAbsent();
         return;
       }
       if (error.code === 'TAG_ABSENT') {
-        await this.release();
+        await this.release('leave');
         this.#unreadableStreak += 1;
-        if (this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) this.onBadTag(error, 'The reader cannot read the tag');
+        // A connect refused because another program holds the tag is shown at once, as that.
+        const elsewhere = typeof error.detail.otherProgram === 'string' ? error.detail.otherProgram : null;
+        if (elsewhere !== null) {
+          this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
+          this.onBadTag(error, 'Another program is reading the tags');
+        } else if (this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) this.onBadTag(error, 'The reader cannot read the tag');
         await this.sleep(idleMs);
         return;
       }
       this.#unreadableStreak = 0;
       // Something is in the field and it is not a tag this tool writes.
-      await this.release();
+      await this.release('leave');
       this.onBadTag(error);
       await this.sleep(idleMs);
       return;
     }
     // Detection only. The tag is selected again, from scratch, when it is written.
-    await this.release();
+    await this.release('leave');
+    this.clearAnotherProgram();
     this.#unreadableStreak = 0;
+    this.#notReadyStreak = 0;
+    this.#troubleStreak = 0;
     const bytes = identity.blockCount * identity.blockSizeBytes;
     if (bytes !== PART.totalBytes) {
       // The same size check UnitSession.selectTag makes, made here as well so a tag
@@ -485,6 +536,58 @@ export class TagToolController {
     }
   }
 
+  /**
+   * A tag is on the reader and was not ready to be read: the transport connected, then
+   * found no tag, and already tried again itself. Not reader trouble, so the reader stays
+   * open, and the next poll waits longer each time this repeats.
+   *
+   * A tag already seen and still sitting there is given one of these quietly, the way one
+   * missed poll is: after a write the tag has just been powered down, and the reader may
+   * still be bringing it back up.
+   *
+   * Twice in a row, each after the transport's own three tries, or once with the reader
+   * reporting the tag in use, is another program reading the tags: GoToTags on Dan's
+   * machine, seen typing each tag's UID on his screen recording, 26 October 2026.
+   */
+  private async onNotReady(error: ChipError): Promise<void> {
+    this.#notReadyStreak += 1;
+    const base = this.#options.notReadyMs ?? 500;
+    const pause = Math.min(base * 2 ** (this.#notReadyStreak - 1), base * 8);
+    const holding = this.#present !== null && !this.#present.bad;
+    const elsewhere = typeof error.detail.otherProgram === 'string' ? error.detail.otherProgram : null;
+    if (elsewhere !== null) {
+      this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
+    } else if (this.#notReadyStreak >= 2) {
+      this.suspectAnotherProgram(`The tag was not ready ${this.#notReadyStreak} times in a row, each after three tries.`);
+    }
+    if (!holding || elsewhere !== null || this.#notReadyStreak >= (this.#options.removalPolls ?? 2)) {
+      this.#present = null;
+      this.#absentStreak = 0;
+      this.update({ phase: 'tag-not-ready', uid: null, error: plain(error), url: null, code: null, blendName: null });
+    }
+    this.#log(`Tag not ready, retrying in ${pause / 1000} s: ${error.message}`);
+    await this.sleep(pause);
+  }
+
+  /**
+   * Another program is reading the tags. Logged once until a tag reads properly. The page
+   * shows ANOTHER_PROGRAM_ADVICE in its own banner, and raises the desktop notification
+   * for it, the same one it raises when it sees a tag's ID typed in.
+   */
+  private suspectAnotherProgram(reason: string): void {
+    if (this.#anotherProgram !== null) return;
+    this.#anotherProgram = reason;
+    this.#log(`Another program is reading the tags (usually GoToTags): ${reason}`);
+    this.emit();
+  }
+
+  private clearAnotherProgram(): void {
+    if (this.#anotherProgram === null) return;
+    this.#anotherProgram = null;
+    this.#log('The tag read properly. Nothing else is reading the tags now.');
+    this.emit();
+  }
+
   /** `title` is for the notification, when the error code's own plain words would mislead. */
   private onBadTag(error: ChipError, title: string = error.code): void {
     this.#absentStreak = 0;
@@ -509,11 +612,13 @@ export class TagToolController {
   }
 
   /**
-   * The reader stopped answering. Close it and open it again straight away: a tag
-   * lifted in the middle of a command looks like this too, and it is not worth a
-   * notification. Only if it will not open again is the reader reported missing.
+   * The reader stopped answering. Close it and open it again straight away: it is not
+   * worth a notification. Only if it will not open again is the reader reported missing.
+   * If it is trouble again on the very next poll, reopening at once is not helping, so
+   * each repeat waits longer before the next poll, up to four times `reopenMs`.
    */
   private async onReaderTrouble(error: ChipError): Promise<void> {
+    this.#troubleStreak += 1;
     this.#log(`Reader trouble, reconnecting: ${error.message}`);
     await this.#transport.close().catch(() => undefined);
     this.#open = false;
@@ -524,6 +629,10 @@ export class TagToolController {
       this.#absentStreak = 0;
       if (this.#phase !== 'waiting-for-tag') {
         this.update({ phase: 'waiting-for-tag', uid: null, error: null, url: null, code: null, blendName: null });
+      }
+      if (this.#troubleStreak >= 2) {
+        const reopenMs = this.#options.reopenMs ?? 2000;
+        await this.sleep(Math.min(reopenMs * 2 ** (this.#troubleStreak - 2), reopenMs * 4));
       }
     } catch (cause) {
       const again = asChipError(cause, 'TRANSPORT_UNAVAILABLE', 'Check the reader is plugged in.');
@@ -755,8 +864,13 @@ export class TagToolController {
     return uid !== null && uid === this.#lastAttemptUid;
   }
 
-  private async release(): Promise<void> {
-    await this.#transport.releaseTag().catch(() => undefined);
+  /**
+   * Lets go of the tag, powering it down by default, as the batch does. A poll only reads,
+   * so it passes `leave`: powering the tag down every poll made the reader drop it and find
+   * it again, and the next poll raced that.
+   */
+  private async release(disposition: 'unpower' | 'leave' = 'unpower'): Promise<void> {
+    await this.#transport.releaseTag(disposition).catch(() => undefined);
   }
 
   private remember(record: UnitRecord, entry: TagCodeEntry): void {

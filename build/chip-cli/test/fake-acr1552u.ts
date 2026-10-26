@@ -98,7 +98,10 @@ export const ST25TV02KC_BLOCKS = 0x4f + 1;
 export class FakeTag {
   readonly memory: Uint8Array;
   readonly sent: string[] = [];
+  /** SCARD_UNPOWER_CARD disconnects. */
   disconnects = 0;
+  /** SCARD_LEAVE_CARD disconnects. */
+  leaves = 0;
   failTransmit = false;
   uidLsbFirst: number[] = UID_LSB_FIRST;
   /** Replaces the whole answer to Get Data for the UID, status word included, when set. */
@@ -162,6 +165,18 @@ export class FakeTag {
    * lose or garble the answer. Throwing from it makes the transmit fail.
    */
   exchangeOverride: ((frame: number[], normal: () => number[]) => number[]) | null = null;
+  /**
+   * Transmits still to fail with SCARD_E_NO_SMARTCARD, counting down: the connect succeeded
+   * and the next SCardTransmit found no card. This is what Dan's ACR1552U on Windows 11 did
+   * on Monday 26 October 2026, word for word as pcsc-mini reports it (see `noSmartCard`).
+   */
+  noCardTransmits = 0;
+  /** Until this time (Date.now()), every transmit fails with SCARD_E_NO_SMARTCARD: the reader is still bringing the tag up. */
+  noCardUntil = 0;
+  /** How long the tag stays not ready after SCARD_UNPOWER_CARD, while the reader drops it and polls it up again. 0 is at once. */
+  unpowerSettleMs = 0;
+  /** Makes every transmit of an APDU (hex) it returns true for fail with SCARD_E_NO_SMARTCARD. */
+  noCardOn: ((apdu: string) => boolean) | null = null;
   /** Makes one transmit fail, before it reaches the tag, when it returns true for the APDU (hex). */
   failOn: ((apdu: string) => boolean) | null = null;
   /** Every RND_NUMBER this tag handed out, in order. */
@@ -181,17 +196,26 @@ export class FakeTag {
       transmit: async (apdu) => {
         this.sent.push(hex(apdu));
         if (this.failTransmit) throw new Error('[ RemovedCard ] - Error in native function');
+        if (this.noCardTransmits > 0 || Date.now() < this.noCardUntil || this.noCardOn?.(hex(apdu)) === true) {
+          if (this.noCardTransmits > 0) this.noCardTransmits -= 1;
+          throw noSmartCard();
+        }
         if (this.failOn?.(hex(apdu)) === true) throw new Error('[ RemovedCard ] - Error in native function');
         return Uint8Array.from(this.answer(apdu));
       },
       disconnectUnpower: async () => {
         this.disconnects += 1;
+        if (this.unpowerSettleMs > 0) this.noCardUntil = Date.now() + this.unpowerSettleMs;
         if (this.unpowerDropsField) {
           this.powerDown();
         } else {
           this.inSession = false;
           this.switchedTo15693 = false;
         }
+      },
+      disconnectLeave: async () => {
+        // SCARD_LEAVE_CARD: the connection ends and the tag stays powered, password session and all.
+        this.leaves += 1;
       },
     };
   }
@@ -458,6 +482,15 @@ export function pcscError(code: string): Error {
   return Object.assign(new Error('[ Client.TaskConnect ] Async task error'), { code });
 }
 
+/**
+ * SCARD_E_NO_SMARTCARD from SCardTransmit, shaped exactly as pcsc-mini 0.1.3 raised it on
+ * Dan's machine: "NoSmartCard" in `code`, "[ Session.TaskTransmit ] Async task error" in
+ * `message`. The transport's own words around it make the line he sent.
+ */
+export function noSmartCard(): Error {
+  return Object.assign(new Error('[ Session.TaskTransmit ] Async task error'), { code: 'NoSmartCard' });
+}
+
 export class FakeReader implements PcscReaderHandle {
   /** The raw SCARD_STATE_* flags the fake service reports. */
   raw: number;
@@ -480,7 +513,10 @@ export class FakeReader implements PcscReaderHandle {
   }
   /** Called on every connect, before the handle is made, so a test can put another tag in its place. */
   onConnect: ((count: number) => void) | null = null;
+  /** How long a connect takes. 0 answers at once; a real SCardConnect powers the tag up first. */
+  connectDelayMs = 0;
   async connect(): Promise<PcscCardHandle> {
+    if (this.connectDelayMs > 0) await new Promise((r) => setTimeout(r, this.connectDelayMs));
     this.connects += 1;
     this.onConnect?.(this.connects);
     if (this.connectError) throw this.connectError();

@@ -29,13 +29,35 @@
     USAGE: 'The Tag Tool did something it should not',
   };
 
+  /*
+   * Another program reading the tags. On Dan's first run on Windows (screen recording, 26
+   * October 2026) a program that starts with Windows, GoToTags, read each tag as it arrived
+   * and typed its UID like a keyboard into whatever had the focus, over and over, byte
+   * reversed and in hex pairs: "35 49 5E 6D 05 08 02 E0". It landed in the product code
+   * box. The page now refuses typing like that and says what to do.
+   */
+  var ANOTHER_PROGRAM = 'Another program is reading the tags and typing their ID (usually GoToTags). Exit it from the icon near the clock (right click, Exit), or end it in Task Manager, then try again.';
+  /** Longer than this is never typed by a person into the code box. The codes are two letters. */
+  var MAX_TYPED = 6;
+  /** Keys this close together (ms) were not pressed by a person (a held key's repeats are not counted)... */
+  var FAST_KEY_MS = 30;
+  /** ...once this many arrive in a row like that. */
+  var FAST_RUN = 3;
+  /** How long the banner stays up after the last ID typed in, when the Tag Tool itself has not seen the other program. */
+  var ANOTHER_PROGRAM_SHOW_MS = 60000;
+
   var $ = function (id) { return document.getElementById(id); };
   var codes = [];
   var state = null;
   var lastNotice = null;
   var bannerTimer = null;
   var pollTimer = null;
-  var codeTouched = false;
+  var typedIdAt = null;
+  var typedIdTimer = null;
+  var anotherProgramShown = false;
+  var keyRun = { at: null, run: 0 };
+  /** The code box's last value that was empty or a product code: what typing an ID into it goes back to. */
+  var lastGoodCode = '';
 
   function plainTitle(code) { return PLAIN[code] || 'Something went wrong'; }
 
@@ -45,6 +67,35 @@
     var wanted = String(text || '').trim().toLowerCase();
     for (var i = 0; i < codes.length; i += 1) if (codes[i].code === wanted) return codes[i];
     return null;
+  }
+
+  /**
+   * True for text no person types into the code box: an ID typed in by a keyboard wedge.
+   * Anything longer than a code could be, two hex pairs with a space or colon between them,
+   * or six hex digits in a row. A product code itself never counts.
+   */
+  function looksLikeTagId(text) {
+    var t = String(text || '').trim();
+    if (t === '' || findCode(t) !== null) return false;
+    var longest = codes.reduce(function (n, c) { return Math.max(n, c.code.length); }, MAX_TYPED);
+    return t.length > longest || /[0-9a-f]{2}[ :][0-9a-f]{2}/i.test(t) || /^[0-9a-f]{6,}$/i.test(t);
+  }
+
+  /**
+   * The rhythm of the keys: how many have arrived in a row, each within FAST_KEY_MS of the
+   * one before. `at` is the key event's timeStamp. Returns the length of the run so far.
+   */
+  function keyRhythm(run, at) {
+    if (run.at !== null && at - run.at >= 0 && at - run.at <= FAST_KEY_MS) run.run += 1;
+    else run.run = 1;
+    run.at = at;
+    return run.run;
+  }
+
+  /** Whether the "another program" banner shows: the Tag Tool saw it, or an ID was typed in recently. */
+  function anotherProgramShowing(s, typedAt, now) {
+    if (s && s.anotherProgram) return true;
+    return typedAt !== null && now - typedAt < ANOTHER_PROGRAM_SHOW_MS;
   }
 
   function encodableList() {
@@ -196,7 +247,20 @@
     }
   }
 
+  function desktopNotify(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('Tag Tool: ' + title, { body: body, tag: 'trevean-tag-tool', renotify: true });
+      } catch (e) {
+        /* Some browsers only allow notifications from a service worker. The banner is showing. */
+      }
+    }
+  }
+
   function announce(notice) {
+    // While the "another program" banner is up, an error is that program at work, and the
+    // banner says what to do about it. A second red banner would only bury it.
+    if (notice.kind === 'error' && anotherProgramShown) return;
     var banner = $('banner');
     banner.className = notice.kind;
     // An error notice is titled with its code; show the plain words for it when there are some.
@@ -206,14 +270,35 @@
     clearTimeout(bannerTimer);
     if (notice.kind !== 'error') bannerTimer = setTimeout(function () { banner.style.display = 'none'; }, 8000);
     if (notice.kind === 'written' || notice.kind === 'error') beep(notice.kind);
+    desktopNotify(banner.querySelector('.title').textContent, notice.body);
+  }
 
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification('Tag Tool: ' + banner.querySelector('.title').textContent, { body: notice.body, tag: 'trevean-tag-tool', renotify: true });
-      } catch (e) {
-        /* Some browsers only allow notifications from a service worker. The banner is showing. */
-      }
+  /** Shows or hides the "another program" banner, and says it out loud the moment it appears. */
+  function renderAnotherProgram() {
+    var showing = anotherProgramShowing(state, typedIdAt, performance.now());
+    var box = $('another-program');
+    box.style.display = showing ? 'block' : 'none';
+    $('another-program-why').textContent = state && state.anotherProgram ? state.anotherProgram : (showing ? 'A tag\'s ID was typed into this page.' : '');
+    if (showing && !anotherProgramShown) {
+      $('banner').style.display = 'none';
+      beep('error');
+      desktopNotify('Another program is reading the tags', ANOTHER_PROGRAM);
     }
+    anotherProgramShown = showing;
+  }
+
+  /** A tag's ID was typed in. Throw it away and say why. */
+  function typedIdSeen() {
+    var box = $('code');
+    if (findCode(box.value) === null) box.value = lastGoodCode;
+    // Nothing keeps the focus for it to type into.
+    if (document.activeElement === box) box.blur();
+    typedIdAt = performance.now();
+    clearTimeout(typedIdTimer);
+    typedIdTimer = setTimeout(renderAnotherProgram, ANOTHER_PROGRAM_SHOW_MS + 50);
+    checkCode();
+    render();
+    renderAnotherProgram();
   }
 
   function handleNotices(notices) {
@@ -243,6 +328,17 @@
       ? 'This tag just failed. Press Write to try it again, or take it off and set it aside.'
       : 'This tag was just written. Put the next tag on, or press Write to write it again.';
 
+    // Another program is reading the tags: say that, not "not ready" or "cannot read".
+    if (s.anotherProgram && (s.phase === 'tag-not-ready' || s.phase === 'error')) {
+      return {
+        reader: reader,
+        title: 'Another program is reading the tags',
+        detail: 'See the message at the top of the page. The Tag Tool keeps trying by itself, and carries on once that program has been closed.',
+        uid: null,
+        error: s.error,
+      };
+    }
+
     switch (s.phase) {
       case 'starting':
         title = 'Looking for the reader';
@@ -256,6 +352,12 @@
       case 'waiting-for-tag':
         title = 'Waiting for a tag';
         detail = 'Put one tag flat on the reader.';
+        break;
+      case 'tag-not-ready':
+        // The reader sees a tag and lost it before it could be read. Not reader trouble.
+        title = 'Tag not ready, retrying';
+        detail = 'The reader sees a tag but lost it before it could be read. The Tag Tool keeps trying by itself. Keep the tag flat and still in the centre of the reader.';
+        showError = true;
         break;
       case 'tag-seen':
         title = 'Tag seen';
@@ -285,6 +387,7 @@
   function writeHint(s, writable) {
     if (s.phase === 'writing') return 'Writing...';
     if (s.phase === 'starting' || s.phase === 'reader-not-found') return 'Waiting for the reader.';
+    if (s.phase === 'tag-not-ready') return 'Waiting for the tag to be ready.';
     if (!canWrite(s)) return 'Put a tag on the reader first.';
     return writable ? '' : 'Choose a product code.';
   }
@@ -320,6 +423,7 @@
     }
 
     document.title = title + ' | Tag Tool';
+    renderAnotherProgram();
     $('sim-flag').style.display = s.isHardware ? 'none' : 'block';
 
     var autoBox = $('auto');
@@ -375,7 +479,18 @@
 
   // Outside a browser (the tests, the text capture) only the wording is wanted.
   if (typeof document === 'undefined') {
-    globalThis.TagToolPage = { describe: describe, plainTitle: plainTitle, writeHint: writeHint, tagsNoun: tagsNoun, autoRefusal: autoRefusal };
+    globalThis.TagToolPage = {
+      describe: describe,
+      plainTitle: plainTitle,
+      writeHint: writeHint,
+      tagsNoun: tagsNoun,
+      autoRefusal: autoRefusal,
+      looksLikeTagId: looksLikeTagId,
+      keyRhythm: keyRhythm,
+      anotherProgramShowing: anotherProgramShowing,
+      ANOTHER_PROGRAM: ANOTHER_PROGRAM,
+      setCodes: function (list) { codes = list; },
+    };
     return;
   }
 
@@ -401,8 +516,29 @@
     source.onerror = function () { $('connection').style.display = 'block'; startPolling(); };
   }
 
+  /*
+   * Every key, wherever the focus is, before anything else sees it. Keys arriving faster
+   * than a person types are a keyboard wedge, and from the third in a row they are dropped.
+   * A UID's first space is its third key and the Enter comes last, so a wedge can neither
+   * tick the automatic box nor press Write with the space and Enter it types.
+   */
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat || typeof e.key !== 'string' || (e.key.length !== 1 && e.key !== 'Enter')) return;
+    if (keyRhythm(keyRun, e.timeStamp) < FAST_RUN) return;
+    e.preventDefault();
+    e.stopPropagation();
+    typedIdSeen();
+  }, true);
+
   $('write').addEventListener('click', write);
-  $('code').addEventListener('input', function () { codeTouched = true; checkCode(); showWriteError(null); render(); });
+  $('code').addEventListener('input', function () {
+    var value = $('code').value;
+    if (looksLikeTagId(value)) { typedIdSeen(); return; }
+    if (value.trim() === '' || findCode(value) !== null) lastGoodCode = value;
+    checkCode();
+    showWriteError(null);
+    render();
+  });
   $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('write').disabled) write(); });
   $('auto').addEventListener('change', function () { setAuto($('auto').checked); });
   $('notify').addEventListener('click', askNotify);
@@ -411,6 +547,7 @@
   });
 
   notifyState();
-  loadCodes().then(function () { if (!codeTouched) $('code').focus(); });
+  // The code box is not given the focus. A keyboard wedge types into whatever has it.
+  loadCodes();
   connect();
 })();

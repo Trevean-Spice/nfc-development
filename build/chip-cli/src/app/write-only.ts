@@ -59,8 +59,8 @@ export class WriteOnlyTransport implements TagTransport {
   writeBlock(block: number, data: Uint8Array): Promise<void> {
     return this.inner.writeBlock(block, data);
   }
-  releaseTag(): Promise<void> {
-    return this.inner.releaseTag();
+  releaseTag(disposition?: 'unpower' | 'leave'): Promise<void> {
+    return this.inner.releaseTag(disposition);
   }
   completeUnit(): Promise<void> {
     return this.inner.completeUnit();

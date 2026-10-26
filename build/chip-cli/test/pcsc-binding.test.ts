@@ -875,7 +875,7 @@ function fakePcscMini() {
   const module: PcscMiniModule = {
     Client: Client as unknown as PcscMiniModule['Client'],
     CardMode: { SHARED: 2 },
-    CardDisposition: { UNPOWER: 2 },
+    CardDisposition: { UNPOWER: 2, LEAVE: 0 },
   };
   /** Mimics pcsc-mini: "reader" is emitted, then the first "change" right after it. */
   const announce = (name: string, raw: number) => {
@@ -926,6 +926,18 @@ test('the adapter connects shared, passes APDUs through, unpowers on release, an
   binding.stop();
   assert.deepEqual(fake.log, ['connect mode 2', 'transmit ff ca 00 00 00', 'disconnect 2']);
   assert.equal(fake.client().stopped, 1);
+});
+
+test('the adapter lets go with SCARD_LEAVE_CARD only when asked, for the Tag Tool\'s read only polls', async () => {
+  const fake = fakePcscMini();
+  const binding = adaptPcscMini(fake.module);
+  const seen: PcscReaderHandle[] = [];
+  binding.start((r) => seen.push(r), () => undefined);
+  fake.announce(ACR1552U, STATUS.PRESENT);
+  const card = await seen[0]!.connect();
+  await card.disconnectLeave();
+  binding.stop();
+  assert.deepEqual(fake.log, ['connect mode 2', 'disconnect 0']);
 });
 
 test('the adapter forwards client errors', () => {

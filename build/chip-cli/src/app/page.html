@@ -17,6 +17,9 @@
   .muted { color: var(--muted); }
   .small { font-size: 13px; }
   #sim-flag { display: none; margin: 12px 0 0; padding: 8px 12px; border: 2px dashed var(--busy); border-radius: 8px; background: #fff6e8; font-weight: 600; }
+  #another-program { display: none; margin: 14px 0 0; padding: 14px 16px; border-radius: 8px; border: 3px solid var(--bad); background: #fde8e6; color: var(--ink); }
+  #another-program .say { font-size: 19px; font-weight: 700; margin: 0; }
+  #another-program .why { margin: 6px 0 0; }
   #banner { display: none; margin: 14px 0 0; padding: 12px 14px; border-radius: 8px; color: #fff; font-weight: 600; }
   #banner.reader-ready { background: var(--ready); }
   #banner.tag-seen { background: var(--seen); }
@@ -26,6 +29,7 @@
   #status { margin: 16px 0; padding: 22px 22px 18px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); border-left: 12px solid var(--wait); }
   #status.reader-ready, #status.waiting-for-tag { border-left-color: var(--ready); }
   #status.tag-seen { border-left-color: var(--seen); }
+  #status.tag-not-ready { border-left-color: var(--busy); }
   #status.writing { border-left-color: var(--busy); }
   #status.written { border-left-color: var(--good); }
   #status.error, #status.reader-not-found { border-left-color: var(--bad); }
@@ -77,6 +81,10 @@
 
   <div id="sim-flag">SIMULATOR. No reader is used and no real tag is written.</div>
   <div id="connection">Lost contact with the Tag Tool. Is its window still open? Trying again.</div>
+  <div id="another-program" role="alert">
+    <p class="say">Another program is reading the tags and typing their ID (usually GoToTags). Exit it from the icon near the clock (right click, Exit), or end it in Task Manager, then try again.</p>
+    <p class="why muted small" id="another-program-why"></p>
+  </div>
   <div id="banner" role="status" aria-live="polite"><span class="title"></span> <span class="body"></span></div>
 
   <div id="status" class="starting" aria-live="polite">
