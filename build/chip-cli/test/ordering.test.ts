@@ -268,6 +268,9 @@ class SwappableReader implements TagTransport {
   proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null) {
     return this.#active.proveWriteRefused(block, data, expectedUid);
   }
+  proveWriteUnlocked(block: number, data: Uint8Array, n: number, password: Uint8Array, expectedUid: string | null) {
+    return this.#active.proveWriteUnlocked(block, data, n, password, expectedUid);
+  }
   /**
    * This double calls itself hardware, and protect() refuses hardware with no probe.
    * The simulators behind it model the chip rather than a command path, so there is

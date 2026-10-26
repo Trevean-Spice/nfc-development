@@ -666,7 +666,7 @@ export function judgeProbePreconditions(seen: ProbePreconditions): { proven: boo
   if (rw[0] !== 0x00) return fail(`RW_PROTECTION_A1 reads 0x${hex2(rw[0] ?? 0)}, so AREA1 is already protected or configured (factory value 00h, DS13304 Table 11).`);
   const end = one(seen.endA1, 'END_A1', 1);
   if (typeof end === 'string') return fail(`${end}.`);
-  if (end[0] !== END_MEM_ST25TV02KC) return fail(`END_A1 reads 0x${hex2(end[0] ?? 0)}, not 0x4f, so the tag is in dual area mode and PWD_A1 is 32 bits, not the 64 bit password this tool holds (DS13304 Tables 13 and 27).`);
+  if (end[0] !== END_MEM_ST25TV02KC) return fail(`END_A1 reads 0x${hex2(end[0] ?? 0)}, not 0x${hex2(END_MEM_ST25TV02KC)} (END_MEM), so the tag is in dual area mode, or its END_MEM has been reduced by a TruST25 configuration (DS13304 section 5.6), and PWD_A1 is not the 64 bit password over the whole 80 block memory that this tool holds (DS13304 Tables 13 and 27).`);
   const lck = one(seen.lckConfig, 'LCK_CONFIG', 2);
   if (typeof lck === 'string') return fail(`${lck}.`);
   if (((lck[0] ?? 0) & 0x03) !== 0) return fail(`LCK_CONFIG reads 0x${hex2(lck[1] ?? 0)}${hex2(lck[0] ?? 0)}, so the AREA1 configuration is permanently locked (DS13304 Table 7) and protection could not be applied.`);
@@ -800,6 +800,20 @@ export class PcscTransport implements TagTransport {
    * Held in memory only, and cleared with the proof.
    */
   private readonly presentedPasswords = new Map<number, Uint8Array>();
+  /**
+   * The value the last WritePassword in this proof was sent with, from the moment its frame
+   * is handed to the reader, or null when none has been sent. Cleared with the proof.
+   */
+  private writtenPassword: Uint8Array | null = null;
+  /**
+   * The PWD_A1 value a successful PresentPassword has shown to open AREA1 on this tag, after
+   * the probe and after the last WritePassword, or null. `setAreaProtection` refuses without
+   * it, and once a WritePassword has gone out only the presentation of that exact value,
+   * made straight after it, sets it (review finding N1). Cleared with the proof.
+   */
+  private area1Opens: Uint8Array | null = null;
+  /** WritePassword and WriteConfiguration frames handed to the reader since this transport was made. See `irreversibleFramesSent`. */
+  private irreversibleSent = 0;
 
   private readonly loadBinding: PcscBindingLoader;
   private readonly readerTimeoutMs: number;
@@ -810,6 +824,17 @@ export class PcscTransport implements TagTransport {
   ) {
     this.loadBinding = options.loadBinding ?? loadPcscMini;
     this.readerTimeoutMs = options.readerTimeoutMs ?? 10_000;
+  }
+
+  /**
+   * How many irreversible frames (WritePassword B1h, WriteConfiguration A1h) this transport
+   * has handed to the reader. It counts up immediately before the frame is transmitted, so a
+   * refusal that sends nothing leaves it alone and a transmit that fails part way does not.
+   * `UnitSession.protect` compares it before and after to tell "nothing irreversible was
+   * sent" from "the tag may be locked" (review finding N3). Never goes down.
+   */
+  get irreversibleFramesSent(): number {
+    return this.irreversibleSent;
   }
 
   /** The PC/SC name of the reader in use, or null before the first successful open. */
@@ -1258,6 +1283,9 @@ export class PcscTransport implements TagTransport {
       );
     }
     this.presentedPasswords.set(passwordNumber, Uint8Array.from(password));
+    // Before any WritePassword this is the password that opens AREA1. After one, only the
+    // check inside `writePassword` may say which value opens it.
+    if (this.writtenPassword === null) this.area1Opens = Uint8Array.from(password);
   }
 
   /**
@@ -1275,17 +1303,27 @@ export class PcscTransport implements TagTransport {
   async writePassword(passwordNumber: number, password: Uint8Array): Promise<void> {
     assertPasswordLength(password);
     await this.requireProvenOpcodes('change a password');
-    const current = this.presentedPasswords.get(passwordNumber);
-    if (passwordNumber !== PASSWORD_ID.AREA1 || current === undefined) {
+    // Two guards, each with its own message, so a test can tell which one held (review
+    // finding N5, mutation X7): the password id first, then the current value.
+    if (passwordNumber !== PASSWORD_ID.AREA1) {
       throw new ChipError(
         'PROTECT_FAILED',
-        `Refusing to change password ${passwordNumber}: ${passwordNumber !== PASSWORD_ID.AREA1 ? 'this tool changes only PWD_A1, Password_id 01h' : 'its current value has not been presented successfully on this tag in this connection'}. This command was not sent.`,
+        `Refusing to change password ${passwordNumber}: this tool changes only PWD_A1, Password_id 01h. This command was not sent.`,
+        'This is a bug in the caller. Report it.',
+        { passwordNumber },
+      );
+    }
+    const current = this.presentedPasswords.get(passwordNumber);
+    if (current === undefined) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `Refusing to change password ${passwordNumber}: its current value has not been presented successfully on this tag in this connection. This command was not sent.`,
         'This is a bug in the caller. Report it.',
         { passwordNumber },
       );
     }
 
-    const answer = await this.inSession(ST_COMMANDS.WRITE_PASSWORD.name, async (exchange) => {
+    const result = await this.inSession(ST_COMMANDS.WRITE_PASSWORD.name, async (exchange) => {
       const presented = await this.presentIn(exchange, passwordNumber, current);
       if (presented.answer.kind !== 'ok' || presented.answer.data.length !== 0) {
         throw new ChipError(
@@ -1295,17 +1333,45 @@ export class PcscTransport implements TagTransport {
           { passwordNumber },
         );
       }
-      return exchange(this.stFrame(ST_COMMANDS.WRITE_PASSWORD, [passwordNumber, ...coverCode(password, presented.rnd)]));
+      const frame = this.stFrame(ST_COMMANDS.WRITE_PASSWORD, [passwordNumber, ...coverCode(password, presented.rnd)]);
+      // From here the old password may no longer open the tag, whatever comes back.
+      this.presentedPasswords.delete(passwordNumber);
+      this.area1Opens = null;
+      this.writtenPassword = Uint8Array.from(password);
+      this.irreversibleSent += 1;
+      const written = await exchange(frame);
+      if (written.kind !== 'ok' || written.data.length !== 0) return { written, check: null };
+      // Review finding N1. A plain 00 to WritePassword says the tag stored something, not
+      // what: "If a plain value is mistakenly used in the Password_data field of the
+      // WritePassword command, the presentation of its encrypted value with the
+      // PresentPassword command fails" (6.4.18). So present the new value now, in the same
+      // session, which stays open after a successful WritePassword (Table 151), and require
+      // a plain success before anything else is sent. A fresh GetRandomNumber, so the check
+      // does not reuse the random number B1 was coded with.
+      const check = (await this.presentIn(exchange, passwordNumber, password)).answer;
+      if (check.kind === 'ok' && check.data.length === 0) {
+        this.presentedPasswords.set(passwordNumber, Uint8Array.from(password));
+        this.area1Opens = Uint8Array.from(password);
+      }
+      return { written, check };
     });
-    if (answer.kind !== 'ok' || answer.data.length !== 0) {
+    const { written, check } = result;
+    if (written.kind !== 'ok' || written.data.length !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
-        `Writing password ${passwordNumber} was not confirmed by the tag: ${describeAnswer(answer, 0)}.`,
+        `Writing password ${passwordNumber} was not confirmed by the tag: ${describeAnswer(written, 0)}.`,
         'Set the tag aside, label it, and do not record it as protected. If the tag gave no answer, it may or may not now hold the new password, which is the one in the secret store: write down the fingerprint the tool printed with this run. DS13304 6.4.18: "There is no anti-tearing mechanism while operating the WritePassword command". Do not retry on this tag.',
         { passwordNumber },
       );
     }
-    this.presentedPasswords.set(passwordNumber, Uint8Array.from(password));
+    if (check === null || check.kind !== 'ok' || check.data.length !== 0) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `WritePassword was accepted but the new password does not open the tag. Area protection was NOT applied; the tag is still writable; its password 1 is unknown. PresentPassword with the new password, straight after WritePassword, got ${check === null ? 'nothing' : describeAnswer(check, 0)}.`,
+        'STOP, and stop the batch. Do not protect, ship or retry this tag: label it "PASSWORD UNKNOWN, NOT PROTECTED". It still reads and its URL is right, but no one holds its password 1. This means the tool, the reader or the part codes WritePassword differently from the PresentPassword the probe proved, so it would happen again on every tag. Copy this whole message into the bring up notes and report it the same day.',
+        { passwordNumber, passwordUnknown: true, areaProtectionSent: false },
+      );
+    }
   }
 
   /**
@@ -1340,6 +1406,21 @@ export class PcscTransport implements TagTransport {
       );
     }
 
+    // Review finding N1: protection is applied only under a password this connection has
+    // seen open AREA1, and after a WritePassword only under the value it wrote, checked
+    // straight after it. Otherwise a wrong WritePassword would end in a protected tag whose
+    // password nobody holds, which is the SO4731 failure.
+    const opens = this.area1Opens;
+    const written = this.writtenPassword;
+    if (opens === null || (written !== null && hex(opens) !== hex(written))) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `Refusing to apply area protection: ${written === null ? 'no password 1 has been shown to open AREA1 on this tag in this connection' : 'the password written by WritePassword has not been shown to open the tag since'}. This command was not sent.`,
+        'This is a bug in the caller. Report it. Area protection was not applied.',
+        { area, passwordNumber },
+      );
+    }
+
     const answer = await this.inSession(ST_COMMANDS.WRITE_CONFIGURATION.name, async (exchange) => {
       const config = (await this.presentIn(exchange, PASSWORD_ID.CONFIG, FACTORY_DEFAULT_CONFIG_PASSWORD)).answer;
       if (config.kind !== 'ok' || config.data.length !== 0) {
@@ -1351,7 +1432,9 @@ export class PcscTransport implements TagTransport {
         );
       }
       const r = CONFIG_REGISTERS.RW_PROTECTION_A1;
-      return exchange(this.stFrame(ST_COMMANDS.WRITE_CONFIGURATION, [r.fid, r.pid, RW_PROTECTION_WRITE_PROTECTED]));
+      const frame = this.stFrame(ST_COMMANDS.WRITE_CONFIGURATION, [r.fid, r.pid, RW_PROTECTION_WRITE_PROTECTED]);
+      this.irreversibleSent += 1;
+      return exchange(frame);
     });
     // The CONFIG session closed any AREA1 session.
     this.presentedPasswords.clear();
@@ -1429,17 +1512,8 @@ export class PcscTransport implements TagTransport {
     if (data.length !== PART.blockSizeBytes) {
       throw new ChipError('PROTECT_FAILED', `The proof write must be exactly ${PART.blockSizeBytes} bytes.`, 'This is a bug in the caller. Report it.');
     }
-    const selected = this.currentUid;
-    const now = this.connected && selected !== null ? await this.readUidNow() : null;
-    if (expectedUid === null || selected !== expectedUid || now !== expectedUid) {
-      throw new ChipError(
-        'TAG_CHANGED',
-        `The proof write was not sent: this unit's tag is uid ${expectedUid ?? 'unknown'}, the selected tag is uid ${selected ?? 'none'} and the tag in the field reads uid ${now ?? 'unreadable'}.`,
-        'Set every tag in reach aside and label them. Do not record any of them as protected.',
-        { expectedUid, selectedUid: selected, fieldUid: now },
-      );
-    }
-    const answer = await this.transceive(writeSingleBlockFrame(uidBytes(expectedUid), block, data), 'Write Single Block', { rfCycle: true });
+    const uid = await this.requireUnitTag(expectedUid, 'The proof write');
+    const answer = await this.transceive(writeSingleBlockFrame(uidBytes(uid), block, data), 'Write Single Block', { rfCycle: true });
     if (answer.kind === 'ok' && answer.data.length === 0) return 'accepted';
     if (answer.kind === 'error' && answer.errorCode === ISO15693_ERROR_BLOCK_LOCKED) return 'refused';
     throw new ChipError(
@@ -1448,6 +1522,65 @@ export class PcscTransport implements TagTransport {
       'Set the tag aside, label it, and do not record it as protected. If the answer was a tag error code other than 0x12, write the code down: it may be how this part reports a password protected block, which the datasheet would settle.',
       { block },
     );
+  }
+
+  /**
+   * The unlock proof, after the refusal proof (review finding N1, the optional check made
+   * part of every run). In a new transparent session: GetRandomNumber, PresentPassword 1
+   * with `password`, the value this run wrote, then the same addressed Write Single Block of
+   * the bytes the block already holds. Both must be a plain success. That shows the
+   * password the operator records opens this tag after protection, which neither the probe
+   * (factory default only) nor the refusal proof can show.
+   *
+   * Like the refusal proof it is not gated, for the same reason, and it checks the UID the
+   * same way before sending anything. It leaves the AREA1 security session open until the
+   * tag leaves the field.
+   */
+  async proveWriteUnlocked(block: number, data: Uint8Array, passwordNumber: number, password: Uint8Array, expectedUid: string | null): Promise<void> {
+    assertPasswordLength(password);
+    if (data.length !== PART.blockSizeBytes || passwordNumber !== PASSWORD_ID.AREA1) {
+      throw new ChipError('PROTECT_FAILED', `The unlock proof takes exactly ${PART.blockSizeBytes} bytes and password 1.`, 'This is a bug in the caller. Report it.');
+    }
+    const uid = await this.requireUnitTag(expectedUid, 'The unlock proof write');
+    const { presented, write } = await this.inSession('the unlock proof', async (exchange) => {
+      const answer = (await this.presentIn(exchange, passwordNumber, password)).answer;
+      if (answer.kind !== 'ok' || answer.data.length !== 0) return { presented: answer, write: null };
+      return { presented: answer, write: await exchange(writeSingleBlockFrame(uidBytes(uid), block, data)) };
+    });
+    if (presented.kind !== 'ok' || presented.data.length !== 0) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `After protection, the password this run wrote did not open the tag: PresentPassword ${passwordNumber} got ${describeAnswer(presented, 0)}. The unlock proof write was not sent.`,
+        'STOP. The tag refuses writes and the recorded password does not open it. Label it LOCKED? and report it the same day.',
+        { passwordNumber },
+      );
+    }
+    if (write === null || write.kind !== 'ok' || write.data.length !== 0) {
+      throw new ChipError(
+        'PROTECT_FAILED',
+        `With the password this run wrote presented, the unlock proof write to block ${block} got ${write === null ? 'nothing' : describeAnswer(write)} rather than a plain success.`,
+        'STOP. Label the tag LOCKED? and report it the same day. The block was rewritten with the bytes it already held, if at all.',
+        { block, passwordNumber },
+      );
+    }
+  }
+
+  /**
+   * The unit's own tag, read from the field now, or a refusal with nothing else sent
+   * (review finding F8). `what` names the command that was therefore not sent.
+   */
+  private async requireUnitTag(expectedUid: string | null, what: string): Promise<string> {
+    const selected = this.currentUid;
+    const now = this.connected && selected !== null ? await this.readUidNow() : null;
+    if (expectedUid === null || selected !== expectedUid || now !== expectedUid) {
+      throw new ChipError(
+        'TAG_CHANGED',
+        `${what} was not sent: this unit's tag is uid ${expectedUid ?? 'unknown'}, the selected tag is uid ${selected ?? 'none'} and the tag in the field reads uid ${now ?? 'unreadable'}.`,
+        'Set every tag in reach aside and label them. Do not record any of them as protected.',
+        { expectedUid, selectedUid: selected, fieldUid: now },
+      );
+    }
+    return expectedUid;
   }
 
   /**
@@ -1503,6 +1636,8 @@ export class PcscTransport implements TagTransport {
   private resetProof(): void {
     this.provenUid = null;
     this.presentedPasswords.clear();
+    this.writtenPassword = null;
+    this.area1Opens = null;
   }
 
   async completeUnit(): Promise<void> {

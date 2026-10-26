@@ -15,7 +15,7 @@
 - **Not verified on silicon.** The tool still has never written a physical tag. README section 6.3 is the bring up this call is doing.
 - **The Windows command for the throwaway password in section 4 is untested.** A fallback is given beside it.
 - **The protection commands now come from the ST25TV02KC datasheet** (DS13304 Rev 7, obtained Sunday 25 October 2026), and none of them has run on a chip.
-- **Known problem before you start:** the datasheet says the ST25TV02KC has 80 blocks, and this version of the tool expects 64 and refuses a tag that has more. Unless a fixed version has been sent since, section 4.2 will stop with `TAG_NOT_ST25TV02KC` "Block 64 answered a read". That is the tool, not the tag (README section 6.6, item G).
+- **The tag geometry is fixed in this version** (Monday 26 October 2026): the tool expects the 80 blocks the datasheet gives. Earlier versions expected 64 and stopped at section 4.2 with "Block 64 answered a read". If you see that message, you have an old copy: stop and ask for the current one.
 
 If a step does not behave as written, that is a finding, not a failure on your part. Write down what it printed.
 
@@ -148,12 +148,12 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 
 | What it prints | What it means | What to do |
 |---|---|---|
-| `TAG_NOT_ST25TV02KC`, "Block 64 answered a read" | The known geometry problem (section 0) | **STOP.** Not the tag's fault |
+| `TAG_NOT_ST25TV02KC`, "Block 79 could not be read" or "Block 80 answered a read" | The tag is not the 80 block part the tool expects, or the reader reads blocks differently | **STOP.** The tag is unharmed. Report it with the UID |
 | `PROTECT_FAILED`, "The reader did not complete ...", "GetRandomNumber before ... got no usable answer" or "PresentPassword got no usable answer" | The ACS session or the ST command path failed | **STOP.** The tag is unharmed |
 | `PASSWORD_REJECTED` | The tag refused the factory password 1 | **STOP.** Do not try any other password |
 | Any other code before `Verified` (`TAG_ABSENT`, `WRITE_FAILED`, `READBACK_...`, `TRANSPORT_UNAVAILABLE`) | Section 4.2's path failed | **STOP.** The tag is unharmed |
 
-**After `Verified`, before any irreversible command.** Only these four mean nothing was locked:
+**After `Verified`, before any irreversible command.** Only these mean nothing was locked:
 
 | What it prints | What it means | What to do |
 |---|---|---|
@@ -161,6 +161,14 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | `PROTECT_FAILED`, "The tag could not be read immediately before protection" or "no longer holds the bytes that were verified" | The check before the probe | **STOP.** Nothing was locked |
 | `PROTECT_FAILED`, "The opcode probe could not run" | The probe itself failed to start | **STOP.** Nothing was locked |
 | `PASSWORD_REJECTED`, or "PresentPassword got no usable answer", printed after `Verified` | Presenting password 1 after the probe failed. WritePassword was not reached | **STOP.** Nothing was locked |
+| `PROTECT_FAILED`, "The current password was not accepted immediately before WritePassword ... WritePassword was not sent" | The factory password 1 was refused inside WritePassword's own session, so WritePassword never went out | **STOP.** Nothing was locked |
+| `PROTECT_FAILED`, "Refusing to change a password: ... This command was not sent", with no "irreversible part had begun" before it | The gate stopped WritePassword before it went out, for example because the tag's UID could not be read again | **STOP.** Nothing was locked |
+
+**After WritePassword, before protection.** This one is not LOCKED?, and it matters more than any other row:
+
+| What it prints | What it means | What to do |
+|---|---|---|
+| `PROTECT_FAILED`, "WritePassword was accepted but the new password does not open the tag. Area protection was NOT applied; the tag is still writable; its password 1 is unknown." | The tag took WritePassword, but presenting the new password straight afterwards failed. So the tool and the tag disagree about how the password is coded, and protection was never sent. The tag still reads and still accepts writes, but nobody holds its password 1 | **STOP. Label the tag "PASSWORD UNKNOWN, NOT PROTECTED".** Do not run 4.3 on any other tag: this would repeat on every one. Report it the same day, with the whole message |
 
 **After an irreversible command.** Every one of these starts "Protection did not complete, and its irreversible part had begun. Password 1 may already have been changed by this run ... Label the tag LOCKED? and stop", then "Original message:" and what went wrong. **All of them: STOP. Label the tag "LOCKED? password discarded" and never reuse it.** What the original message tells the bring up:
 
@@ -170,14 +178,16 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | "Refusing to apply area protection: ... This command was not sent" | The password may have changed, then the gate stopped the protection command (the reader lost the session or the tag) | Nothing more |
 | "Setting protection on area 1 was not confirmed", or "The factory configuration password was not accepted" | The protection command got no clean answer, or could not be sent | Nothing more |
 | "The tag did not report protection for area 1", or "reports protection state ..." | The protection read failed or disagreed. The tag may already be protected | Nothing more |
-| `TAG_CHANGED`, `TAG_ABSENT`, "could not be read after protection", "After protection the tag decodes to" | Something went wrong between protecting and proving. If `TAG_CHANGED`: a second tag answered, so the area was not clear | Label every tag that was in reach LOCKED? too |
-| "The proof write was not sent" | The tag in the field was not the unit's tag | Label every tag that was in reach LOCKED? too |
+| `TAG_CHANGED`, `TAG_ABSENT`, "After protection the tag decodes to" | Something went wrong between protecting and proving. If `TAG_CHANGED`: a second tag answered, so the area was not clear | Label every tag that was in reach LOCKED? too |
+| "The proof write was not sent", or "The unlock proof write was not sent" | The tag in the field was not the unit's tag | Label every tag that was in reach LOCKED? too |
 | "The proof write to block 1 got neither ..." | The tag refused the proof write with a code other than 12h, or gave no clean answer | **Write down the code in the message** |
 | "The proof write to block 1 was accepted" | The tag accepted the write after protection. **It may still be protected** and its password was changed: if the field did not really drop, the earlier password still applied. Or protection did not take | **Report it the same day** |
+| "could not be read after protection" | The NDEF read after the field cycle failed: the tag may be protected and unreadable to a phone | **Report it the same day** |
+| "After protection, the password this run wrote did not open the tag", or "the unlock proof write to block 1 got ..." | The tag refuses writes, and the password this run recorded did not open it, or the write with it presented was not accepted. This is the failure the unlock proof exists to catch | **Report it the same day** |
 
 | What it prints | What to do |
 |---|---|
-| `Protected`, `refusal proven: yes`, `opcode probe passed on this tag`, then `OK` | The whole path worked on this tag. Tap it with a phone: the Persian Sunrise page must open (**STOP** if it does not: the tag is scrap). Then run `node bin/chip-cli.mjs verify --expect ps --transport reader`, which must pass. Label the tag "PROTECTED, password discarded" |
+| `Protected`, `refusal proven: yes`, `unlock proven: yes`, `opcode probe passed on this tag`, then `OK` | The whole path worked once, on this tag: protection took, the tag refused a write with no password, and the password this run wrote opened it and the same write was accepted. A `Protected` line without `unlock proven: yes` is not this version: treat it as "not listed" below. Tap it with a phone: the Persian Sunrise page must open (**STOP** if it does not: the tag is scrap). Then run `node bin/chip-cli.mjs verify --expect ps --transport reader`, which must pass. Label the tag "PROTECTED, password discarded" |
 | **Anything not listed above, printed after `Verified`** | **STOP. Label the tag "LOCKED? password discarded".** Copy the message word for word |
 
 **Afterwards, whatever happened:**

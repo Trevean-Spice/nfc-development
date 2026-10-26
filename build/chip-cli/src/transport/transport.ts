@@ -87,6 +87,23 @@ export interface TagTransport {
   proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'>;
 
   /**
+   * The unlock proof, run after the refusal proof. Presents `password` as `passwordNumber`
+   * and writes `data`, which must be the bytes `block` already holds, and resolves only when
+   * the tag accepted both. Anything else rejects. It shows the password this run recorded
+   * opens the tag after protection (review finding N1). The same UID rule as the refusal
+   * proof applies.
+   */
+  proveWriteUnlocked(block: number, data: Uint8Array, passwordNumber: number, password: Uint8Array, expectedUid: string | null): Promise<void>;
+
+  /**
+   * How many irreversible frames (on the PC/SC transport, WritePassword and
+   * WriteConfiguration) have been handed to the reader so far. Counts up immediately before
+   * each one is transmitted. A transport that cannot say leaves it undefined, and then any
+   * failure after the probe is treated as though one had been sent (review finding N3).
+   */
+  readonly irreversibleFramesSent?: number | undefined;
+
+  /**
    * Proves, on the tag in the field and without changing it, that the command path the
    * irreversible protection commands travel is right. Present on transports whose
    * protection opcodes are not proven by construction, which today means the PC/SC one.
@@ -181,6 +198,15 @@ export class RecordingTransport implements TagTransport {
   }
   proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'> {
     return this.record('proveWriteRefused', [block, expectedUid], () => this.inner.proveWriteRefused(block, data, expectedUid));
+  }
+  proveWriteUnlocked(block: number, data: Uint8Array, passwordNumber: number, password: Uint8Array, expectedUid: string | null): Promise<void> {
+    // The password value is not recorded.
+    return this.record('proveWriteUnlocked', [block, passwordNumber, expectedUid], () =>
+      this.inner.proveWriteUnlocked(block, data, passwordNumber, password, expectedUid),
+    );
+  }
+  get irreversibleFramesSent(): number | undefined {
+    return this.inner.irreversibleFramesSent;
   }
   releaseTag(): Promise<void> {
     return this.record('releaseTag', [], () => this.inner.releaseTag());

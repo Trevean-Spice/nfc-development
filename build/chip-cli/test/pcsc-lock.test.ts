@@ -461,7 +461,7 @@ test('DS: without GetRandomNumber the factory default would be refused, which is
   assert.deepEqual(tag.datasheetAnswer([0x02, B3, 0x02, 0x01, 0, 0, 0, 0, 0, 0, 0, 0]), [0x01, 0x0f]);
 });
 
-test('DS: WritePassword is B4, B3 current, then B1 new cover coded with the same random number, in one session', async () => {
+test('DS and N1: WritePassword is B4, B3 current, B1 new cover coded with the same random number, then B4 and B3 new, in one session', async () => {
   const { reader, transport } = await proven();
   const before = reader.tag.sent.length;
   const issuedBefore = reader.tag.randomsIssued.length;
@@ -470,11 +470,16 @@ test('DS: WritePassword is B4, B3 current, then B1 new cover coded with the same
   assert.equal(sent[0], 'ff ca 00 00 00', 'the gate reads the UID first');
   assert.equal(sent.filter((a) => a === 'ff c2 00 00 02 81 00').length, 1);
   const frames = sent.map(frameOf).filter((f): f is number[] => f !== null);
-  assert.deepEqual(frames.map((f) => f[1]), [B4, B3, B1]);
+  assert.deepEqual(frames.map((f) => f[1]), [B4, B3, B1, B4, B3]);
   const rnd = reader.tag.randomsIssued[issuedBefore]!;
   assert.deepEqual(frames[2]!.slice(0, 12), [0x22, B1, 0x02, ...UID_ON_AIR, 0x01]);
   assert.deepEqual(frames[2]!.slice(12), coverCode(TagPassword.fromHex(NEW_PASSWORD, 'new').toBytes(), rnd));
   assert.equal(plain(frames[2]!.slice(12), rnd), '0a 1b 2c 3d 4e 5f 60 71', 'the hex characters are the value, most significant byte first');
+  // N1: the new value presented straight after, with a fresh random number, must open the tag.
+  const check = reader.tag.randomsIssued[issuedBefore + 1]!;
+  assert.notEqual(check, rnd);
+  assert.deepEqual(frames[4]!.slice(0, 12), [0x22, B3, 0x02, ...UID_ON_AIR, 0x01]);
+  assert.equal(plain(frames[4]!.slice(12), check), '0a 1b 2c 3d 4e 5f 60 71');
   assert.equal(hex(reader.tag.password), '0a 1b 2c 3d 4e 5f 60 71');
   await transport.close();
 });
@@ -810,6 +815,7 @@ test('D8: a full --protect on the fake reader runs the probe first and ends prot
   const outcome = await result;
   assert.equal(session.phase, 'protected');
   assert.equal(outcome.refusalProven, true);
+  assert.equal(outcome.unlockProven, true);
   assert.equal(outcome.opcodeProbe, 'passed');
   assert.equal(hex(reader.tag.password), '0a 1b 2c 3d 4e 5f 60 71');
   assert.equal(reader.tag.areaProtection, 0x01);
@@ -820,7 +826,10 @@ test('D8: a full --protect on the fake reader runs the probe first and ends prot
   assert.ok(probe > seq.lastIndexOf('readBlocks', probe), 'after the pre protection read');
   assert.ok(probe < seq.indexOf('writePassword') && probe < seq.indexOf('setAreaProtection'), 'before the irreversible pair');
   assert.ok(seq.indexOf('readAreaProtection') < seq.lastIndexOf('releaseTag'), 'state read while the proof still stands');
-  assert.equal(seq.at(-1), 'proveWriteRefused');
+  // N2: the readability check comes after the refusal proof, which cycles the field. N1: the unlock proof is last.
+  assert.ok(seq.indexOf('proveWriteRefused') < seq.lastIndexOf('readBlocks'), 'read after the RF cycle');
+  assert.ok(seq.lastIndexOf('readBlocks') < seq.indexOf('proveWriteUnlocked'));
+  assert.equal(seq.at(-1), 'proveWriteUnlocked');
 
   const st = commandsSent(reader.tag);
   const firstIrreversible = st.findIndex((c) => c === B1 || c === A1);
@@ -863,6 +872,7 @@ test('D8: a hardware transport with no probe is refused protection outright', as
     setAreaProtection: (area, protection, n) => sim.setAreaProtection(area, protection, n),
     readAreaProtection: (area) => sim.readAreaProtection(area),
     proveWriteRefused: (block, data, uid) => sim.proveWriteRefused(block, data, uid),
+    proveWriteUnlocked: (block, data, n, pw, uid) => sim.proveWriteUnlocked(block, data, n, pw, uid),
     releaseTag: () => sim.releaseTag(),
     completeUnit: () => sim.completeUnit(),
   };

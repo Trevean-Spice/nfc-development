@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { ChipError, asChipError, isChipError } from '../chip/errors.js';
 import { FACTORY_DEFAULT_HEX, TagPassword, loadPassword } from '../chip/password.js';
-import { PART, T5T_AREA_BYTES, type CcPolicy } from '../chip/st25tv02kc.js';
+import { PART, READ_SPAN_MAX_BLOCKS, T5T_AREA_BYTES, type CcPolicy } from '../chip/st25tv02kc.js';
 import { decodeUriMessage } from '../ndef/decode.js';
 import { unwrapNdefTlv } from '../ndef/tlv.js';
 import { RedirectTable, DEFAULT_TABLE_PATH } from '../table/redirect-table.js';
@@ -336,6 +336,7 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
       const outcome = await session.protect(receipt, { currentPassword: passwords.current, newPassword: passwords.next });
       out(`Protected        area ${outcome.area}, password ${outcome.passwordNumber}, fingerprint ${outcome.passwordFingerprint}`);
       out(`                 refusal proven: ${outcome.refusalProven ? 'yes' : 'no'}`);
+      out(`                 unlock proven: ${outcome.unlockProven ? 'yes' : 'no'}`);
       if (outcome.opcodeProbe === 'passed') out('                 opcode probe passed on this tag before the irreversible commands');
     }
     await session.finish();
@@ -349,7 +350,7 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
 }
 
 /** The longest single read `chip-cli verify` makes: 63 blocks, 252 bytes, inside a one byte Le. */
-const VERIFY_READ_SPAN_BLOCKS = 63;
+const VERIFY_READ_SPAN_BLOCKS = READ_SPAN_MAX_BLOCKS;
 
 async function commandVerify(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
   const table = loadTable(values);

@@ -82,6 +82,11 @@ export const CC_MLEN = Math.floor((PART.totalBytes - CC_BYTES) / 8);
 export const T5T_AREA_BYTES = CC_MLEN * 8;
 export const T5T_AREA_FIRST_BLOCK = 1;
 export const T5T_AREA_BLOCK_COUNT = T5T_AREA_BYTES / PART.blockSizeBytes;
+/**
+ * The most blocks one PC/SC Read Binary carries: Le is one byte, so 255 bytes, which is 63
+ * whole blocks (252 bytes). Block 0 and the whole area, 79 blocks, do not fit in one.
+ */
+export const READ_SPAN_MAX_BLOCKS = Math.floor(0xff / PART.blockSizeBytes);
 
 /** The capability container this tool writes when a tag does not already carry a valid one. */
 export function buildCapabilityContainer(): Uint8Array {

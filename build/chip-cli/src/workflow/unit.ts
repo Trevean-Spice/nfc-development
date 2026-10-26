@@ -30,7 +30,7 @@
  * here rather than a convention.
  */
 
-import { ChipError, asChipError } from '../chip/errors.js';
+import { ChipError, asChipError, isChipError } from '../chip/errors.js';
 import { TagPassword } from '../chip/password.js';
 import {
   CC_BLOCK,
@@ -38,6 +38,7 @@ import {
   DEFAULT_AREA,
   DEFAULT_AREA_PASSWORD_NUMBER,
   PART,
+  READ_SPAN_MAX_BLOCKS,
   T5T_AREA_BYTES,
   T5T_AREA_FIRST_BLOCK,
   buildWritePlan,
@@ -86,6 +87,11 @@ export interface ProtectionOutcome {
   readonly passwordChanged: boolean;
   /** True when a write to the protected area was attempted after protection and refused. */
   readonly refusalProven: boolean;
+  /**
+   * True when, after the refusal, presenting the password this run recorded opened the tag
+   * and the same write was accepted (review finding N1). A protected outcome always has it.
+   */
+  readonly unlockProven: boolean;
   /** 'passed' when the transport's opcode probe ran on this tag before the irreversible commands. */
   readonly opcodeProbe: 'passed' | 'not-applicable';
 }
@@ -266,6 +272,29 @@ export class UnitSession {
   }
 
   /**
+   * Reads block 0 and the written part of the area, in one Read Binary.
+   *
+   * **The one span policy for all three reads of the image:** at verify, immediately before
+   * protection, and after protection (review of Monday 26 October 2026, section 7). All three
+   * read the same blocks through this method, so an image the verify read can carry, the
+   * other two can carry too. An image too long for one Read Binary (more than 63 blocks) is
+   * refused here, which happens first at verify, before anything irreversible. If the read
+   * after protection were the first to fail, every such tag would end LOCKED?.
+   */
+  private async readImage(plan: WritePlan): Promise<Uint8Array> {
+    const blocks = 1 + plan.areaImage.length / PART.blockSizeBytes;
+    if (blocks > READ_SPAN_MAX_BLOCKS) {
+      throw new ChipError(
+        'READBACK_FAILED',
+        `The written image is ${blocks} blocks, block 0 included, and this tool reads it back in one Read Binary of at most ${READ_SPAN_MAX_BLOCKS} blocks. This URI is too long to verify, so the tag is not verified and cannot be protected.`,
+        'Do not ship this tag. Use a shorter URL: the URLs in the redirect table are a few dozen bytes.',
+        { blocks, maxBlocks: READ_SPAN_MAX_BLOCKS },
+      );
+    }
+    return this.#options.transport.readBlocks(CC_BLOCK, blocks);
+  }
+
+  /**
    * Writes the tag.
    *
    * The plan's ordering (terminator first, message body, TLV header, capability
@@ -349,10 +378,9 @@ export class UnitSession {
       await this.reacquire('Keep the tag on the reader through the read back, or turn off --verify-after-power-cycle.');
     }
 
-    const areaBlocks = plan.areaImage.length / PART.blockSizeBytes;
     let readBack: Uint8Array;
     try {
-      readBack = await this.#options.transport.readBlocks(CC_BLOCK, 1 + areaBlocks);
+      readBack = await this.readImage(plan);
     } catch (cause) {
       this.fail(cause, 'READBACK_FAILED', 'Retry this unit with the tag held still and centred on the reader.');
     }
@@ -418,14 +446,16 @@ export class UnitSession {
    *
    * Refuses unless the session has verified, and refuses unless the receipt handed
    * in is a genuine one for this URI. On a transport with an opcode probe, the probe
-   * must pass on this tag before the first irreversible command. Then proves the
+   * must pass on this tag before the first irreversible command, and a changed password
+   * must open the tag before protection is applied (review finding N1). Then proves the
    * protection took by reading the protection state back, dropping the tag out of the
-   * field, confirming the NDEF still reads, and attempting a write that the tag itself
-   * must refuse for protection.
+   * field, attempting a write that the tag itself must refuse for protection (after an
+   * RF cycle), confirming the NDEF still reads, and finally presenting the password this
+   * run recorded and repeating the write, which the tag must now accept.
    *
-   * That last attempt writes the bytes that are already there, so if protection
-   * somehow did not take, the tag is unchanged and the unit fails loudly instead of
-   * being recorded as protected when it is not.
+   * Both proof writes rewrite the bytes that are already there, so if protection somehow
+   * did not take, the tag is unchanged and the unit fails loudly instead of being
+   * recorded as protected when it is not.
    */
   async protect(receipt: VerificationReceipt, request: ProtectionRequest): Promise<ProtectionOutcome> {
     if (this.#phase !== 'verified') {
@@ -486,10 +516,9 @@ export class UnitSession {
     // command is sent. A protection command is the one step in this tool that
     // commits something to a tag it cannot take back without the password.
     {
-      const areaBlocksNow = plan.areaImage.length / PART.blockSizeBytes;
       let onReader: Uint8Array;
       try {
-        onReader = await transport.readBlocks(CC_BLOCK, 1 + areaBlocksNow);
+        onReader = await this.readImage(plan);
       } catch (cause) {
         this.fail(cause, 'PROTECT_FAILED', 'The tag could not be read immediately before protection. Nothing has been locked. Retry this unit.');
       }
@@ -548,19 +577,31 @@ export class UnitSession {
     const passwordChanged = !request.currentPassword.equals(request.newPassword);
     const fingerprint = request.newPassword.fingerprint();
 
-    // From the moment the first irreversible command starts, nothing that goes wrong
-    // may be reported as "nothing happened". Whatever fails from here, a transport
-    // error, a gate refusal on the second command, a lost tag, a failed proof, is
-    // rethrown as PROTECT_FAILED saying the tag may already be locked, with the
-    // original message appended (review finding F2).
-    this.#irreversibleStarted = true;
-    let refusalProven: boolean;
+    // From the moment the first irreversible frame goes to the reader, nothing that goes
+    // wrong may be reported as "nothing happened". Whatever fails from there, a transport
+    // error, a gate refusal on the second command, a lost tag, a failed proof, is rethrown
+    // as PROTECT_FAILED saying the tag may already be locked, with the original message
+    // appended (review finding F2). The transport counts those frames as it sends them, so
+    // a refusal before the first one, which says itself that its command was not sent, is
+    // passed through as it is (review finding N3). A transport that cannot count is
+    // treated as though a frame had gone out.
+    const sentBefore = transport.irreversibleFramesSent;
+    let proof: { refusalProven: boolean; unlockProven: boolean };
     try {
-      refusalProven = await this.applyAndProve(receipt, plan, area, passwordNumber, passwordChanged, request);
+      proof = await this.applyAndProve(receipt, plan, area, passwordNumber, passwordChanged, request);
     } catch (cause) {
       this.#phase = 'failed';
+      const sentAfter = transport.irreversibleFramesSent;
+      if (sentBefore !== undefined && sentAfter !== undefined && sentAfter === sentBefore) {
+        throw asChipError(cause, 'PROTECT_FAILED', 'Neither WritePassword nor WriteConfiguration was sent. Set the tag aside, label it, and record this message for the bring up notes.');
+      }
+      this.#irreversibleStarted = true;
+      // Review finding N1: the new password did not open the tag, and area protection was
+      // never sent. That message is exact, so it is not rewritten as "may be locked".
+      if (isChipError(cause) && cause.detail['passwordUnknown'] === true) throw cause;
       throw mayBeLocked(cause, { area, passwordNumber, passwordChanged, fingerprint });
     }
+    this.#irreversibleStarted = true;
 
     this.#phase = 'protected';
     return {
@@ -569,14 +610,15 @@ export class UnitSession {
       passwordNumber,
       passwordFingerprint: fingerprint,
       passwordChanged,
-      refusalProven,
+      refusalProven: proof.refusalProven,
+      unlockProven: proof.unlockProven,
       opcodeProbe,
     };
   }
 
   /**
-   * True once the opcode probe has passed on this unit's tag, or a protection command that
-   * cannot be taken back has started on it. The batch never retries such a unit on its
+   * True once the opcode probe has passed on this unit's tag, or a protection frame that
+   * cannot be taken back has been sent to it. The batch never retries such a unit on its
    * own (review finding F7): from that point the remedies say "Do not retry on this tag",
    * the tag may already be locked, and a second attempt starts on whatever is on the
    * reader, without a prompt.
@@ -593,7 +635,7 @@ export class UnitSession {
     passwordNumber: number,
     passwordChanged: boolean,
     request: ProtectionRequest,
-  ): Promise<boolean> {
+  ): Promise<{ refusalProven: boolean; unlockProven: boolean }> {
     const transport = this.#options.transport;
     if (passwordChanged) {
       await transport.writePassword(passwordNumber, request.newPassword.toBytes());
@@ -623,25 +665,6 @@ export class UnitSession {
     this.#presented.clear();
     await this.reacquire('Keep the tag on the reader until the unit reports done.');
 
-    // Confirm protection did not break readability. A protected tag that no phone
-    // can read is a scrap tag that passed every other check.
-    const areaBlocks = plan.areaImage.length / PART.blockSizeBytes;
-    let after: Uint8Array;
-    try {
-      after = await transport.readBlocks(CC_BLOCK, 1 + areaBlocks);
-    } catch (cause) {
-      throw asChipError(cause, 'PROTECT_FAILED', 'The tag could not be read after protection.');
-    }
-    let uri: string;
-    try {
-      uri = decodeUriMessage(unwrapNdefTlv(after.subarray(CC_BYTES))).uri;
-    } catch (cause) {
-      throw asChipError(cause, 'PROTECT_FAILED', 'The tag could not be read after protection.');
-    }
-    if (uri !== receipt.intendedUri) {
-      throw new ChipError('PROTECT_FAILED', `After protection the tag decodes to "${uri}" rather than "${receipt.intendedUri}".`, 'Set this tag aside, label it, and report it.', { uri });
-    }
-
     // The conclusive check: a write to the protected area must now be refused BY THE
     // TAG, for protection, and not merely fail. The bytes attempted are the bytes
     // already there. The transport refuses, sending nothing, unless the tag in the field
@@ -657,7 +680,33 @@ export class UnitSession {
         { area, passwordNumber },
       );
     }
-    return true;
+
+    // Confirm protection did not break readability. A protected tag that no phone can read
+    // is a scrap tag that passed every other check. This runs after the refusal proof
+    // because that proof is what cycles the RF field, and the tag enforces the new
+    // protection only from its next RF boot (DS13304 Table 10). Read before it, the tag
+    // could still have been in its old, unprotected mode (review finding N2).
+    let after: Uint8Array;
+    try {
+      after = await this.readImage(plan);
+    } catch (cause) {
+      throw asChipError(cause, 'PROTECT_FAILED', 'The tag could not be read after protection.');
+    }
+    let uri: string;
+    try {
+      uri = decodeUriMessage(unwrapNdefTlv(after.subarray(CC_BYTES))).uri;
+    } catch (cause) {
+      throw asChipError(cause, 'PROTECT_FAILED', 'The tag could not be read after protection.');
+    }
+    if (uri !== receipt.intendedUri) {
+      throw new ChipError('PROTECT_FAILED', `After protection the tag decodes to "${uri}" rather than "${receipt.intendedUri}".`, 'Set this tag aside, label it, and report it.', { uri });
+    }
+
+    // The unlock proof (review finding N1): the password this run recorded must open the
+    // protected tag, shown by the same write being accepted with it presented. Without
+    // this, "protected" could mean protected under a value nobody holds.
+    await transport.proveWriteUnlocked(T5T_AREA_FIRST_BLOCK, headerBlock, passwordNumber, request.newPassword.toBytes(), this.#identity?.uid ?? null);
+    return { refusalProven: true, unlockProven: true };
   }
 
   async finish(): Promise<void> {

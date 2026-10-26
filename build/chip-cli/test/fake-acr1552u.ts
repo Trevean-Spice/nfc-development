@@ -112,8 +112,8 @@ export class FakeTag {
   areaProtection = 0;
   /** RW_PROTECTION_A1 as enforced: latched from `areaProtection` at each RF boot (Table 10, "on next RF boot sequence"). */
   activeAreaProtection = 0;
-  /** END_A1. END_MEM, 4Fh, is single area mode (Table 13). */
-  endA1 = 0x4f;
+  /** END_A1. END_MEM (4Fh on an 80 block tag) is single area mode (Table 13). Set from the block count in the constructor. */
+  endA1: number;
   /** LCK_CONFIG, b15 to b0 (Table 7). */
   lckConfig = 0;
   /** The one open security session (Table 26), or null. */
@@ -171,6 +171,7 @@ export class FakeTag {
   /** `blockCount` is the user memory this tag has. Anything but 80 is another part, or a TruST25 reduced END_MEM (section 5.6). */
   constructor(readonly blockCount: number = ST25TV02KC_BLOCKS) {
     this.memory = new Uint8Array(blockCount * PART.blockSizeBytes);
+    this.endA1 = blockCount - 1;
   }
 
   handle(): PcscCardHandle {
@@ -350,7 +351,7 @@ export class FakeTag {
   private passwordFor(id: number): { bytes: number; value: () => Uint8Array; set: (v: Uint8Array) => void; session: 'config' | 'area1' | 'priv' } | null {
     if (id === 0x00) return { bytes: 4, value: () => this.configPassword, set: (v) => (this.configPassword = Uint8Array.from(v)), session: 'config' };
     if (id === 0x01) {
-      const bytes = this.endA1 === 0x4f ? 8 : 4;
+      const bytes = this.endA1 === this.blockCount - 1 ? 8 : 4;
       return { bytes, value: () => this.password.subarray(8 - bytes), set: (v) => this.password.set(v, 8 - bytes), session: 'area1' };
     }
     if (id === 0x03) return { bytes: 4, value: () => this.privPassword, set: (v) => (this.privPassword = Uint8Array.from(v)), session: 'priv' };

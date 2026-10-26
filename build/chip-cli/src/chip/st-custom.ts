@@ -41,6 +41,8 @@
  * connection, exactly as before. See `verifyOpcodes` in the PC/SC transport.
  */
 
+import { PART } from './st25tv02kc.js';
+
 /** STMicroelectronics. Second byte of an ISO 15693 UID, and the IC Mfg code in every custom request (Table 153 and others: "02h"). */
 export const IC_MFG_ST = 0x02;
 
@@ -158,8 +160,14 @@ export const CONFIG_REGISTERS = {
  */
 export const RW_PROTECTION_WRITE_PROTECTED = 0x01;
 
-/** Table 13, note 1: "END_MEM value is 0Fh / 4Fh for ST25TV512C / ST25TV02KC devices respectively". END_A1 = END_MEM is single area mode. */
-export const END_MEM_ST25TV02KC = 0x4f;
+/**
+ * Table 13, note 1: "END_MEM value is 0Fh / 4Fh for ST25TV512C / ST25TV02KC devices
+ * respectively". END_A1 = END_MEM is single area mode. Derived from the part model rather
+ * than typed in a second time, so the probe's END_A1 check and its block 79 / block 80
+ * geometry read can never disagree (review of Monday 26 October 2026, section 7). A test
+ * holds both to the datasheet's 4Fh.
+ */
+export const END_MEM_ST25TV02KC = PART.blockCount - 1;
 
 /** Table 155: "0Fh Invalid Password_data value", the tag's answer to a wrong password. */
 export const ERROR_INVALID_PASSWORD_DATA = 0x0f;

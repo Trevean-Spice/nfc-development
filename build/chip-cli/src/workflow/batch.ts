@@ -85,6 +85,12 @@ export interface BatchSummary {
   readonly elapsedMs: number;
   readonly interrupted: boolean;
   readonly aborted: boolean;
+  /**
+   * The unit the run stopped at because its tag may be locked, or holds a password 1 nobody
+   * knows (review finding N4), or null. The run never moves on to the next unit after one,
+   * because with --no-prompt the next unit would start on that same tag.
+   */
+  readonly stoppedAtUnsafeUnit: number | null;
   /** True only when every sequence number reached a successful terminal outcome. */
   readonly complete: boolean;
   readonly dryRun: boolean;
@@ -257,6 +263,7 @@ export async function runBatch(options: BatchOptions): Promise<BatchSummary> {
   let failures = 0;
   let interrupted = false;
   let aborted = false;
+  let stoppedAtUnsafeUnit: number | null = null;
 
   if (!dryRun) await transport.open();
 
@@ -275,11 +282,13 @@ export async function runBatch(options: BatchOptions): Promise<BatchSummary> {
 
       const baseAttempt = attemptsBySeq.get(seq) ?? 0;
       let record: UnitRecord | null = null;
+      let stopRun = false;
 
       for (let tryIndex = 0; tryIndex < attemptsPerUnit; tryIndex += 1) {
         const attempt = baseAttempt + tryIndex + 1;
         emit({ type: 'unit-start', seq, total: count, attempt });
-        const { record: result, retryForbidden } = await runOneUnit({ ...options, uri, entryCode: entry.code, seq, attempt, now });
+        const { record: result, retryForbidden, stopRun: unsafe } = await runOneUnit({ ...options, uri, entryCode: entry.code, seq, attempt, now });
+        stopRun = unsafe;
         // A unit that failed after its opcode probe passed, or after an irreversible
         // protection command started, is never retried automatically: the tag may already
         // be locked, its remedy says not to retry, and the retry would start on whatever
@@ -313,6 +322,11 @@ export async function runBatch(options: BatchOptions): Promise<BatchSummary> {
       emit({ type: 'unit-done', record });
 
       if (!dryRun) await transport.completeUnit();
+      if (stopRun) {
+        stoppedAtUnsafeUnit = seq;
+        aborted = true;
+        break;
+      }
     }
   } finally {
     if (!dryRun) {
@@ -356,7 +370,9 @@ export async function runBatch(options: BatchOptions): Promise<BatchSummary> {
     kind: 'end',
     at: now().toISOString(),
     reason,
-    note: aborted
+    note: stoppedAtUnsafeUnit !== null
+      ? `stopped at unit ${stoppedAtUnsafeUnit}: its tag may be locked or holds an unknown password 1, so the run did not go on to the next unit`
+      : aborted
       ? `stopped after ${failures} failures, the limit is ${maxFailures}`
       : interrupted
         ? 'stopped on operator interrupt'
@@ -379,6 +395,7 @@ export async function runBatch(options: BatchOptions): Promise<BatchSummary> {
     elapsedMs: Date.now() - startedAtMs,
     interrupted,
     aborted,
+    stoppedAtUnsafeUnit,
     complete,
     dryRun,
     transport: transport.name,
@@ -397,7 +414,7 @@ interface RunOneUnitOptions extends BatchOptions {
   readonly now: () => Date;
 }
 
-async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<UnitRecord, 'digest'>; retryForbidden: boolean }> {
+async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<UnitRecord, 'digest'>; retryForbidden: boolean; stopRun: boolean }> {
   const started = Date.now();
   const at = options.now().toISOString();
 
@@ -427,7 +444,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<Un
       error: null,
       durationMs: Date.now() - started,
     };
-    return { record, retryForbidden: false };
+    return { record, retryForbidden: false, stopRun: false };
   }
 
   const session = new UnitSession({
@@ -470,6 +487,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<Un
         passwordFingerprint: outcome.passwordFingerprint,
         passwordChanged: outcome.passwordChanged,
         refusalProven: outcome.refusalProven,
+        unlockProven: outcome.unlockProven,
       };
     }
 
@@ -490,7 +508,7 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<Un
       error: null,
       durationMs: Date.now() - started,
     };
-    return { record, retryForbidden: false };
+    return { record, retryForbidden: false, stopRun: false };
   } catch (cause) {
     const error = asChipError(cause, 'WRITE_FAILED', 'Set this tag aside, label it, and continue with the next one.');
     const record: Omit<UnitRecord, 'digest'> = {
@@ -510,7 +528,10 @@ async function runOneUnit(options: RunOneUnitOptions): Promise<{ record: Omit<Un
       error: { code: error.code, message: error.message, remedy: error.remedy },
       durationMs: Date.now() - started,
     };
-    return { record, retryForbidden: session.retryForbidden };
+    // Review finding N4: a tag that may be locked, or whose password 1 is unknown, stops the
+    // run. Either can only come from an irreversible frame that reached the tag.
+    const stopRun = error.detail['mayBeLocked'] === true || error.detail['passwordUnknown'] === true;
+    return { record, retryForbidden: session.retryForbidden || stopRun, stopRun };
   }
 }
 

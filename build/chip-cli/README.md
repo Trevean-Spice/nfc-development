@@ -127,7 +127,7 @@ node bin/chip-cli.mjs status --journal runs/2026-09-18-ps.jsonl
 
 `status` also checks every line in the journal against its own digest. If any line fails, it prints the line number and refuses to print a resume command at all, and exits 2. **Do not resume a journal in that state.** A forged or corrupted line is well formed JSON with a plausible sequence number and outcome, which is exactly why it needs checking: two lines copied from unit 1 with the sequence number changed used to make a three unit run resume to "complete" with zero tags touched.
 
-**A unit that fails** is retried once, then recorded as failed and the run moves on. **Except under `--protect`: a unit that fails after its opcode probe passed is never retried**, because from that point the tag may already be locked and the retry would start on whatever is on the reader. Set that tag aside and label it. The summary lists every failed unit number, and the journal holds the reason for each. A failed unit is put back in the queue on the next run, so resuming asks you for a replacement tag for it.
+**A unit that fails** is retried once, then recorded as failed and the run moves on. **Except under `--protect`: a unit that fails after its opcode probe passed is never retried**, because from that point the tag may already be locked and the retry would start on whatever is on the reader. Set that tag aside and label it. **And a unit that may be locked stops the run**: if a unit fails with "Protection did not complete, and its irreversible part had begun", or with "WritePassword was accepted but the new password does not open the tag", the run ends at that unit, even under `--no-prompt`, rather than starting the next unit on the tag that is still on the reader. The summary names the unit. The summary lists every failed unit number, and the journal holds the reason for each. A failed unit is put back in the queue on the next run, so resuming asks you for a replacement tag for it.
 
 **The run stops on its own** after ten failures. That is usually the reader or the tray, not the tags.
 
@@ -191,15 +191,22 @@ node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
 
 ### 5.4 After protection, the tool proves it took
 
-Applying protection and being told "accepted" is not proof. For every protected unit the tool then:
+Applying protection and being told "accepted" is not proof.
+
+**Before protection, the new password must open the tag.** WritePassword answers "success" whatever value the tag stored, and the datasheet warns that a wrongly coded value is stored without complaint and then never opens the tag (DS13304 6.4.18). So straight after WritePassword, in the same reader session, the tool fetches a new random number and presents the **new** password, and requires a plain success. If it fails, the run stops with `PROTECT_FAILED`, "WritePassword was accepted but the new password does not open the tag. Area protection was NOT applied; the tag is still writable; its password 1 is unknown." The protection register is never written on that tag, and the transport refuses to write it unless the value WritePassword sent has been shown to open the tag since.
+
+For every protected unit the tool then:
 
 1. reads the protection register back and requires it to say write protected. This happens **before** the tag leaves the field, because on a reader that read is only allowed while the opcode probe still stands on that tag (section 6.4). On this chip the read returns the **stored** value, which "is immediately readable with a ReadConfiguration request", while the tag only **enforces** it "on next RF boot sequence" (DS13304 6.4.17 and Table 10). So a read that says anything else after the command was accepted is reported as "may already be protected", label it LOCKED?,
-2. drops the tag out of the field, so no password is presented any more,
-3. reads the NDEF back and requires it to still decode to the right URL, because a protected tag no phone can read is a scrap tag that passed every other check,
-4. checks that the tag in the field is still the one the unit selected, by its UID, then **turns the RF field off for 10 ms and on again** inside the proof's own reader session (ACR1552U manual 5.3.5.3.3 to 5.3.5.3.5), so the tag boots with the new protection in force and no earlier password still applies, then
-5. attempts a write, addressed to that UID, and **requires the tag itself to refuse it because the block is protected**: error 12h, "Write access to requested block is protected and security session is closed" (DS13304 Table 107). A write that merely fails is not enough. The bytes it attempts are the bytes already there.
+2. drops the tag out of the field, so no password is presented any more, and selects it again, which repeats the geometry read (block 79 must read and block 80 must not),
+3. checks that the tag in the field is still the one the unit selected, by its UID, then **turns the RF field off for 10 ms and on again** inside the proof's own reader session (ACR1552U manual 5.3.5.3.3 to 5.3.5.3.5), so the tag boots with the new protection in force and no earlier password still applies, then
+4. attempts a write, addressed to that UID, and **requires the tag itself to refuse it because the block is protected**: error 12h, "Write access to requested block is protected and security session is closed" (DS13304 Table 107). A write that merely fails is not enough. The bytes it attempts are the bytes already there,
+5. reads the NDEF back and requires it to still decode to the right URL, because a protected tag no phone can read is a scrap tag that passed every other check. This comes after step 3's field cycle, so it reads the tag with the new protection in force,
+6. in a new reader session, presents the password this run wrote and repeats the same write, which the tag **must now accept**. That is the proof that the recorded password opens the tag. It prints `unlock proven: yes`.
 
-**If anything goes wrong after the first irreversible command has been sent, the tool says so.** The message reads "Protection did not complete, and its irreversible part had begun. Password 1 may already have been changed by this run (new password fingerprint ...) ... Label the tag LOCKED? and stop", followed by the original message. It never says "nothing happened" from that point on, and a batch never retries that unit by itself.
+The three reads of the tag image (at verify, immediately before protection, and in step 5) go through one method and read the same blocks in one Read Binary. An image too long for one Read Binary, more than 63 blocks, is refused at verify, before anything irreversible, and never only after protection.
+
+**If anything goes wrong after the first irreversible frame has been sent, the tool says so.** The message reads "Protection did not complete, and its irreversible part had begun. Password 1 may already have been changed by this run (new password fingerprint ...) ... Label the tag LOCKED? and stop", followed by the original message. It never says "nothing happened" from that point on, and a batch never retries that unit by itself and stops there. "Sent" means handed to the reader: a refusal before WritePassword goes out, which says "This command was not sent" or "WritePassword was not sent", is shown as it is, without the LOCKED? wording.
 
 ### 5.5 Custody
 
@@ -214,7 +221,7 @@ Applying protection and being told "accepted" is not proof. For every protected 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 351 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 388 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 
@@ -250,7 +257,7 @@ Not on SO4731 stock, and not on anything destined for a jar.
 2. `chip-cli doctor --transport reader` on a blank tag. Doctor opens the reader and does not read the tag, so confirm the geometry from the `Tag selected ... 80 blocks of 4 bytes` line that step 3 prints. That line appears only after the probe has read block 79 and seen block 80 refused (DS13304 Rev 7, END_MEM 4Fh).
 3. `chip-cli write --code ps --transport reader` on a blank tag, then tap it with a real phone and confirm the correct blend page opens. That is the check that actually matters, and it is the one people skip.
 4. Repeat with a tag taken from SO4731, to confirm re encoding works on stock as the client has said it does.
-5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. The opcode probe runs inside it, on that tag, before anything irreversible (section 6.4). Confirm the tag still reads on a phone afterwards.
+5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. The opcode probe runs inside it, on that tag, before anything irreversible (section 6.4). It must end `refusal proven: yes` and `unlock proven: yes` (section 5.4). Confirm the tag still reads on a phone afterwards.
 6. Only then, protection on anything real.
 
 Until step 3 has been done and written down, **no claim about hardware behaviour should be made to the client**, including by us.
@@ -421,16 +428,36 @@ written from the same datasheet.
 | F9 | An answer with no `96` object was accepted | `92` and `96` are both required |
 | F10 | The `21h` support citation pointed at the `FF FB` pass through table | Corrected. "Decision log", D66 is not edited here; new wording is proposed for review |
 
-**G. Not fixed here, and it blocks the first reader session:** the datasheet gives the
-ST25TV02KC **80 blocks** of 4 bytes, 320 bytes (Figure 5 note 3, Table 13 END_MEM `4Fh`,
-features list "Up to 2560 bits (320 bytes) of EEPROM"). The tool models 64 blocks and
-**refuses any tag that answers a read of block 64** as "larger than ST25TV02KC", so `doctor`
-and `write` should refuse every genuine tag. Changing the geometry touches the encode path,
-the capability container and the 248 byte area figure, so it needs its own reviewed change.
+**G. Fixed on Monday 26 October 2026 (section 6.7):** the tool modelled 64 blocks and
+refused any tag that answered a read of block 64, so it would have refused every genuine
+ST25TV02KC, which has **80 blocks** of 4 bytes, 320 bytes (Figure 5 note 3, Table 13
+END_MEM `4Fh`, features list "Up to 2560 bits (320 bytes) of EEPROM"). It now models 80,
+reads block 79 and requires block 80 to be refused.
 
 **Still open for review:** whether ReadConfiguration of the protection register, which the
 datasheet documents as always readable, may run without the probe (it would answer the
 SO4731 question), which is a change to "Decision log", D66.
+
+### 6.7 What changed on Monday 26 October 2026: the 80 block geometry, and review findings N1 to N5
+
+The 80 block geometry change was merged in, and the second independent review's findings
+were fixed. Every item is tested against the fake reader and tag only.
+
+| # | Finding | What it is now |
+|---|---|---|
+| Geometry | The tool modelled 64 blocks; the probe's END_A1 check already assumed 80 | 80 blocks of 4 bytes, from DS13304. The END_MEM value the probe requires of END_A1 is derived from the part model, so the two cannot disagree, and a test holds both to `4Fh`. A full `--protect` is tested on an 80 block tag, block 80 is still refused after protection, and a TruST25 part with END_MEM `3Dh` is refused both by the geometry read and by the probe |
+| Span | A 255 byte limit on one Read Binary arrived with the geometry | The three reads of the image share one method and one rule (section 5.4). The longest URI the encoder accepts, 262 characters, is refused at verify |
+| N1 | WritePassword's "success" was taken as proof the new password opens the tag | The new password is presented straight after WritePassword, in the same session, and must succeed before the protection register is written. After the refusal proof, the recorded password must open the tag and the write must then be accepted: `unlock proven: yes` |
+| N2 | The readability check after protection ran before the field cycle | It runs after the refusal proof, which cycles the field, so it reads the tag with the protection in force |
+| N3 | Two refusals that sent nothing were labelled LOCKED? | The transport counts WritePassword and WriteConfiguration frames as it transmits them. LOCKED? starts with the first one actually sent. A transport that cannot count is treated as though one was sent |
+| N4 | A batch carried on after a LOCKED? unit | The run stops at that unit (section 4) |
+| N5 | Some checks had one test, or none that could fail | Tests aimed at each: password ids 0, 2 and 3 refused by their own check, a `0Fh` proof answer, no retry after a passed probe, a stored protection of `02h` on the wire, reserved bits in the protection read, and an unreadable field UID before either proof write |
+
+**What this still does not show.** That the tool and the tag agree on how WritePassword is
+coded is now checked on the tag itself, by the presentation straight after it and by the
+unlock proof. Whether another tool, ST's own app for example, reads the sixteen hex
+characters the same way round is not: until that has been tried on a sacrificial tag, a
+password recorded by this tool is only known to work with this tool.
 
 ---
 
@@ -532,7 +559,7 @@ The interface is deliberately chip shaped rather than NDEF shaped: it speaks blo
 | ~~5~~ | ~~**Which reader to buy.**~~ | **CLOSED Wednesday 16 September 2026. The client already owns an ACR1552U with GoToTags**, which is NFC Forum certified across ISO 14443, ISO 15693 and ISO 18092. Nothing to buy at either end |
 | 6 | **Sacrificial tags for hardware bring up.** | Section 6.3 needs tags nobody minds losing, including at least one that gets protected with a password that is then deliberately discarded |
 | 7 | **Whether to change the configuration password, or lock the configuration.** | The tool leaves PWD_CFG at its factory value, so anyone who knows the ST command set can switch protection off, and the same factory password unlocks the chip's Kill command (DS13304 6.4.20). Changing PWD_CFG adds a second password to hold. Locking the area 1 configuration (LCK_CONFIG) is permanent and makes the protection impossible to remove even with every password. Neither is implemented |
-| 8 | **The tag geometry.** | The datasheet says 80 blocks, the tool assumes 64 and refuses a larger tag (section 6.6, item G). Needs a reviewed change before any reader session |
+| ~~8~~ | ~~**The tag geometry.**~~ | **CLOSED Monday 26 October 2026.** The tool now models the datasheet's 80 blocks (section 6.7) |
 
 **One item for the record rather than for decision, and it is now done.** The redirect table recorded `writeProtected: null` on all five rows, which read as "unrecorded", after the client answered on Wednesday 19 August 2026 that SO4731 shipped with no write protection. **The table was corrected on Saturday 22 August 2026** and now carries `false` on the four encoded rows and `null` on the reserved row, where no tag exists to have a state, so the file and the fact agree. The table is outside this package and is not edited by this tool. **What is still open is the read-back:** that is the client's answer rather than the supplier's written one, and this tool's verify path is how it gets confirmed against our own bare stock and against one shipped jar.
 

@@ -95,6 +95,7 @@ test('a simulated protected write proves the refusal', async () => {
     const result = await run(['write', '--code', 'ps', '--protect', '--password-env', 'TEST_CLI_PASSWORD']);
     assert.equal(result.code, 0);
     assert.match(result.out, /refusal proven: yes/);
+    assert.match(result.out, /unlock proven: yes/);
     assert.ok(!result.out.includes('a1b2c3d4e5f60718'), 'the password must never be printed');
   } finally {
     if (previous === undefined) delete process.env['TEST_CLI_PASSWORD'];

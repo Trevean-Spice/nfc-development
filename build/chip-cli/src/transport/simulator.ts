@@ -425,6 +425,24 @@ export class SimulatorTransport implements TagTransport {
     }
   }
 
+  /**
+   * Presents the password through the model's own check, then rewrites the block. A wrong
+   * password or a refused write rejects. The same UID rule as the refusal proof.
+   */
+  async proveWriteUnlocked(block: number, data: Uint8Array, passwordNumber: number, password: Uint8Array, expectedUid: string | null): Promise<void> {
+    const tag = this.requireTag();
+    if (expectedUid !== null && tag.uid !== expectedUid) {
+      throw new ChipError(
+        'TAG_CHANGED',
+        `The unlock proof write was not sent: this unit's tag is uid ${expectedUid} and the tag in the field is uid ${tag.uid}.`,
+        'Set every tag in reach aside and label them. Do not record any of them as protected.',
+        { expectedUid, fieldUid: tag.uid },
+      );
+    }
+    await this.presentPassword(passwordNumber, password);
+    await this.writeBlock(block, data);
+  }
+
   async releaseTag(): Promise<void> {
     if (this.#current !== null) this.#current.presented.clear();
     this.#current = null;
