@@ -360,6 +360,7 @@ test('after a write powers the tag down, the page stays on "Written and verified
     stop();
     assert.equal(controller.snapshot().phase, 'written');
     assert.equal(phases.has('tag-not-ready'), false);
+    assert.equal(controller.snapshot().anotherProgram, null, 'a tag coming back up after a write is not another program');
     assert.equal(lines.some((l) => l.line.startsWith('Reader trouble')), false);
   } finally {
     await controller.stop();

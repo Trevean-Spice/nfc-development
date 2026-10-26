@@ -16,7 +16,7 @@ What it is underneath, for the engineer:
 - `src/app/`: a Node `http` server on **127.0.0.1 only** (the address is a constant, not an option), first free port from 10350 to 10359, live state over server sent events with polling as the fallback. `node bin/tag-tool.mjs --help` for its options; `--simulator` rehearses with no reader and adds buttons to put a tag down, lift it, and unplug the reader.
 - **Each tag goes through the same `UnitSession` select, write and verify path as `chip-cli write` and `batch`, unchanged**, two attempts per tag as the batch does, and is journalled in the batch journal format (section 9) to `runs/tag-tool/`, one file per product code per session.
 - **It never protects a tag.** It has no password or protection control, never calls the protect step, and wraps the transport (`src/app/write-only.ts`) so that every member on the protection path is refused before it reaches the reader: presenting, changing or applying a password, the protection read, the opcode probe, and the two proofs that follow protection. A test lists every `TagTransport` member and which side of that line it is on, and the build fails until a new member is placed. Protection stays in `chip-cli` (section 5).
-- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does, including the named `TAG_ABSENT` cases and the connect to a mute tag (section 6.8). A reader that is unplugged shows "Reader not found"; a tag the reader sees but cannot read shows "The reader cannot read the tag" with the case; a tag the reader connects to and then loses before the first read (`TAG_NOT_READY`, section 6.9) shows "Tag not ready, retrying", and is retried with a growing pause while the reader stays open.
+- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does, including the named `TAG_ABSENT` cases and the connect to a mute tag (section 6.8). A reader that is unplugged shows "Reader not found"; a tag the reader sees but cannot read shows "The reader cannot read the tag" with the case; a tag the reader connects to and then loses before the first read (`TAG_NOT_READY`, section 6.9) shows "Tag not ready, retrying", and is retried with a growing pause while the reader stays open. Another program reading the tags (GoToTags, section 6.10) gets its own banner saying how to exit it, and an ID typed into the page by it is thrown away.
 - **It has been driven in a real browser** (Chromium, against `--simulator`, Monday 26 October 2026): reader ready, a tag seen with its UID, `ps` written and read back, the next tag, automatic writing on and off, `kg` refused, the reader unplugged and plugged back, and desktop notifications. **It has not been run on Windows, on a Mac, in Edge, with a physical reader or on a physical tag.**
 
 ---
@@ -235,7 +235,7 @@ The three reads of the tag image (at verify, immediately before protection, and 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 476 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 504 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 
@@ -532,6 +532,34 @@ down (SCARD_UNPOWER_CARD), and a test checks a full `--protect` never leaves it 
 protection and both proofs are untouched; `transmit` keeps its code and message and now also
 records the PC/SC error name in the error's detail. `src/chip/` and `src/workflow/` are
 unchanged. Not yet run on the ACR1552U.
+
+### 6.10 What changed on Monday 26 October 2026, late: another program reading the tags (GoToTags)
+
+The screen recording of Dan's first Tag Tool run shows another program reading each tag as it
+arrived and typing its UID into the focused field like a keyboard, over and over, and toggling
+Caps Lock: `35 49 5E 6D 05 08 02 E0` and `DE 2B 65 6D 05 08 02 E0`, ST UIDs byte reversed. It
+landed in the product code box while the page said "Waiting for a tag". That is a keyboard
+wedge, most likely GoToTags, which starts with Windows. A program reading the tag at the same
+moment fits the SCARD_E_NO_SMARTCARD on this tool's first command (section 6.9).
+
+- **The page refuses typed IDs.** The product code box keeps only what a person types: text
+  longer than six characters, two hex pairs with a space between, six hex digits, or keys
+  arriving within 30 ms of each other three in a row are thrown away, and the box goes back to
+  the last code chosen. From the third fast key on, every key is dropped wherever the focus
+  is, so the spaces and Enter a wedge types cannot tick the automatic box or press Write. The box is no longer given the focus when the
+  page opens. A red banner says: "Another program is reading the tags and typing their ID
+  (usually GoToTags). Exit it from the icon near the clock (right click, Exit), or end it in
+  Task Manager, then try again."
+- **The Tag Tool shows the same banner** when a tag is `TAG_NOT_READY` twice in a row (each
+  after the transport's three tries), or when the reader state shows the tag in use (`INUSE`
+  or `EXCLUSIVE`) while the tool holds no connection, or a connect is refused with
+  `SCARD_E_SHARING_VIOLATION`. The state carries the reason (`anotherProgram`), and the status
+  card says "Another program is reading the tags" instead of a generic error, with the full
+  message still underneath. The next tag that reads properly clears it.
+- **The remedies for `TAG_NOT_READY` and every `CONNECT_FAILED`** name GoToTags and how to exit
+  it from the tray, in `chip-cli` as well as on the page.
+
+**Unchanged:** the protection path and the D66 gate. Not yet run on Windows or the ACR1552U.
 
 ---
 

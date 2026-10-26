@@ -90,6 +90,12 @@ export interface Snapshot {
   /** The URL read back off the tag and decoded. Only set once verified. */
   readonly url: string | null;
   readonly error: PlainError | null;
+  /**
+   * Why the Tag Tool believes another program is reading the tags (GoToTags, usually), or
+   * null. The page then shows ANOTHER_PROGRAM_ADVICE instead of a generic error. Cleared
+   * by the next tag that reads properly.
+   */
+  readonly anotherProgram: string | null;
   /** True when the tag on the reader is the one most recently attempted. */
   readonly tagAlreadyAttempted: boolean;
   readonly auto: { readonly enabled: boolean; readonly code: string | null; readonly blendName: string | null };
@@ -152,6 +158,13 @@ interface PendingWrite {
 
 const MAX_NOTICES = 12;
 
+/**
+ * What the page says when another program is reading the tags. The page has the same
+ * sentence (page.js), because it also says it on its own when it sees a tag's ID typed in.
+ */
+export const ANOTHER_PROGRAM_ADVICE =
+  'Another program is reading the tags and typing their ID (usually GoToTags). Exit it from the icon near the clock (right click, Exit), or end it in Task Manager, then try again.';
+
 /** A refusal the page should show as it is, with the HTTP status that fits it. */
 export class AppRefusal extends Error {
   constructor(
@@ -198,6 +211,7 @@ export class TagToolController {
   #blendName: string | null = null;
   #url: string | null = null;
   #error: PlainError | null = null;
+  #anotherProgram: string | null = null;
   #auto: { enabled: boolean; code: string | null; blendName: string | null } = { enabled: false, code: null, blendName: null };
   /** UIDs whose latest write this session was verified. */
   readonly #verifiedUids = new Set<string>();
@@ -301,6 +315,7 @@ export class TagToolController {
       blendName: this.#blendName,
       url: this.#url,
       error: this.#error,
+      anotherProgram: this.#anotherProgram,
       tagAlreadyAttempted: this.#present !== null && this.#present.uid !== null && this.#present.uid === this.#lastAttemptUid,
       auto: { ...this.#auto },
       writtenCount: this.writtenCount(),
@@ -422,6 +437,7 @@ export class TagToolController {
     this.#open = true;
     this.#present = null;
     this.#absentStreak = 0;
+    this.#anotherProgram = null;
     const name = this.#options.readerName?.() ?? this.#transport.name;
     this.#log(`Reader ready: ${name}`);
     this.update({ phase: 'waiting-for-tag', readerName: name, uid: null, error: null, url: null, code: null, blendName: null });
@@ -463,7 +479,12 @@ export class TagToolController {
       if (error.code === 'TAG_ABSENT') {
         await this.release('leave');
         this.#unreadableStreak += 1;
-        if (this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) this.onBadTag(error, 'The reader cannot read the tag');
+        // A connect refused because another program holds the tag is shown at once, as that.
+        const elsewhere = typeof error.detail.otherProgram === 'string' ? error.detail.otherProgram : null;
+        if (elsewhere !== null) {
+          this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
+          this.onBadTag(error, 'Another program is reading the tags');
+        } else if (this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) this.onBadTag(error, 'The reader cannot read the tag');
         await this.sleep(idleMs);
         return;
       }
@@ -476,6 +497,7 @@ export class TagToolController {
     }
     // Detection only. The tag is selected again, from scratch, when it is written.
     await this.release('leave');
+    this.clearAnotherProgram();
     this.#unreadableStreak = 0;
     this.#notReadyStreak = 0;
     this.#troubleStreak = 0;
@@ -522,19 +544,48 @@ export class TagToolController {
    * A tag already seen and still sitting there is given one of these quietly, the way one
    * missed poll is: after a write the tag has just been powered down, and the reader may
    * still be bringing it back up.
+   *
+   * Twice in a row, each after the transport's own three tries, or once with the reader
+   * reporting the tag in use, is another program reading the tags: GoToTags on Dan's
+   * machine, seen typing each tag's UID on his screen recording, 26 October 2026.
    */
   private async onNotReady(error: ChipError): Promise<void> {
     this.#notReadyStreak += 1;
     const base = this.#options.notReadyMs ?? 500;
     const pause = Math.min(base * 2 ** (this.#notReadyStreak - 1), base * 8);
     const holding = this.#present !== null && !this.#present.bad;
-    if (!holding || this.#notReadyStreak >= (this.#options.removalPolls ?? 2)) {
+    const elsewhere = typeof error.detail.otherProgram === 'string' ? error.detail.otherProgram : null;
+    if (elsewhere !== null) {
+      this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
+    } else if (this.#notReadyStreak >= 2) {
+      this.suspectAnotherProgram(`The tag was not ready ${this.#notReadyStreak} times in a row, each after three tries.`);
+    }
+    if (!holding || elsewhere !== null || this.#notReadyStreak >= (this.#options.removalPolls ?? 2)) {
       this.#present = null;
       this.#absentStreak = 0;
       this.update({ phase: 'tag-not-ready', uid: null, error: plain(error), url: null, code: null, blendName: null });
     }
     this.#log(`Tag not ready, retrying in ${pause / 1000} s: ${error.message}`);
     await this.sleep(pause);
+  }
+
+  /**
+   * Another program is reading the tags. Logged once until a tag reads properly. The page
+   * shows ANOTHER_PROGRAM_ADVICE in its own banner, and raises the desktop notification
+   * for it, the same one it raises when it sees a tag's ID typed in.
+   */
+  private suspectAnotherProgram(reason: string): void {
+    if (this.#anotherProgram !== null) return;
+    this.#anotherProgram = reason;
+    this.#log(`Another program is reading the tags (usually GoToTags): ${reason}`);
+    this.emit();
+  }
+
+  private clearAnotherProgram(): void {
+    if (this.#anotherProgram === null) return;
+    this.#anotherProgram = null;
+    this.#log('The tag read properly. Nothing else is reading the tags now.');
+    this.emit();
   }
 
   /** `title` is for the notification, when the error code's own plain words would mislead. */

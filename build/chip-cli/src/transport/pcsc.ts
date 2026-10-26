@@ -839,6 +839,32 @@ const NOT_READY_RETRY_MS = 250;
  */
 const TAG_NOT_READY_ERRORS: ReadonlySet<string> = new Set(['NoSmartCard', 'RemovedCard', 'ResetCard', 'UnpoweredCard', 'UnresponsiveCard']);
 
+/**
+ * What to do about another program on the same reader, in the words the Tag Tool page uses.
+ *
+ * Seen on Dan's screen recording of his first Tag Tool run, Monday 26 October 2026: a
+ * program that starts with Windows read every tag the moment it arrived and typed its UID,
+ * byte reversed, into whatever had the focus, over and over. That is GoToTags' keyboard
+ * wedge. A program reading the tag at the same moment is also what loses it under this
+ * tool's first command (SCARD_E_NO_SMARTCARD), or refuses the connect outright
+ * (SCARD_E_SHARING_VIOLATION).
+ */
+export const OTHER_PROGRAM_REMEDY =
+  'Usually this is GoToTags, which starts with Windows and reads every tag the moment it arrives: exit it from its icon near the clock (right click, Exit), or end it in Task Manager, and close any other NFC software.';
+
+/**
+ * The reader state flags that say a program has the card connected. Only evidence of
+ * another program while this tool holds no connection of its own.
+ */
+const HELD_FLAGS = READER_STATE_FLAGS.EXCLUSIVE | READER_STATE_FLAGS.INUSE;
+
+/** "EXCLUSIVE", "INUSE", or null when neither flag is set. */
+function heldBy(raw: number): string | null {
+  if ((raw & READER_STATE_FLAGS.EXCLUSIVE) !== 0) return 'EXCLUSIVE';
+  if ((raw & READER_STATE_FLAGS.INUSE) !== 0) return 'INUSE';
+  return null;
+}
+
 /** How the PC/SC card is let go of. See `releaseTag`. */
 export type ReleaseDisposition = 'unpower' | 'leave';
 
@@ -1122,6 +1148,9 @@ export class PcscTransport implements TagTransport {
     this.resetProof();
     this.currentUid = null;
     const reader = this.requireReader();
+    // The reader state saying the card is in use (INUSE) or held exclusively (EXCLUSIVE)
+    // before this tool connected to it: another program has it.
+    let otherProgram: string | null = null;
     for (let attempt = 1; ; attempt += 1) {
       const seen = await this.awaitTag(reader, timeoutMs);
       if (seen === 'reader-gone') {
@@ -1143,6 +1172,7 @@ export class PcscTransport implements TagTransport {
 
       // An existing connection is reused, as the previous binding did.
       if (!this.card) {
+        otherProgram ??= heldBy(reader.state().raw & HELD_FLAGS);
         try {
           this.card = await reader.connect();
         } catch (err) {
@@ -1164,12 +1194,13 @@ export class PcscTransport implements TagTransport {
         if (attempt >= NOT_READY_ATTEMPTS) {
           const step = isChipError(err) && typeof err.detail.step === 'string' ? err.detail.step : 'the first command';
           const why = isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode;
+          const elsewhere = otherProgram === null ? '' : ` Before the connect the reader reported the tag in use by another program (${otherProgram}).`;
           throw this.tagAbsent(
             reader,
             'TAG_NOT_READY',
-            `The tag was not ready. The reader connected to it, and then ${step} found no tag: ${why}. Tried ${attempt} times.`,
-            'The tool tries again by itself. Keep the tag flat and still in the centre of the reader, printed face towards it. If it never becomes ready, close GoToTags and any other NFC software, unplug the reader and plug it back in, and send this whole message.',
-            { pcscCode, step },
+            `The tag was not ready. The reader connected to it, and then ${step} found no tag: ${why}. Tried ${attempt} times.${elsewhere}`,
+            `The tool tries again by itself. Keep the tag flat and still in the centre of the reader, printed face towards it. If it never becomes ready, another program is most likely reading the tag first. ${OTHER_PROGRAM_REMEDY} Then unplug the reader, plug it back in, and send this whole message if it still happens.`,
+            { pcscCode, step, otherProgram },
           );
         }
         await new Promise((r) => setTimeout(r, this.notReadyRetryMs * attempt));
@@ -1315,15 +1346,17 @@ export class PcscTransport implements TagTransport {
       );
     }
 
+    // This tool holds no connection here, so a held card is another program's.
+    const otherProgram = code === 'SharingViolation' ? 'SCARD_E_SHARING_VIOLATION' : heldBy(reader.state().raw & HELD_FLAGS);
     const exclusive = code === 'SharingViolation' || (reader.state().raw & READER_STATE_FLAGS.EXCLUSIVE) !== 0;
     const remedy = exclusive
-      ? 'Another application holds the reader exclusively. Close GoToTags and any other NFC software, including anything in the system tray, and retry.'
+      ? `Another application holds the reader exclusively. ${OTHER_PROGRAM_REMEDY} Then retry.`
       : code === 'RemovedCard' || code === 'NoSmartCard'
-        ? 'The tag left the field between being seen and being connected. Hold it still in the centre of the reader and retry.'
+        ? `The tag left the field between being seen and being connected. Hold it still in the centre of the reader and retry. If it keeps happening, another program is probably reading the tag first. ${OTHER_PROGRAM_REMEDY}`
         : code === 'UnresponsiveCard' || code === 'UnpoweredCard'
-          ? weakTag
-          : 'Reseat the tag and try again. If it repeats, the tag may not be ISO 15693, or another application (GoToTags included) is holding the reader: close it.';
-    return this.tagAbsent(reader, 'CONNECT_FAILED', `The reader saw a tag but could not connect to it: ${why}.`, remedy);
+          ? `${weakTag} If the tag is flat and centred and it still happens, another program may be reading it first. ${OTHER_PROGRAM_REMEDY}`
+          : `Reseat the tag and try again. If it repeats, the tag may not be ISO 15693, or another program is holding the reader. ${OTHER_PROGRAM_REMEDY}`;
+    return this.tagAbsent(reader, 'CONNECT_FAILED', `The reader saw a tag but could not connect to it: ${why}.`, remedy, { pcscCode: code, otherProgram });
   }
 
   /**
