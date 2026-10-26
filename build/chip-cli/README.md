@@ -242,7 +242,7 @@ Run `npm test` and read the count. These are properties of the code and they hol
 Not on SO4731 stock, and not on anything destined for a jar.
 
 1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. The optional binding, `pcsc-mini`, is installed by `npm ci`; see `SETUP-WINDOWS-MAC.md`. The protection half is deliberately unimplemented; see section 6.4.
-2. `chip-cli doctor --transport reader` on a bare tag. Doctor opens the reader and does not read the tag, so confirm the geometry from the `Tag selected ... 80 blocks of 4 bytes` line that step 3 prints. That line appears only after the probe has read block 79 and seen block 80 refused (DS13304 Rev 7, END_MEM 4Fh).
+2. `chip-cli doctor --transport reader` on a bare tag. Doctor opens the reader and, if a tag is on it, says whether it is present, mute or absent, with the raw reader state, and reads its UID. It reads nothing else, so confirm the geometry from the `Tag selected ... 80 blocks of 4 bytes` line that step 3 prints. That line appears only after the probe has read block 79 and seen block 80 refused (DS13304 Rev 7, END_MEM 4Fh).
 3. `chip-cli write --code ps --transport reader` on a bare tag, then tap it with a real phone and confirm the correct blend page opens. That is the check that actually matters, and it is the one people skip.
 4. Repeat with a tag taken from SO4731, to confirm re encoding works on stock as the client has said it does.
 5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. Confirm the tag still reads on a phone afterwards.
@@ -327,7 +327,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 
 | Code | What happened | What to do |
 |---|---|---|
-| `TAG_ABSENT` | No tag arrived at the reader | Place the tag centred on the reader and retry the unit |
+| `TAG_ABSENT` | No tag could be selected. The message starts with the case: `NO_TAG` (the reader never reported one), `TAG_MUTE` (the reader detects a tag that does not answer activation), `CONNECT_FAILED` (with the PC/SC error, for example `SharingViolation` when another application holds the reader), `UID_REFUSED` or `READER_GONE`, then the reader name and its raw state | Place the tag centred on the reader and retry the unit. Follow the remedy printed for the case, and send the whole message when reporting it |
 | `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: block 79 would not read (`fewer than 80 blocks`) or block 80 did (`larger than ST25TV02KC`) | This is not the part. Check which tags you have. Nothing was written |
 | `TAG_CHANGED` | A different tag came back into the field partway through a unit | Nothing was locked by that step. Set both tags aside, label them, and rerun the unit with one tag on the reader |
 | `WRITE_FAILED` | The tag refused the write, or the write stopped partway | Rewrite the tag. It cannot be carrying a wrong URL: see section 7.1 |

@@ -159,7 +159,7 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | doctor: `The PC/SC service could not be reached: [ NoService ]` | Plug the reader in, wait thirty seconds, run doctor again. On Windows the Smart Card service only starts once a reader is attached. If it persists on Windows, the Smart Card service may be disabled by company policy |
 | doctor: `No PC/SC reader appeared within 10 seconds` | Unplug and replug. Then install the ACS driver (section 2 step 1, section 3 step 1) |
 | doctor names a reader ending `SAM` | Pass the contactless one by name: add `--reader-name PICC` to every command |
-| write: `TAG_ABSENT` | Tag flat and centred, one tag only, then run it again. Close GoToTags |
+| write: `TAG_ABSENT` | Tag flat and centred, one tag only, then run it again. Close GoToTags. The message names the case and the reader state; with the tag on the reader, `doctor --transport reader` says whether the tag is present, mute or absent and reads its UID |
 | write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says `Block 79 could not be read` or `Block 80 answered a read` on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
 | write: `WRITE_FAILED` on a tag that should be blank | Report it with the full message. Try one more blank tag |
 | anything else | Every failure prints a code and a line beginning `What to do:`. README section 7 lists them all |
