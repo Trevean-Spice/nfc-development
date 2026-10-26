@@ -258,7 +258,8 @@
         detail = blend + '. The tag reads back ' + s.url + '. Take it off and put the next tag on.';
         break;
       case 'error':
-        title = plainTitle(s.error && s.error.code);
+        // TAG_ABSENT with no UID is a tag the reader sees but cannot read, not a missing one.
+        title = s.error && s.error.code === 'TAG_ABSENT' && !s.uid ? 'The reader cannot read the tag' : plainTitle(s.error && s.error.code);
         detail = s.uid ? 'Press Write to try this tag again, or take it off and set it aside.' : 'Take it off the reader.';
         showError = true;
         break;

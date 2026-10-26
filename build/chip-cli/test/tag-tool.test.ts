@@ -110,7 +110,12 @@ class ScriptedReader implements TagTransport {
   readonly memory = new Map<string, Uint8Array>();
   readonly calls: string[] = [];
   /** One shot results for the next waitForTag calls, ahead of the steady state. */
-  readonly queue: ('absent' | 'reader-error')[] = [];
+  readonly queue: ('absent' | 'reader-error' | 'connect-failed')[] = [];
+  /**
+   * Unplugged the way the PC/SC transport reports it: waitForTag says TAG_ABSENT, case
+   * READER_GONE, on every call, and the reader cannot be opened again.
+   */
+  gone = false;
   #opened = false;
 
   private unavailable(): ChipError {
@@ -133,7 +138,7 @@ class ScriptedReader implements TagTransport {
 
   async open(): Promise<void> {
     this.calls.push('open');
-    if (!this.readerPresent) throw this.unavailable();
+    if (!this.readerPresent || this.gone) throw this.unavailable();
     this.#opened = true;
   }
   async close(): Promise<void> {
@@ -143,6 +148,14 @@ class ScriptedReader implements TagTransport {
   async waitForTag(timeoutMs: number): Promise<TagIdentity> {
     this.calls.push('waitForTag');
     const next = this.queue.shift();
+    if (this.gone) {
+      throw new ChipError('TAG_ABSENT', 'Case READER_GONE. The reader was disconnected while the tool waited for a tag.', 'Check the USB cable.', { case: 'READER_GONE' });
+    }
+    if (next === 'connect-failed') {
+      throw new ChipError('TAG_ABSENT', 'Case CONNECT_FAILED. The reader saw a tag but could not connect to it: the card is unresponsive.', 'Lay the tag flat in the centre of the reader.', {
+        case: 'CONNECT_FAILED',
+      });
+    }
     if (next === 'reader-error' || !this.readerPresent) throw this.unavailable();
     if (next === 'absent' || this.tag === null) {
       await sleep(Math.min(timeoutMs, 10));
@@ -317,6 +330,46 @@ test('scripted: a reader that stops answering is reopened, and reported only if 
   } finally {
     await controller.stop();
   }
+});
+
+test('scripted: TAG_ABSENT is read by its case: reader gone, a tag that will not answer, and no tag', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  const { controller } = controllerFor(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'ready', (x) => x.phase === 'waiting-for-tag');
+    const quiet = controller.snapshot().notices.length;
+
+    // One failed connect is a tag being put down or lifted. Not news.
+    reader.queue.push('connect-failed');
+    await sleep(80);
+    assert.equal(controller.snapshot().phase, 'waiting-for-tag');
+    assert.equal(controller.snapshot().notices.length, quiet);
+
+    // Twice in a row is a tag that is there and will not answer, and it is shown.
+    reader.queue.push('connect-failed', 'connect-failed');
+    let s = await waitFor(controller, 'unreadable tag', (x) => x.phase === 'error');
+    assert.equal(s.error?.code, 'TAG_ABSENT');
+    assert.match(s.error?.message ?? '', /CONNECT_FAILED/);
+    assert.equal(s.uid, null);
+    assert.equal(s.notices[s.notices.length - 1]?.title, 'The reader cannot read the tag');
+    assert.equal(pageDescribe()(s as unknown as Record<string, unknown>).title, 'The reader cannot read the tag');
+    assert.throws(() => controller.requestWrite('ps'), (e: unknown) => e instanceof AppRefusal && e.status === 409);
+
+    // Then no tag: waiting again.
+    await waitFor(controller, 'waiting', (x) => x.phase === 'waiting-for-tag');
+
+    // Unplugged, as PC/SC reports it: the page must say the reader is gone, not keep waiting for a tag.
+    reader.gone = true;
+    s = await waitFor(controller, 'reader gone', (x) => x.phase === 'reader-not-found');
+    assert.equal(s.readerName, null);
+    reader.gone = false;
+    await waitFor(controller, 'ready again', (x) => x.phase === 'waiting-for-tag');
+  } finally {
+    await controller.stop();
+  }
+  assert.equal(reader.calls.includes('writeBlock'), false);
 });
 
 test('scripted: a write asked for with no tag, no reader, or while busy is refused with words to show', async () => {

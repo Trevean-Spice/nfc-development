@@ -199,6 +199,8 @@ export class TagToolController {
   /** The tag the loop believes is on the reader. `bad` when it could not be identified as writable. */
   #present: { uid: string | null; bad: boolean } | null = null;
   #absentStreak = 0;
+  /** Polls in a row where a tag was there but could not be read. */
+  #unreadableStreak = 0;
   #lastAttemptUid: string | null = null;
   #pending: PendingWrite | null = null;
   #stopping = false;
@@ -401,14 +403,28 @@ export class TagToolController {
       identity = await this.#transport.waitForTag(pollMs);
     } catch (cause) {
       const error = asChipError(cause, 'TAG_ABSENT', 'Put one tag flat on the reader.');
-      if (error.code === 'TAG_ABSENT') {
-        this.onAbsent();
-        return;
-      }
-      if (error.code === 'TRANSPORT_UNAVAILABLE') {
+      // A transport may say which kind of TAG_ABSENT it is. Only "no tag" means no tag:
+      // a reader that went away is reader trouble, and a tag that is there but will not
+      // answer is shown, once it has failed to answer twice in a row.
+      const absentCase = error.code === 'TAG_ABSENT' ? error.detail.case : undefined;
+      if (error.code === 'TRANSPORT_UNAVAILABLE' || absentCase === 'READER_GONE') {
+        this.#unreadableStreak = 0;
         await this.onReaderTrouble(error);
         return;
       }
+      if (error.code === 'TAG_ABSENT' && (absentCase === undefined || absentCase === 'NO_TAG')) {
+        this.#unreadableStreak = 0;
+        this.onAbsent();
+        return;
+      }
+      if (error.code === 'TAG_ABSENT') {
+        await this.release();
+        this.#unreadableStreak += 1;
+        if (this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) this.onBadTag(error, 'The reader cannot read the tag');
+        await this.sleep(idleMs);
+        return;
+      }
+      this.#unreadableStreak = 0;
       // Something is in the field and it is not a tag this tool writes.
       await this.release();
       this.onBadTag(error);
@@ -417,6 +433,7 @@ export class TagToolController {
     }
     // Detection only. The tag is selected again, from scratch, when it is written.
     await this.release();
+    this.#unreadableStreak = 0;
     const bytes = identity.blockCount * identity.blockSizeBytes;
     if (bytes !== PART.totalBytes) {
       // The same size check UnitSession.selectTag makes, made here as well so a tag
@@ -452,14 +469,15 @@ export class TagToolController {
     }
   }
 
-  private onBadTag(error: ChipError): void {
+  /** `title` is for the notification, when the error code's own plain words would mislead. */
+  private onBadTag(error: ChipError, title: string = error.code): void {
     this.#absentStreak = 0;
     const present = this.#present;
     if (present !== null && present.bad && this.#error?.code === error.code) return;
     this.#present = { uid: null, bad: true };
     this.#log(`Tag on the reader cannot be written: ${error.code}: ${error.message}`);
     this.update({ phase: 'error', uid: null, error: plain(error), url: null, code: null, blendName: null });
-    this.notice('error', error.code, error.message);
+    this.notice('error', title, error.message);
   }
 
   private onAbsent(): void {
