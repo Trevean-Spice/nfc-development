@@ -353,6 +353,32 @@ test('scripted: a reader that stops answering is reopened, and reported only if 
   }
 });
 
+test('scripted: reader trouble again on the very next poll waits longer each time instead of reopening in a tight loop', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  const { controller } = controllerFor(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'ready', (x) => x.phase === 'waiting-for-tag');
+    reader.queue.push(...Array<'reader-error'>(10).fill('reader-error'));
+    // reopenMs is 20: the first is reopened at once, then 20, 40, 80, 80 ms... before the next poll.
+    await sleep(100);
+    const left = reader.queue.length;
+    assert.ok(left >= 5 && left <= 8, `${10 - left} reader errors in 100 ms`);
+    assert.equal(controller.snapshot().phase, 'waiting-for-tag');
+    reader.queue.length = 0;
+    reader.tag = 'E002000000000B01';
+    await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+    // A good poll ends the streak: the next trouble is reopened at once again.
+    const opens = reader.calls.filter((c) => c === 'open').length;
+    reader.queue.push('reader-error');
+    await sleep(15);
+    assert.equal(reader.calls.filter((c) => c === 'open').length, opens + 1);
+  } finally {
+    await controller.stop();
+  }
+});
+
 test('scripted: TAG_ABSENT is read by its case: reader gone, a tag that will not answer, and no tag', async () => {
   const reader = new ScriptedReader();
   reader.readerPresent = true;

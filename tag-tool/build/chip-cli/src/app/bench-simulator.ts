@@ -160,7 +160,8 @@ export class BenchSimulator implements TagTransport {
     return this.#inner.readAreaProtection(area);
   }
 
-  async releaseTag(): Promise<void> {
+  /** The simulator has no field to leave up, so both dispositions are the same here. */
+  async releaseTag(_disposition?: 'unpower' | 'leave'): Promise<void> {
     await this.#inner.releaseTag();
   }
 
