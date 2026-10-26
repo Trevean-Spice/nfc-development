@@ -499,7 +499,11 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
   const path = str(values, 'journal');
   if (path === undefined) throw new ChipError('USAGE', 'status needs --journal.', 'For example: chip-cli status --journal runs/ps.jsonl', {});
   const parsed = readJournal(path);
-  const state = resumeState(parsed, parsed.header.targetCount);
+  // A batch always has a target of at least one. Zero is a Tag Tool journal, which is
+  // open ended: every unit it numbered counts, and there is nothing to resume.
+  const openEnded = parsed.header.targetCount === 0;
+  const state = resumeState(parsed, openEnded ? Math.max(0, ...parsed.units.map((u) => u.seq)) : parsed.header.targetCount);
+  const remaining = openEnded ? [] : state.remaining;
   const damaged = parsed.digestFailures.length > 0 || parsed.badLines > 0;
 
   if (bool(values, 'json')) {
@@ -508,7 +512,7 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
         {
           header: parsed.header,
           done: state.done.length,
-          remaining: state.remaining,
+          remaining,
           previouslyFailed: state.previouslyFailed,
           truncatedTail: parsed.truncatedTail,
           badLines: parsed.badLines,
@@ -521,7 +525,7 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
       ),
     );
     if (damaged) return EXIT_FAILURE;
-    return state.remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
+    return remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
   }
 
   out('');
@@ -530,8 +534,12 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
   out(`Code           ${parsed.header.code}  ${parsed.header.blendName}`);
   out(`URL            ${parsed.header.uri}`);
   out(`Table digest   ${parsed.header.tableDigest}`);
-  out(`Done           ${state.done.length} of ${parsed.header.targetCount}`);
-  out(`Remaining      ${state.remaining.length}${state.remaining.length > 0 ? `: ${compactRanges(state.remaining)}` : ''}`);
+  if (openEnded) {
+    out(`Done           ${state.done.length} verified (Tag Tool session, no target)`);
+  } else {
+    out(`Done           ${state.done.length} of ${parsed.header.targetCount}`);
+    out(`Remaining      ${remaining.length}${remaining.length > 0 ? `: ${compactRanges(remaining)}` : ''}`);
+  }
   if (state.previouslyFailed.length > 0) {
     out(`Failed before  ${compactRanges(state.previouslyFailed)}`);
   }
@@ -554,12 +562,12 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
     out('Do not resume this journal. A record does not match its own digest, so the list of units already done cannot be trusted.');
     out('Count the tags physically written, then start a new run into a new journal file for the units that are left.');
     out('');
-  } else if (state.remaining.length > 0) {
+  } else if (remaining.length > 0) {
     for (const line of resumeCommand(parsed.header, path)) out(line);
     out('');
   }
   if (damaged) return EXIT_FAILURE;
-  return state.remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
+  return remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
 }
 
 async function commandDoctor(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
