@@ -19,7 +19,7 @@ import { decodeUriMessage } from '../ndef/decode.js';
 import { unwrapNdefTlv } from '../ndef/tlv.js';
 import { RedirectTable, DEFAULT_TABLE_PATH } from '../table/redirect-table.js';
 import { PhysicalReaderTransport } from '../transport/reader-stub.js';
-import { PcscTransport } from '../transport/pcsc.js';
+import { PcscTransport, type PcscTransportOptions } from '../transport/pcsc.js';
 import { SimulatorTransport, type SimulatorFaultKind } from '../transport/simulator.js';
 import type { TagTransport } from '../transport/transport.js';
 import { fromHex } from '../util/hex.js';
@@ -84,7 +84,9 @@ COMMANDS
   batch --code <code> --count <n> --journal <path>
                               Run a batch, resumable, one journal line per unit
   status --journal <path>     Report progress of a batch journal
-  doctor                      Check the tool, the table and the transport before a run
+  doctor                      Check the tool, the table and the transport before a run.
+                              With --transport reader, also says whether a tag is on
+                              the reader (present, mute or absent) and reads its UID
 
 COMMON OPTIONS
   --table <path>              Redirect table. Default: the one in build/edge
@@ -163,12 +165,12 @@ function loadTable(values: Record<string, unknown>): RedirectTable {
   return RedirectTable.load(str(values, 'table') ?? DEFAULT_TABLE_PATH);
 }
 
-function buildTransport(values: Record<string, unknown>): TagTransport {
+function buildTransport(values: Record<string, unknown>, pcsc?: PcscTransportOptions): TagTransport {
   const name = str(values, 'transport') ?? 'simulator';
   // "reader" is the real one and is PC/SC. The old stub is kept reachable under its own
   // name so the bring up in README section 6.3 can be rehearsed against something that
   // refuses predictably, rather than against hardware that might be at fault instead.
-  if (name === 'reader' || name === 'pcsc') return new PcscTransport(str(values, 'reader-name'));
+  if (name === 'reader' || name === 'pcsc') return new PcscTransport(str(values, 'reader-name'), pcsc);
   if (name === 'stub') return new PhysicalReaderTransport();
   if (name !== 'simulator') {
     throw new ChipError('USAGE', `Unknown transport "${name}".`, 'Use --transport simulator, --transport reader, or --transport stub.', { name });
@@ -291,7 +293,11 @@ function commandDecode(values: Record<string, unknown>, out: (line: string) => v
   return EXIT_OK;
 }
 
-async function commandWrite(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+async function commandWrite(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+): Promise<number> {
   const table = loadTable(values);
   const code = str(values, 'code');
   if (code === undefined) throw new ChipError('USAGE', 'write needs --code.', 'For example: chip-cli write --code ps', {});
@@ -311,7 +317,7 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
     return EXIT_OK;
   }
 
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
   const passwords = protect ? loadPasswords(values) : null;
 
   await transport.open();
@@ -352,14 +358,18 @@ async function commandWrite(values: Record<string, unknown>, out: (line: string)
 /** The longest single read `chip-cli verify` makes: 63 blocks, 252 bytes, inside a one byte Le. */
 const VERIFY_READ_SPAN_BLOCKS = READ_SPAN_MAX_BLOCKS;
 
-async function commandVerify(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+async function commandVerify(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+): Promise<number> {
   const table = loadTable(values);
   const expect = str(values, 'expect');
   if (expect === undefined) {
     throw new ChipError('USAGE', 'verify needs --expect with the code the tag should carry.', 'For example: chip-cli verify --expect ps', {});
   }
   const { entry, uri } = table.uriFor(expect);
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
 
   await transport.open();
   try {
@@ -391,7 +401,11 @@ async function commandVerify(values: Record<string, unknown>, out: (line: string
   }
 }
 
-async function commandBatch(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+async function commandBatch(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+): Promise<number> {
   const table = loadTable(values);
   const code = str(values, 'code');
   const journalPath = str(values, 'journal');
@@ -410,7 +424,7 @@ async function commandBatch(values: Record<string, unknown>, out: (line: string)
 
   const dryRun = bool(values, 'dry-run');
   const protect = bool(values, 'protect');
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
   const passwords = protect ? loadPasswords(values) : null;
 
   const interactive =
@@ -565,7 +579,19 @@ function commandStatus(values: Record<string, unknown>, out: (line: string) => v
   return state.remaining.length === 0 ? EXIT_OK : EXIT_INCOMPLETE;
 }
 
-async function commandDoctor(values: Record<string, unknown>, out: (line: string) => void): Promise<number> {
+/**
+ * How long doctor waits for a tag on a real reader. A tag already lying on the reader
+ * is reported with the reader itself, so this is mostly the MUTE grace in
+ * src/transport/pcsc.ts plus a margin. --tag-timeout-ms lengthens it, which lets the
+ * operator start doctor and then put a tag down.
+ */
+const DOCTOR_TAG_WAIT_MS = 1_500;
+
+async function commandDoctor(
+  values: Record<string, unknown>,
+  out: (line: string) => void,
+  pcsc?: PcscTransportOptions,
+): Promise<number> {
   const checks: { name: string; ok: boolean; note: string }[] = [];
 
   let table: RedirectTable | null = null;
@@ -596,23 +622,42 @@ async function commandDoctor(values: Record<string, unknown>, out: (line: string
     });
   }
 
-  const transport = buildTransport(values);
+  const transport = buildTransport(values, pcsc);
   let transportOk = false;
   let transportNote = '';
+  let tagCheck: { name: string; ok: boolean; note: string } | null = null;
   try {
     await transport.open();
-    await transport.close();
+    try {
+      // With a real reader, say whether a tag is on it and whether it can be selected,
+      // using the same wait and MUTE policy as a write. Reads the UID and nothing else.
+      // No tag is not a failure: doctor is usually run before the first tag goes down.
+      if (transport instanceof PcscTransport) {
+        const tag = await transport.inspectTag(int(values, 'tag-timeout-ms', DOCTOR_TAG_WAIT_MS));
+        const uid = tag.uid !== null ? `, uid ${tag.uid}` : '';
+        tagCheck = {
+          name: 'tag on the reader',
+          ok: tag.presence === 'absent' || tag.selected,
+          note: `${tag.presence}${uid}, ${tag.note}. Reader state ${tag.readerState}`,
+        };
+      }
+    } finally {
+      await transport.close();
+    }
     transportOk = true;
     // Naming the reader matters on the first run: it is how the operator sees which of
     // several PC/SC interfaces was picked, and what to pass to --reader-name if wrong.
     const readerName = transport instanceof PcscTransport ? transport.readerName : null;
+    const others = transport instanceof PcscTransport ? transport.otherReaders : [];
+    const otherNote = others.length > 0 ? ` (also attached: ${others.join(', ')})` : '';
     transportNote = transport.isHardware
-      ? `physical reader responded${readerName ? `: ${readerName}` : ''}`
+      ? `physical reader responded${readerName ? `: ${readerName}` : ''}${otherNote}`
       : 'simulator, no physical tags are written';
   } catch (cause) {
     transportNote = asChipError(cause, 'TRANSPORT_UNAVAILABLE', '').message;
   }
   checks.push({ name: `transport "${transport.name}"`, ok: transportOk, note: transportNote });
+  if (tagCheck !== null) checks.push(tagCheck);
 
   if (bool(values, 'protect')) {
     try {
@@ -643,6 +688,8 @@ async function commandDoctor(values: Record<string, unknown>, out: (line: string
 export interface MainOptions {
   readonly out?: (line: string) => void;
   readonly err?: (line: string) => void;
+  /** For tests: how --transport reader reaches PC/SC. Defaults to pcsc-mini. */
+  readonly pcsc?: PcscTransportOptions;
 }
 
 export async function main(argv: string[], io: MainOptions = {}): Promise<number> {
@@ -670,15 +717,15 @@ export async function main(argv: string[], io: MainOptions = {}): Promise<number
       case 'decode':
         return commandDecode(values, out);
       case 'write':
-        return await commandWrite(values, out);
+        return await commandWrite(values, out, io.pcsc);
       case 'verify':
-        return await commandVerify(values, out);
+        return await commandVerify(values, out, io.pcsc);
       case 'batch':
-        return await commandBatch(values, out);
+        return await commandBatch(values, out, io.pcsc);
       case 'status':
         return commandStatus(values, out);
       case 'doctor':
-        return await commandDoctor(values, out);
+        return await commandDoctor(values, out, io.pcsc);
       default:
         throw new ChipError('USAGE', `Unknown command "${command}".`, 'Run "chip-cli --help" for the command list.', { command });
     }

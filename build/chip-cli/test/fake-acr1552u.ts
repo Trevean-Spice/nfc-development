@@ -28,7 +28,7 @@
  * Shared by pcsc-binding.test.ts and pcsc-lock.test.ts. Not a test file itself.
  */
 
-import type { PcscBinding, PcscCardHandle, PcscReaderHandle } from '../src/transport/pcsc.js';
+import { READER_STATE_FLAGS, type PcscBinding, type PcscCardHandle, type PcscReaderHandle, type PcscReaderState } from '../src/transport/pcsc.js';
 import { PART } from '../src/chip/st25tv02kc.js';
 
 export const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join(' ');
@@ -101,6 +101,8 @@ export class FakeTag {
   disconnects = 0;
   failTransmit = false;
   uidLsbFirst: number[] = UID_LSB_FIRST;
+  /** Replaces the whole answer to Get Data for the UID, status word included, when set. */
+  uidAnswer: number[] | null = null;
 
   /** PWD_A1, most significant byte first. Eight zero bytes is the factory value (Table 19). */
   password = new Uint8Array(8);
@@ -235,7 +237,7 @@ export class FakeTag {
     const [cla, ins, p1 = 0, p2 = 0, lc = 0] = apdu;
     if (cla !== 0xff) return [0x6e, 0x00];
     const block = (p1 << 8) | p2;
-    if (ins === 0xca) return [...this.uidLsbFirst, ...OK];
+    if (ins === 0xca) return this.uidAnswer ?? [...this.uidLsbFirst, ...OK];
     if (ins === 0xb0) {
       const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
       if (block + count > this.blockCount) return [0x6a, 0x82];
@@ -449,24 +451,39 @@ export class FakeTag {
   }
 }
 
+const { PRESENT, EMPTY, CHANGED } = READER_STATE_FLAGS;
+
+/** Shaped like a pcsc-mini error: the PC/SC name in `code`, nothing useful in `message`. */
+export function pcscError(code: string): Error {
+  return Object.assign(new Error('[ Client.TaskConnect ] Async task error'), { code });
+}
+
 export class FakeReader implements PcscReaderHandle {
-  present: boolean;
+  /** The raw SCARD_STATE_* flags the fake service reports. */
+  raw: number;
+  gone = false;
   connects = 0;
+  /** When set, connect fails with it. A function can also change the state, as a real reader would. */
+  connectError: (() => Error) | null = null;
   constructor(
     readonly name: string,
     public tag: FakeTag = new FakeTag(),
     present = true,
   ) {
-    this.present = present;
+    this.raw = present ? PRESENT | CHANGED : EMPTY | CHANGED;
   }
-  tagPresent(): boolean {
-    return this.present;
+  set present(value: boolean) {
+    this.raw = value ? PRESENT | CHANGED : EMPTY | CHANGED;
+  }
+  state(): PcscReaderState {
+    return { raw: this.raw, gone: this.gone };
   }
   /** Called on every connect, before the handle is made, so a test can put another tag in its place. */
   onConnect: ((count: number) => void) | null = null;
   async connect(): Promise<PcscCardHandle> {
     this.connects += 1;
     this.onConnect?.(this.connects);
+    if (this.connectError) throw this.connectError();
     return this.tag.handle();
   }
 }

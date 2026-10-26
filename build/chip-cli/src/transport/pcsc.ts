@@ -97,10 +97,18 @@ export interface PcscCardHandle {
   disconnectUnpower(): Promise<void>;
 }
 
+/** What the PC/SC service last said about one reader. */
+export interface PcscReaderState {
+  /** The raw SCARD_STATE_* flags, 0 until the service has reported anything. See READER_STATE_FLAGS. */
+  readonly raw: number;
+  /** True once the reader has been unplugged, or the client stopped. */
+  readonly gone: boolean;
+}
+
 export interface PcscReaderHandle {
   readonly name: string;
-  /** The latest state the PC/SC service reported: a tag is in the field and answering. */
-  tagPresent(): boolean;
+  /** The latest state the PC/SC service reported for this reader. */
+  state(): PcscReaderState;
   connect(): Promise<PcscCardHandle>;
 }
 
@@ -138,7 +146,6 @@ export type PcscMiniModule = {
   Client: new () => PcscMiniClient;
   CardMode: { readonly SHARED: number };
   CardDisposition: { readonly UNPOWER: number };
-  ReaderStatus: { readonly PRESENT: number; readonly MUTE: number };
 };
 
 /**
@@ -148,6 +155,13 @@ export type PcscMiniModule = {
  * Presence is tracked from the moment a reader is announced, because `pcsc-mini`
  * reports a reader's state on change only. A listener attached later, when a unit
  * starts, would never hear about a tag that was already lying on the reader.
+ * `pcsc-mini` emits "reader" and then that reader's first "change" in the same call,
+ * so the listener below is attached in time. Measured on Monday 26 October 2026
+ * against pcscd with a virtual card already inserted: the first "change" was
+ * 0x00030022, PRESENT.
+ *
+ * The state is passed through raw and decoded in this file, so an error can quote
+ * exactly what the service said rather than a yes or no.
  */
 export function adaptPcscMini(lib: PcscMiniModule): PcscBinding {
   const client = new lib.Client();
@@ -166,7 +180,7 @@ export function adaptPcscMini(lib: PcscMiniModule): PcscBinding {
         });
         onReader({
           name: reader.name(),
-          tagPresent: () => !gone && (status & lib.ReaderStatus.PRESENT) !== 0 && (status & lib.ReaderStatus.MUTE) === 0,
+          state: () => ({ raw: status, gone }),
           async connect() {
             const card = await reader.connect(lib.CardMode.SHARED);
             return {
@@ -208,11 +222,92 @@ export function isSamSlot(readerName: string): boolean {
   return /\bSAM\b/i.test(readerName);
 }
 
+/**
+ * The SCARD_STATE_* reader state flags. The values are the same in WinSCard
+ * (winscard.h), in pcsc-lite (pcsclite.h, which macOS also follows) and in
+ * `pcsc-mini` 0.1.3's ReaderStatus, which passes them through unchanged. The high 16
+ * bits are not flags: WinSCard and pcsc-lite both keep a count of card events there.
+ */
+export const READER_STATE_FLAGS = {
+  IGNORE: 0x0001,
+  CHANGED: 0x0002,
+  UNKNOWN: 0x0004,
+  UNAVAILABLE: 0x0008,
+  EMPTY: 0x0010,
+  PRESENT: 0x0020,
+  ATRMATCH: 0x0040,
+  EXCLUSIVE: 0x0080,
+  INUSE: 0x0100,
+  MUTE: 0x0200,
+  UNPOWERED: 0x0400,
+} as const;
+
+/**
+ * What the reader state says about a tag.
+ *
+ * `mute` is PRESENT and MUTE together: the reader's polling found a tag, and powering
+ * it up to build an answer to reset failed (the CCID reader answered ICC_MUTE). On a
+ * contactless reader that is a tag in the field that did not complete activation,
+ * usually because it is at the edge of the field.
+ */
+export type TagPresence = 'present' | 'mute' | 'absent' | 'reader-gone';
+
+export function tagPresence(state: PcscReaderState): TagPresence {
+  if (state.gone) return 'reader-gone';
+  if ((state.raw & READER_STATE_FLAGS.PRESENT) === 0) return 'absent';
+  return (state.raw & READER_STATE_FLAGS.MUTE) !== 0 ? 'mute' : 'present';
+}
+
+/** The raw flags and their names, for quoting in an error: "0x00030222 PRESENT|MUTE|CHANGED". */
+export function describeReaderState(state: PcscReaderState): string {
+  const raw = `0x${(state.raw >>> 0).toString(16).padStart(8, '0')}`;
+  const names = Object.entries(READER_STATE_FLAGS)
+    .filter(([, bit]) => (state.raw & bit) !== 0)
+    .map(([name]) => name);
+  const flags = names.length > 0 ? names.join('|') : 'no flags, nothing reported yet';
+  return `${raw} ${flags}${state.gone ? ', reader disconnected' : ''}`;
+}
+
+/**
+ * `pcsc-mini` puts the PC/SC error in `code` ("SharingViolation") and only a generic
+ * "[ Client.TaskConnect ] Async task error" in `message`, measured on Monday 26
+ * October 2026. Quoting the message alone hides the one word that says what happened.
+ */
+const PCSC_ERROR_NAMES: Readonly<Record<string, string>> = {
+  SharingViolation: 'SCARD_E_SHARING_VIOLATION',
+  UnresponsiveCard: 'SCARD_W_UNRESPONSIVE_CARD',
+  UnpoweredCard: 'SCARD_W_UNPOWERED_CARD',
+  UnsupportedCard: 'SCARD_W_UNSUPPORTED_CARD',
+  RemovedCard: 'SCARD_W_REMOVED_CARD',
+  NoSmartCard: 'SCARD_E_NO_SMARTCARD',
+  ProtoMismatch: 'SCARD_E_PROTO_MISMATCH',
+  ReaderUnavailable: 'SCARD_E_READER_UNAVAILABLE',
+  UnknownReader: 'SCARD_E_UNKNOWN_READER',
+  NotReady: 'SCARD_E_NOT_READY',
+  Timeout: 'SCARD_E_TIMEOUT',
+};
+
+function pcscErrorCode(err: unknown): string | null {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : null;
+}
+
+/** "SharingViolation (SCARD_E_SHARING_VIOLATION): [ Client.TaskConnect ] Async task error" */
+export function describePcscError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const code = pcscErrorCode(err);
+  if (code === null || message.includes(code)) return message;
+  const name = PCSC_ERROR_NAMES[code];
+  return `${code}${name ? ` (${name})` : ''}: ${message}`;
+}
+
 export interface PcscTransportOptions {
   /** For tests. Defaults to loading `pcsc-mini`. */
   readonly loadBinding?: PcscBindingLoader;
   /** How long `open` waits for a reader. Ten seconds unless a test says otherwise. */
   readonly readerTimeoutMs?: number;
+  /** How long PRESENT with MUTE may last before the tool connects anyway. MUTE_GRACE_MS unless a test says otherwise. */
+  readonly muteGraceMs?: number;
 }
 
 /**
@@ -691,6 +786,38 @@ function hex2(n: number): string {
 /** Generous. A person is placing a tag on a reader by hand. */
 const POLL_INTERVAL_MS = 100;
 
+/**
+ * How long PRESENT with MUTE is given to clear by itself before the tool connects anyway.
+ *
+ * A tag sliding into place can be caught mid activation and then settle. A tag that
+ * stays mute is not retried by the service on its own: WinSCard and pcsc-lite power a
+ * card up when it arrives and again when a client connects, not in between. So without
+ * a connect a mute tag is never activated again until it is lifted off and put back,
+ * and before this the tool waited the whole timeout and called it "no tag".
+ *
+ * Connecting is safe. It asks the reader to activate the tag again (ISO 15693 inventory
+ * and select), which writes nothing, and a connection that succeeds goes through exactly
+ * the UID and geometry checks every other tag does before anything is written.
+ */
+const MUTE_GRACE_MS = 1_000;
+
+/** Which TAG_ABSENT this is. Each one is named in the message the operator sees. */
+export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED';
+
+/** The result of `inspectTag`, which is what doctor prints about the tag on the reader. */
+export interface TagInspection {
+  readonly readerName: string;
+  readonly presence: TagPresence;
+  /** The reader state at the end, as `describeReaderState` writes it. */
+  readonly readerState: string;
+  /** True when the tool could connect to the tag and read its UID. */
+  readonly selected: boolean;
+  /** MSB first when it is an ISO 15693 UID, otherwise the bytes as the reader sent them. */
+  readonly uid: string | null;
+  /** What was found, or why the tag could not be selected. */
+  readonly note: string;
+}
+
 function sw(response: Uint8Array): number {
   if (response.length < 2) return 0;
   return ((response[response.length - 2] ?? 0) << 8) | (response[response.length - 1] ?? 0);
@@ -786,6 +913,8 @@ export class PcscTransport implements TagTransport {
   private currentUid: string | null = null;
   /** The reader this transport last opened. Kept after close so doctor can name it. */
   private openedReaderName: string | null = null;
+  /** Every reader the service announced, picked or not, so a wrong pick can be seen. */
+  private readonly announcedReaders: string[] = [];
   /**
    * The UID of the one physical tag on which verifyOpcodes has confirmed the command
    * path, or null. **The proof belongs to that tag and that connection only.** It is
@@ -817,6 +946,7 @@ export class PcscTransport implements TagTransport {
 
   private readonly loadBinding: PcscBindingLoader;
   private readonly readerTimeoutMs: number;
+  private readonly muteGraceMs: number;
 
   constructor(
     private readonly readerNameFilter?: string,
@@ -824,6 +954,7 @@ export class PcscTransport implements TagTransport {
   ) {
     this.loadBinding = options.loadBinding ?? loadPcscMini;
     this.readerTimeoutMs = options.readerTimeoutMs ?? 10_000;
+    this.muteGraceMs = options.muteGraceMs ?? MUTE_GRACE_MS;
   }
 
   /**
@@ -840,6 +971,11 @@ export class PcscTransport implements TagTransport {
   /** The PC/SC name of the reader in use, or null before the first successful open. */
   get readerName(): string | null {
     return this.openedReaderName;
+  }
+
+  /** The other readers the service announced, which this transport did not pick. */
+  get otherReaders(): readonly string[] {
+    return this.announcedReaders.filter((name) => name !== this.openedReaderName);
   }
 
   async open(): Promise<void> {
@@ -873,6 +1009,7 @@ export class PcscTransport implements TagTransport {
         try {
           binding.start(
             (reader) => {
+              if (!this.announcedReaders.includes(reader.name)) this.announcedReaders.push(reader.name);
               if (settled) return;
               if (this.readerNameFilter) {
                 if (!reader.name.toLowerCase().includes(this.readerNameFilter.toLowerCase())) return;
@@ -936,17 +1073,22 @@ export class PcscTransport implements TagTransport {
     this.resetProof();
     this.currentUid = null;
     const reader = this.requireReader();
-    const deadline = Date.now() + timeoutMs;
-
-    while (!reader.tagPresent()) {
-      if (Date.now() > deadline) {
-        throw new ChipError(
-          'TAG_ABSENT',
-          `No tag arrived on the reader within ${timeoutMs} ms.`,
-          'Place one ST25TV02KC tag flat on the reader. One at a time: two tags in the field collide and neither is selected.',
-        );
-      }
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    const seen = await this.awaitTag(reader, timeoutMs);
+    if (seen === 'reader-gone') {
+      throw this.tagAbsent(
+        reader,
+        'READER_GONE',
+        'The reader was disconnected while the tool waited for a tag.',
+        'Check the USB cable and run the command again. If it repeats, plug the reader straight into the computer rather than through a hub.',
+      );
+    }
+    if (seen === 'absent') {
+      throw this.tagAbsent(
+        reader,
+        'NO_TAG',
+        `No tag arrived on the reader within ${timeoutMs} ms.`,
+        'Place one ST25TV02KC tag flat and centred on the reader, printed face towards it. By default the ACR1552U beeps once when it detects a tag: no beep means the reader is not seeing the tag at all. One at a time: two tags in the field collide and neither is selected. An on metal tag reads at a much shorter distance away from metal, so lay it directly on the reader. If the tag is on another reader listed above, pass --reader-name. If no tag ever makes this reader beep, unplug it and plug it back in.',
+      );
     }
 
     // An existing connection is reused, as the previous binding did.
@@ -954,20 +1096,17 @@ export class PcscTransport implements TagTransport {
       try {
         this.card = await reader.connect();
       } catch (err) {
-        throw new ChipError(
-          'TAG_ABSENT',
-          `The reader saw a tag but could not select it: ${err instanceof Error ? err.message : String(err)}`,
-          'Reseat the tag and try again. If it repeats, the tag may not be ISO 15693, or another application (GoToTags included) is holding the reader: close it.',
-        );
+        throw this.connectFailed(reader, seen, err);
       }
     }
     this.connected = true;
 
     const response = await this.transmit(getUidApdu(), 32);
     if (sw(response) !== SW_OK) {
-      throw new ChipError(
-        'TAG_ABSENT',
-        `The reader refused to report a UID (status 0x${sw(response).toString(16)}).`,
+      throw this.tagAbsent(
+        reader,
+        'UID_REFUSED',
+        `The reader connected to the tag but refused to report its UID (status 0x${sw(response).toString(16)}).`,
         'Reseat the tag. If every tag does this, the reader may be in a mode that does not poll ISO 15693.',
       );
     }
@@ -1030,6 +1169,127 @@ export class PcscTransport implements TagTransport {
     }
 
     return PART.blockCount;
+  }
+
+  /**
+   * Waits for the reader to report a tag. Returns at once for PRESENT, and at the
+   * deadline when there is none. PRESENT with MUTE is returned once it has lasted
+   * MUTE_GRACE_MS, or at the deadline, so the caller connects to it: see MUTE_GRACE_MS.
+   */
+  private async awaitTag(reader: PcscReaderHandle, timeoutMs: number): Promise<TagPresence> {
+    const deadline = Date.now() + timeoutMs;
+    let muteSince: number | null = null;
+    for (;;) {
+      const presence = tagPresence(reader.state());
+      const now = Date.now();
+      if (presence === 'present' || presence === 'reader-gone') return presence;
+      if (presence === 'mute') {
+        muteSince ??= now;
+        if (now - muteSince >= this.muteGraceMs || now > deadline) return 'mute';
+      } else {
+        muteSince = null;
+        if (now > deadline) return 'absent';
+      }
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+  }
+
+  /**
+   * A TAG_ABSENT that says which case it is, what the reader state was when it was
+   * raised, and which reader, so a report from the field can be read without a rerun.
+   */
+  private tagAbsent(reader: PcscReaderHandle, which: TagAbsentCase, what: string, remedy: string): ChipError {
+    const state = reader.state();
+    const flags = describeReaderState(state);
+    const others = this.otherReaders;
+    const otherText = others.length > 0 ? ` Other readers attached: ${others.map((name) => `"${name}"`).join(', ')}.` : '';
+    return new ChipError('TAG_ABSENT', `Case ${which}. ${what} Reader "${reader.name}", state ${flags}.${otherText}`, remedy, {
+      case: which,
+      readerName: reader.name,
+      readerState: state.raw,
+      readerFlags: flags,
+    });
+  }
+
+  private connectFailed(reader: PcscReaderHandle, seen: TagPresence, err: unknown): ChipError {
+    const why = describePcscError(err).replace(/\.$/, '');
+    const code = pcscErrorCode(err);
+    const weakTag =
+      'The tag is at the edge of the reader field. Lift it off, lay it flat in the centre of the reader with its printed face towards it, and retry. An on metal tag is tuned to have metal behind it and reads at a much shorter distance without it. If every tag does this, report this message with the tag type.';
+
+    if (seen === 'mute') {
+      return this.tagAbsent(
+        reader,
+        'TAG_MUTE',
+        `The reader detects a tag (PRESENT) that did not answer activation (MUTE), and connecting to it again failed: ${why}.`,
+        weakTag,
+      );
+    }
+
+    const exclusive = code === 'SharingViolation' || (reader.state().raw & READER_STATE_FLAGS.EXCLUSIVE) !== 0;
+    const remedy = exclusive
+      ? 'Another application holds the reader exclusively. Close GoToTags and any other NFC software, including anything in the system tray, and retry.'
+      : code === 'RemovedCard' || code === 'NoSmartCard'
+        ? 'The tag left the field between being seen and being connected. Hold it still in the centre of the reader and retry.'
+        : code === 'UnresponsiveCard' || code === 'UnpoweredCard'
+          ? weakTag
+          : 'Reseat the tag and try again. If it repeats, the tag may not be ISO 15693, or another application (GoToTags included) is holding the reader: close it.';
+    return this.tagAbsent(reader, 'CONNECT_FAILED', `The reader saw a tag but could not connect to it: ${why}.`, remedy);
+  }
+
+  /**
+   * For doctor: is a tag on the reader, and can it be selected?
+   *
+   * Uses the same wait and the same MUTE policy as `waitForTag`, so what doctor says is
+   * what a write would meet. Sends one APDU, the Get Data for the UID, which reads and
+   * changes nothing, and powers the tag down afterwards. Never throws for a tag that is
+   * missing or cannot be selected: that is the answer, and doctor prints it.
+   *
+   * It is a selection like any other, so it ends any opcode proof first and drops a
+   * connection this transport holds: powering the tag down under a proven connection
+   * would leave a proof standing for a tag that has since been reset.
+   */
+  async inspectTag(waitMs: number): Promise<TagInspection> {
+    await this.releaseTag();
+    const reader = this.requireReader();
+    const presence = await this.awaitTag(reader, waitMs);
+    const result = (selected: boolean, uid: string | null, note: string): TagInspection => ({
+      readerName: reader.name,
+      presence,
+      readerState: describeReaderState(reader.state()),
+      selected,
+      uid,
+      note,
+    });
+
+    if (presence === 'absent') return result(false, null, `no tag seen within ${waitMs} ms`);
+    if (presence === 'reader-gone') return result(false, null, 'the reader was disconnected');
+
+    let card: PcscCardHandle;
+    try {
+      card = await reader.connect();
+    } catch (err) {
+      const seen = presence === 'mute' ? 'it does not answer activation, and connecting again failed' : 'connecting failed';
+      return result(false, null, `${seen}: ${describePcscError(err)}`);
+    }
+    try {
+      const response = new Uint8Array(await card.transmit(getUidApdu()));
+      if (sw(response) !== SW_OK) {
+        return result(false, null, `connected, but the reader refused the UID read with status 0x${sw(response).toString(16)}`);
+      }
+      const after = presence === 'mute' ? ', after the tool connected to a mute tag' : '';
+      const normalised = normaliseUid(body(response));
+      if (!normalised) return result(false, hex(body(response)), `not an ISO 15693 UID, so not an ST25TV02KC${after}`);
+      if (!isStMicroelectronics(normalised.uid)) {
+        const maker = (normalised.uid[1] ?? 0).toString(16).padStart(2, '0');
+        return result(false, hex(normalised.uid), `ISO 15693, manufacturer code 0x${maker}, so not STMicroelectronics${after}`);
+      }
+      return result(true, hex(normalised.uid), `ISO 15693, STMicroelectronics${after}`);
+    } catch (err) {
+      return result(false, null, `connected, but the UID read failed: ${describePcscError(err)}`);
+    } finally {
+      await card.disconnectUnpower().catch(() => undefined);
+    }
   }
 
   async readBlocks(firstBlock: number, count: number): Promise<Uint8Array> {
@@ -1685,7 +1945,7 @@ export class PcscTransport implements TagTransport {
       this.resetProof();
       throw new ChipError(
         'TRANSPORT_UNAVAILABLE',
-        `The reader rejected a command: ${err instanceof Error ? err.message : String(err)}`,
+        `The reader rejected a command: ${describePcscError(err)}`,
         'Reseat the tag. If it repeats, close any other application holding the reader.',
       );
     }
