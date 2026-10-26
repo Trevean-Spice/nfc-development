@@ -665,3 +665,65 @@ test('N5 (X11): the unlock proof is not sent to a tag swapped in silently: no B4
   reader.tag.uidLsbFirst = UID_LSB_FIRST;
   await transport.close();
 });
+
+/* ------------------------------------------------------------------------ */
+/* L1 to L3. The re-check of the same day.                                    */
+/* ------------------------------------------------------------------------ */
+
+test('L1: with the field left up on release, a tag reported protected refuses an Update Binary after finish()', async () => {
+  const reader = new FakeReader(ACR1552U);
+  reader.tag.unpowerDropsField = false;
+  const { transport, session, result } = await protectOnReader(reader);
+  const outcome = await result;
+  assert.equal(outcome.unlockProven, true);
+  await session.finish();
+  await transport.waitForTag(200);
+  const block1 = hex(reader.tag.memory.subarray(4, 8));
+  await assert.rejects(() => transport.writeBlock(1, Uint8Array.from([0xde, 0xad, 0xbe, 0xef])), chipCode('WRITE_FAILED'));
+  assert.equal(hex(reader.tag.memory.subarray(4, 8)), block1, 'block 1 unchanged');
+  assert.equal(reader.tag.presented, false, 'no AREA1 session left open');
+  await transport.close();
+});
+
+for (const [what, fault] of [
+  ['GetRandomNumber gets no answer', (tag: FakeTag) => {
+    let sawB1 = false;
+    tag.tagOverride = (f) => {
+      if (f[1] === B1) sawB1 = true;
+      return sawB1 && f[1] === B4 ? null : tag.datasheetAnswer(f);
+    };
+  }],
+  ['the transmit of PresentPassword fails', (tag: FakeTag) => {
+    let sawB1 = false;
+    tag.exchangeOverride = (frame, normal) => {
+      if (frame[1] === B1) sawB1 = true;
+      if (sawB1 && frame[1] === B3) throw new Error('lost');
+      return normal();
+    };
+  }],
+] as const) {
+  test(`L2: a check after B1 that throws because ${what} is the N1 failure: password unknown, no A1, not LOCKED?`, async () => {
+    const reader = new FakeReader(ACR1552U);
+    fault(reader.tag);
+    const { session, result } = await protectOnReader(reader);
+    await assert.rejects(() => result, chipCode('PROTECT_FAILED', (e) => {
+      assert.ok(e.message.startsWith(N1_MESSAGE), e.message);
+      assert.doesNotMatch(e.message, /irreversible part had begun|LOCKED\?/);
+      assert.equal(e.detail['passwordUnknown'], true);
+      assert.equal(e.detail['areaProtectionSent'], false);
+    }));
+    assert.equal(session.phase, 'failed');
+    assert.equal(count(reader.tag, A1), 0);
+    assert.equal(reader.tag.areaProtection, 0x00);
+  });
+}
+
+test('L3: A1 is counted before its transmit: a transmit that throws after the probe and a presentation, with no B1, counts 1', async () => {
+  const { reader, transport } = await proven();
+  reader.tag.failOn = (apdu) => carriesSt(apdu, A1);
+  await assert.rejects(() => transport.setAreaProtection(1, 'write_protected', 1), () => true);
+  assert.equal(count(reader.tag, B1), 0, 'no WritePassword');
+  assert.equal(irreversibleFrames(reader.tag).length, 1, 'the A1 frame reached the transmit');
+  assert.equal(transport.irreversibleFramesSent, 1);
+  await transport.close();
+});

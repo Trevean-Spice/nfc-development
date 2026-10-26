@@ -1348,7 +1348,14 @@ export class PcscTransport implements TagTransport {
       // session, which stays open after a successful WritePassword (Table 151), and require
       // a plain success before anything else is sent. A fresh GetRandomNumber, so the check
       // does not reuse the random number B1 was coded with.
-      const check = (await this.presentIn(exchange, passwordNumber, password)).answer;
+      // Any throw here, a GetRandomNumber with no usable answer included, is the same
+      // outcome: the new password is not shown to open the tag (review finding L2).
+      let check: TagAnswer;
+      try {
+        check = (await this.presentIn(exchange, passwordNumber, password)).answer;
+      } catch (cause) {
+        return { written, check: null, checkFailure: (cause instanceof Error ? cause.message : String(cause)).replace(/\.$/, '') };
+      }
       if (check.kind === 'ok' && check.data.length === 0) {
         this.presentedPasswords.set(passwordNumber, Uint8Array.from(password));
         this.area1Opens = Uint8Array.from(password);
@@ -1356,6 +1363,7 @@ export class PcscTransport implements TagTransport {
       return { written, check };
     });
     const { written, check } = result;
+    const checkFailure = 'checkFailure' in result ? result.checkFailure : undefined;
     if (written.kind !== 'ok' || written.data.length !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
@@ -1367,7 +1375,7 @@ export class PcscTransport implements TagTransport {
     if (check === null || check.kind !== 'ok' || check.data.length !== 0) {
       throw new ChipError(
         'PROTECT_FAILED',
-        `WritePassword was accepted but the new password does not open the tag. Area protection was NOT applied; the tag is still writable; its password 1 is unknown. PresentPassword with the new password, straight after WritePassword, got ${check === null ? 'nothing' : describeAnswer(check, 0)}.`,
+        `WritePassword was accepted but the new password does not open the tag. Area protection was NOT applied; the tag is still writable; its password 1 is unknown. PresentPassword with the new password, straight after WritePassword, ${checkFailure !== undefined ? `failed: ${checkFailure}` : `got ${check === null ? 'nothing' : describeAnswer(check, 0)}`}.`,
         'STOP, and stop the batch. Do not protect, ship or retry this tag: label it "PASSWORD UNKNOWN, NOT PROTECTED". It still reads and its URL is right, but no one holds its password 1. This means the tool, the reader or the part codes WritePassword differently from the PresentPassword the probe proved, so it would happen again on every tag. Copy this whole message into the bring up notes and report it the same day.',
         { passwordNumber, passwordUnknown: true, areaProtectionSent: false },
       );
@@ -1533,8 +1541,9 @@ export class PcscTransport implements TagTransport {
    * (factory default only) nor the refusal proof can show.
    *
    * Like the refusal proof it is not gated, for the same reason, and it checks the UID the
-   * same way before sending anything. It leaves the AREA1 security session open until the
-   * tag leaves the field.
+   * same way before sending anything. After a successful write it cycles the RF field in a
+   * session of its own, so the tag is left with every security session closed and does not
+   * rely on the reader dropping the field on release (review finding L1).
    */
   async proveWriteUnlocked(block: number, data: Uint8Array, passwordNumber: number, password: Uint8Array, expectedUid: string | null): Promise<void> {
     assertPasswordLength(password);
@@ -1563,6 +1572,7 @@ export class PcscTransport implements TagTransport {
         { block, passwordNumber },
       );
     }
+    await this.inSession('close the unlock session', async () => undefined, { rfCycle: true });
   }
 
   /**
