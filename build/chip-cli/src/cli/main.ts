@@ -25,6 +25,7 @@ import type { TagTransport } from '../transport/transport.js';
 import { fromHex } from '../util/hex.js';
 import { runBatch, type BatchEvent } from '../workflow/batch.js';
 import { readJournal, resumeState } from '../workflow/journal.js';
+import { DEFAULT_PORTS as TAG_TOOL_PORTS, probeExisting } from '../app/server.js';
 import { UnitSession, planEncoding } from '../workflow/unit.js';
 import { compactRanges, renderBatchSummary, renderEncoding, renderError, resumeCommand, rule } from './render.js';
 
@@ -223,6 +224,28 @@ function loadPasswords(values: Record<string, unknown>): Passwords {
   return { current: current.password, next: loaded.password, origin: loaded.origin };
 }
 
+/**
+ * The Tag Tool and chip-cli can both open the reader at once: PC/SC connects in
+ * shared mode and nothing in either program stops the other. A Tag Tool polling in
+ * the middle of a protection sequence would reset the tag under it. So protection on
+ * a real reader is refused while a Tag Tool answers on this computer: before the
+ * reader is opened, and again just before the protect step, which is the one that
+ * matters, since the Tag Tool may have been started while the tag was being written.
+ *
+ * The ports are probed together, so one check costs one probe timeout at most.
+ */
+async function refuseWhileTagToolRuns(ports: readonly number[], nothingDone: string): Promise<void> {
+  const answers = await Promise.all(ports.map((port) => probeExisting(port)));
+  const port = ports.find((_, i) => answers[i]);
+  if (port === undefined) return;
+  throw new ChipError(
+    'USAGE',
+    `Close the Tag Tool first: both programs can open the reader at the same time and nothing stops them. A Tag Tool is running at http://127.0.0.1:${port}/.`,
+    `Close the Tag Tool's black window, then run this command again. ${nothingDone}`,
+    { port },
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Commands                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -297,6 +320,7 @@ async function commandWrite(
   values: Record<string, unknown>,
   out: (line: string) => void,
   pcsc?: PcscTransportOptions,
+  tagToolPorts: readonly number[] = TAG_TOOL_PORTS,
 ): Promise<number> {
   const table = loadTable(values);
   const code = str(values, 'code');
@@ -319,6 +343,8 @@ async function commandWrite(
 
   const transport = buildTransport(values, pcsc);
   const passwords = protect ? loadPasswords(values) : null;
+  const guardReader = passwords !== null && transport.isHardware;
+  if (guardReader) await refuseWhileTagToolRuns(tagToolPorts, 'Nothing was sent to the tag.');
 
   await transport.open();
   try {
@@ -339,6 +365,9 @@ async function commandWrite(
     const receipt = await session.verify();
     out(`Verified         ${receipt.decodedUri}`);
     if (passwords !== null) {
+      if (guardReader) {
+        await refuseWhileTagToolRuns(tagToolPorts, 'The tag is written and verified but not protected. Run the same command again to protect it.');
+      }
       const outcome = await session.protect(receipt, { currentPassword: passwords.current, newPassword: passwords.next });
       out(`Protected        area ${outcome.area}, password ${outcome.passwordNumber}, fingerprint ${outcome.passwordFingerprint}`);
       out(`                 refusal proven: ${outcome.refusalProven ? 'yes' : 'no'}`);
@@ -405,6 +434,7 @@ async function commandBatch(
   values: Record<string, unknown>,
   out: (line: string) => void,
   pcsc?: PcscTransportOptions,
+  tagToolPorts: readonly number[] = TAG_TOOL_PORTS,
 ): Promise<number> {
   const table = loadTable(values);
   const code = str(values, 'code');
@@ -430,6 +460,19 @@ async function commandBatch(
   const interactive =
     bool(values, 'prompt') || (!bool(values, 'no-prompt') && transport.isHardware && process.stdin.isTTY === true);
   const readline = interactive ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  // Checked before the reader is opened and again before every unit, after the
+  // operator presses Enter, ahead of that unit's protect step. A refusal stops the run
+  // with the unit not attempted, so rerunning the same command resumes it.
+  const guardReader = passwords !== null && !dryRun && transport.isHardware;
+  const beforeUnit =
+    readline !== null || guardReader
+      ? async (seq: number, total: number): Promise<void> => {
+          if (readline !== null) await readline.question(`Present tag ${seq} of ${total}, then press Enter. `);
+          if (guardReader) {
+            await refuseWhileTagToolRuns(tagToolPorts, 'This unit was not attempted. Rerun the same command to resume the batch.');
+          }
+        }
+      : undefined;
 
   let stopRequested = false;
   const onSignal = (): void => {
@@ -441,6 +484,7 @@ async function commandBatch(
   process.on('SIGINT', onSignal);
 
   try {
+    if (guardReader) await refuseWhileTagToolRuns(tagToolPorts, 'Nothing was sent to a tag.');
     const summary = await runBatch({
       table,
       code,
@@ -459,11 +503,7 @@ async function commandBatch(
       toolVersion: TOOL_VERSION,
       ...(str(values, 'operator') !== undefined ? { operator: str(values, 'operator') as string } : {}),
       shouldStop: () => stopRequested,
-      beforeUnit: readline
-        ? async (seq, total) => {
-            await readline.question(`Present tag ${seq} of ${total}, then press Enter. `);
-          }
-        : undefined,
+      beforeUnit,
       onEvent: (event) => reportBatchEvent(event, out),
     });
 
@@ -698,6 +738,8 @@ export interface MainOptions {
   readonly err?: (line: string) => void;
   /** For tests: how --transport reader reaches PC/SC. Defaults to pcsc-mini. */
   readonly pcsc?: PcscTransportOptions;
+  /** For tests: where --protect looks for a running Tag Tool. Defaults to the Tag Tool's own ports. */
+  readonly tagToolPorts?: readonly number[];
 }
 
 export async function main(argv: string[], io: MainOptions = {}): Promise<number> {
@@ -725,11 +767,11 @@ export async function main(argv: string[], io: MainOptions = {}): Promise<number
       case 'decode':
         return commandDecode(values, out);
       case 'write':
-        return await commandWrite(values, out, io.pcsc);
+        return await commandWrite(values, out, io.pcsc, io.tagToolPorts);
       case 'verify':
         return await commandVerify(values, out, io.pcsc);
       case 'batch':
-        return await commandBatch(values, out, io.pcsc);
+        return await commandBatch(values, out, io.pcsc, io.tagToolPorts);
       case 'status':
         return commandStatus(values, out);
       case 'doctor':

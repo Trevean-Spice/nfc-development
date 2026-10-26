@@ -235,7 +235,7 @@ The three reads of the tag image (at verify, immediately before protection, and 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 449 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 457 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 

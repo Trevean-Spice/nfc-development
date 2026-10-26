@@ -15,7 +15,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +39,7 @@ import { main } from '../src/cli/main.js';
 import { isChipError } from '../src/chip/errors.js';
 import { PART } from '../src/chip/st25tv02kc.js';
 import { ST_COMMANDS } from '../src/chip/st-custom.js';
+import { readJournal } from '../src/workflow/journal.js';
 import { UnitSession } from '../src/workflow/unit.js';
 import { ACR1552U, FakeBinding, FakeReader, FakeTag, OK, carriesSt, hex, pcscError } from './fake-acr1552u.js';
 
@@ -525,6 +528,168 @@ test('write --transport reader that meets a mute tag prints the case, the state 
   assert.match(result.out, /FAILED {2}TAG_ABSENT/);
   assert.match(result.out, /Case TAG_MUTE\. .*UnresponsiveCard.* Reader "ACS ACR1552 1S CL Reader PICC 0", state 0x00000220 PRESENT\|MUTE\./);
   assert.deepEqual(reader.tag.sent, []);
+});
+
+/* ------------------------------------------------------------------------ */
+/* --protect and a running Tag Tool. Both can open the reader in shared mode. */
+/* Servers here listen on 10375 and 10376.                                    */
+/* ------------------------------------------------------------------------ */
+
+/** Answers /api/ping the way the Tag Tool does, once `running` is true. Before that it is some other program. */
+async function fakeTagTool(port: number, running: boolean): Promise<{ server: Server; set: (on: boolean) => void }> {
+  let on = running;
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(on ? { app: 'trevean-tag-tool', version: 'test' } : { app: 'something-else' }));
+  });
+  await new Promise<void>((r) => server.listen({ host: '127.0.0.1', port }, () => r()));
+  return { server, set: (value) => (on = value) };
+}
+
+const closeServer = (server: Server) => new Promise<void>((r) => server.close(() => r()));
+const ST_COMMAND_BYTES = Object.values(ST_COMMANDS).map((c) => c.code);
+const carriesAnySt = (apdus: string[]) => apdus.filter((a) => ST_COMMAND_BYTES.some((code) => carriesSt(a, code)));
+
+async function withPassword<T>(run: () => Promise<T>): Promise<T> {
+  const previous = process.env['TEST_TAG_TOOL_GUARD_PASSWORD'];
+  process.env['TEST_TAG_TOOL_GUARD_PASSWORD'] = 'a1b2c3d4e5f60718';
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env['TEST_TAG_TOOL_GUARD_PASSWORD'];
+    else process.env['TEST_TAG_TOOL_GUARD_PASSWORD'] = previous;
+  }
+}
+
+const PROTECT = ['--transport', 'reader', '--protect', '--password-env', 'TEST_TAG_TOOL_GUARD_PASSWORD', '--tag-timeout-ms', '200'];
+
+test('write and batch --protect on a reader refuse to start while a Tag Tool is running, before anything reaches the reader', async () => {
+  const tagTool = await fakeTagTool(10375, true);
+  const journalDir = mkdtempSync(join(tmpdir(), 'chip-cli-guard-'));
+  const journal = join(journalDir, 'ps.jsonl');
+  try {
+    await withPassword(async () => {
+      for (const args of [
+        ['write', '--code', 'ps', ...PROTECT],
+        ['batch', '--code', 'ps', '--count', '1', '--journal', journal, '--no-prompt', ...PROTECT],
+      ]) {
+        const reader = new FakeReader(ACR1552U);
+        const out: string[] = [];
+        const binding = new FakeBinding([reader]);
+        const code = await main(args, {
+          out: (line) => out.push(line),
+          err: (line) => out.push(line),
+          pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+          tagToolPorts: [10376, 10375],
+        });
+        const text = out.join('\n');
+        assert.equal(code, 1, `${args[0]}: ${text}`);
+        assert.match(text, /FAILED {2}USAGE/);
+        assert.match(text, /Close the Tag Tool first: both programs can open the reader at the same time and nothing stops them\./);
+        assert.match(text, /http:\/\/127\.0\.0\.1:10375\//);
+        assert.deepEqual(reader.tag.sent, [], `${args[0]}: nothing reaches the reader`);
+      }
+    });
+    assert.equal(existsSync(journal), false, 'the batch stopped before its journal was started');
+  } finally {
+    await closeServer(tagTool.server);
+    rmSync(journalDir, { recursive: true, force: true });
+  }
+});
+
+test('write --protect checks again before the protect step, and protects nothing if a Tag Tool started meanwhile', async () => {
+  // Some other program on the port first, so the check before opening the reader passes.
+  const tagTool = await fakeTagTool(10376, false);
+  try {
+    await withPassword(async () => {
+      const reader = new FakeReader(ACR1552U);
+      const binding = new FakeBinding([reader]);
+      const out: string[] = [];
+      let sentBeforeTagTool = -1;
+      const code = await main(['write', '--code', 'ps', ...PROTECT], {
+        out: (line) => {
+          out.push(line);
+          if (line.startsWith('Verified')) {
+            // The Tag Tool is started while the tag is being written.
+            tagTool.set(true);
+            sentBeforeTagTool = reader.tag.sent.length;
+          }
+        },
+        err: (line) => out.push(line),
+        pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+        tagToolPorts: [10376],
+      });
+      const text = out.join('\n');
+      assert.ok(sentBeforeTagTool > 0, `the tag was written and verified first: ${text}`);
+      assert.equal(code, 1, text);
+      assert.match(text, /Close the Tag Tool first/);
+      assert.match(text, /written and verified but not protected/);
+      assert.doesNotMatch(text, /Protected {8}/);
+      assert.deepEqual(carriesAnySt(reader.tag.sent.slice(sentBeforeTagTool)), [], 'not one password or protection command, not even the probe');
+      assert.equal(reader.tag.areaProtection, 0);
+    });
+  } finally {
+    await closeServer(tagTool.server);
+  }
+});
+
+test('batch --protect checks again before each unit, and stops with the next unit not attempted if a Tag Tool started meanwhile', async () => {
+  const tagTool = await fakeTagTool(10376, false);
+  const journalDir = mkdtempSync(join(tmpdir(), 'chip-cli-guard-'));
+  const journal = join(journalDir, 'ps.jsonl');
+  try {
+    await withPassword(async () => {
+      const reader = new FakeReader(ACR1552U);
+      const binding = new FakeBinding([reader]);
+      const out: string[] = [];
+      let sentBeforeTagTool = -1;
+      const code = await main(['batch', '--code', 'ps', '--count', '2', '--journal', journal, '--no-prompt', ...PROTECT], {
+        out: (line) => {
+          out.push(line);
+          if (/^ {5}1 {2}protected /.test(line)) {
+            tagTool.set(true);
+            sentBeforeTagTool = reader.tag.sent.length;
+          }
+        },
+        err: (line) => out.push(line),
+        pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+        tagToolPorts: [10376],
+      });
+      const text = out.join('\n');
+      assert.ok(sentBeforeTagTool > 0, `unit 1 was protected first: ${text}`);
+      assert.equal(code, 1, text);
+      assert.match(text, /Close the Tag Tool first/);
+      assert.match(text, /This unit was not attempted\. Rerun the same command to resume the batch\./);
+      assert.deepEqual(reader.tag.sent.slice(sentBeforeTagTool), [], 'nothing reached the reader for unit 2');
+      const units = readJournal(journal).units;
+      assert.deepEqual(units.map((u) => [u.seq, u.outcome]), [[1, 'protected']]);
+    });
+  } finally {
+    await closeServer(tagTool.server);
+    rmSync(journalDir, { recursive: true, force: true });
+  }
+});
+
+test('write --protect on a reader still protects when nothing on the Tag Tool ports is a Tag Tool', async () => {
+  const other = await fakeTagTool(10376, false);
+  try {
+    await withPassword(async () => {
+      const reader = new FakeReader(ACR1552U);
+      const binding = new FakeBinding([reader]);
+      const out: string[] = [];
+      const code = await main(['write', '--code', 'ps', ...PROTECT], {
+        out: (line) => out.push(line),
+        err: (line) => out.push(line),
+        pcsc: { loadBinding: async () => binding, readerTimeoutMs: 50 },
+        tagToolPorts: [10375, 10376],
+      });
+      const text = out.join('\n');
+      assert.equal(code, 0, text);
+      assert.match(text, /Protected {8}area 1/);
+    });
+  } finally {
+    await closeServer(other.server);
+  }
 });
 
 /* ------------------------------------------------------------------------ */

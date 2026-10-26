@@ -56,6 +56,8 @@ export interface TagToolIo {
   /** Resolves when the tool should shut down. Defaults to Ctrl+C or the window closing. */
   readonly untilStopped?: (server: RunningServer) => Promise<void>;
   readonly openBrowser?: (url: string) => void;
+  /** For tests: the ports tried in place of DEFAULT_PORTS. */
+  readonly ports?: readonly number[];
 }
 
 /** Opens the default browser. Failure is not fatal: the address is printed anyway. */
@@ -90,6 +92,14 @@ function timeStamp(): string {
   return [now.getHours(), now.getMinutes(), now.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
 }
 
+/** The first port before `own` in `ports` with a Tag Tool on it, or null. Every port is asked at once. */
+async function findEarlierCopy(own: number, ports: readonly number[]): Promise<number | null> {
+  const index = ports.indexOf(own);
+  const earlier = index === -1 ? ports : ports.slice(0, index);
+  const answers = await Promise.all(earlier.map((port) => probeExisting(port)));
+  return earlier.find((_, i) => answers[i]) ?? null;
+}
+
 export async function runTagTool(argv: string[], io: TagToolIo = {}): Promise<number> {
   const out = io.out ?? ((line: string) => process.stdout.write(`${line}\n`));
   const err = io.err ?? ((line: string) => process.stderr.write(`${line}\n`));
@@ -122,7 +132,7 @@ export async function runTagTool(argv: string[], io: TagToolIo = {}): Promise<nu
   }
 
   try {
-    let ports: readonly number[] = DEFAULT_PORTS;
+    let ports: readonly number[] = io.ports ?? DEFAULT_PORTS;
     if (typeof values.port === 'string') {
       const port = Number(values.port);
       if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -181,6 +191,26 @@ export async function runTagTool(argv: string[], io: TagToolIo = {}): Promise<nu
     });
 
     const server = await startServer({ controller, bench, ports, allowAnyPort: typeof values.port !== 'string' });
+
+    // Two double clicks close together can both find nothing above and both start, one
+    // port apart, and then both poll the one reader. So, now that this copy holds its
+    // port and before it has touched the reader, it asks every port before its own
+    // once more. The copy on the lowest port always wins: the other finds it here.
+    //
+    // Chosen over a lock file in the journal folder because a held port is let go by
+    // the operating system however the process ends. Closing the black window ends
+    // it without any clean up, so a lock file would be left behind every time, and
+    // telling a stale one from a live one means trusting a process number that
+    // Windows reuses. A lock file would also miss a copy given another --journal-dir.
+    const earlier = await findEarlierCopy(server.port, ports);
+    if (earlier !== null) {
+      await server.close();
+      const url = `http://127.0.0.1:${earlier}/`;
+      out(`The Tag Tool is already running at ${url}`);
+      out('Opening it. You can close this window.');
+      if (values['no-open'] !== true) open(url);
+      return 0;
+    }
     controller.start();
 
     out('');

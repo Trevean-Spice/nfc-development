@@ -31,7 +31,8 @@ Good to know:
 
 - **It never locks a tag** and never asks for a password. Protection is a separate step, in section 4.3.
 - **Every tag is recorded**, written or failed, in the `build\chip-cli\runs\tag-tool` folder: one file per product code each time the Tag Tool is started.
-- **Double clicking it a second time** just brings the page back up. It does not start a second copy.
+- **The count at the foot of the page is tags, not writes:** "N tags written and verified" counts each tag once, however many times it was written, and leaves out a tag whose latest write failed until it is written again. The table under it has a row for every write, failed ones included.
+- **Double clicking it a second time** just brings the page back up. It does not start a second copy, even when both double clicks land together.
 - **If the black window says Node.js is missing,** install it as in section 2, step 2, then double click again. If it stops for any other reason, it stays open and says why: take a photo of it and send it to Serene Labs.
 - **If the page stays on "Waiting for a tag" with a tag on the reader,** or says **"The reader cannot read the tag"**: close GoToTags (including its tray icon), lay the tag flat and centred, printed face towards the reader, and listen for the reader's beep. If that does not help, close the Tag Tool's black window and run `doctor` as in section 4.1 with the tag lying on the reader. Its `tag on the reader` line says present, mute or absent, and that line is what to send.
 
@@ -113,7 +114,7 @@ If a step does not behave as written, that is a finding, not a failure on your p
 
 ## 4. The command line, then the lock session
 
-Run them in this order, from the same `build/chip-cli` folder: 4.1 and 4.2 are the command line, 4.3 is the lock session. Windows uses `bin\chip-cli.mjs`, Mac uses `bin/chip-cli.mjs`; otherwise they are identical. **Close the Tag Tool's black window first**: only one program can drive the reader at a time.
+Run them in this order, from the same `build/chip-cli` folder: 4.1 and 4.2 are the command line, 4.3 is the lock session. Windows uses `bin\chip-cli.mjs`, Mac uses `bin/chip-cli.mjs`; otherwise they are identical. **Close the Tag Tool's black window first**: both programs can open the reader at the same time and nothing in the reader or the computer stops them. Only `--protect` on a real reader checks: while a Tag Tool is running it refuses with "Close the Tag Tool first" and protects nothing. The other commands do not check.
 
 ### 4.1 Doctor
 

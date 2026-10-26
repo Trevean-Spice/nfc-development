@@ -92,6 +92,11 @@ export interface Snapshot {
   /** True when the tag on the reader is the one most recently attempted. */
   readonly tagAlreadyAttempted: boolean;
   readonly auto: { readonly enabled: boolean; readonly code: string | null; readonly blendName: string | null };
+  /**
+   * Tags written and verified this session: distinct UIDs, so a tag written twice
+   * counts once. A tag whose latest write failed is not counted until it is written
+   * and verified again. `recent` has a row for every write.
+   */
   readonly writtenCount: number;
   readonly failedAttempts: number;
   readonly recent: readonly RecentUnit[];
@@ -139,7 +144,6 @@ interface PendingWrite {
   readonly automatic: boolean;
 }
 
-const MAX_RECENT = 25;
 const MAX_NOTICES = 12;
 
 /** A refusal the page should show as it is, with the HTTP status that fits it. */
@@ -189,7 +193,10 @@ export class TagToolController {
   #url: string | null = null;
   #error: PlainError | null = null;
   #auto: { enabled: boolean; code: string | null; blendName: string | null } = { enabled: false, code: null, blendName: null };
-  #writtenCount = 0;
+  /** UIDs whose latest write this session was verified. */
+  readonly #verifiedUids = new Set<string>();
+  /** Verified writes to tags that reported no UID. They cannot be told apart, so each counts. */
+  #verifiedWithoutUid = 0;
   #failedAttempts = 0;
   #recent: RecentUnit[] = [];
   #notices: Notice[] = [];
@@ -286,12 +293,21 @@ export class TagToolController {
       error: this.#error,
       tagAlreadyAttempted: this.#present !== null && this.#present.uid !== null && this.#present.uid === this.#lastAttemptUid,
       auto: { ...this.#auto },
-      writtenCount: this.#writtenCount,
+      writtenCount: this.writtenCount(),
       failedAttempts: this.#failedAttempts,
       recent: [...this.#recent],
       journals: [...this.#journals.values()].map((j) => j.path),
       notices: [...this.#notices],
     };
+  }
+
+  /**
+   * The transport every unit goes through, as the loop holds it: wrapped, so the
+   * password and protection commands are refused. Read by a test, so dropping the
+   * wrapper fails a test rather than going unnoticed.
+   */
+  get transport(): WriteOnlyTransport {
+    return this.#transport;
   }
 
   /**
@@ -584,13 +600,17 @@ export class TagToolController {
       journal.nextSeq += 1;
       journal.attempt = 0;
       journal.verified += 1;
-      this.#writtenCount += 1;
+      if (record.uid === null) this.#verifiedWithoutUid += 1;
+      else this.#verifiedUids.add(record.uid);
       const url = this.decodedUrl(record);
-      this.#log(`Written and verified: ${entry.code} on ${record.uid ?? 'tag'}, reads back ${url}`);
+      const tally = this.tally();
+      this.#log(`Written and verified: ${entry.code} on ${record.uid ?? 'tag'}, reads back ${url}. ${tally}.`);
       this.update({ phase: 'written', uid: record.uid, url, error: null });
-      this.notice('written', `Written: ${entry.code} ${entry.blendName}`, `Verified, reads back ${url}. Take it off and put the next tag on.`);
+      this.notice('written', `Written: ${entry.code} ${entry.blendName}`, `Verified, reads back ${url}. ${tally} this session. Take it off and put the next tag on.`);
     } else {
       journal.failed += 1;
+      // What was verified on this tag before may not be on it now.
+      if (record.uid !== null) this.#verifiedUids.delete(record.uid);
       const error: PlainError = record.error ?? { code: 'WRITE_FAILED', message: 'The write failed.', remedy: 'Set this tag aside.' };
       this.#log(`Failed: ${error.code}: ${error.message}`);
       this.update({ phase: 'error', uid: record.uid ?? this.#uid, url: null, error });
@@ -752,7 +772,16 @@ export class TagToolController {
       url: record.outcome === 'failed' ? null : this.decodedUrl(record),
       error: record.error,
     });
-    if (this.#recent.length > MAX_RECENT) this.#recent.length = MAX_RECENT;
+  }
+
+  private writtenCount(): number {
+    return this.#verifiedUids.size + this.#verifiedWithoutUid;
+  }
+
+  /** "3 tags written and verified", the words the page uses beside the count. */
+  private tally(): string {
+    const n = this.writtenCount();
+    return `${n} ${n === 1 ? 'tag' : 'tags'} written and verified`;
   }
 
   private sleep(ms: number): Promise<void> {

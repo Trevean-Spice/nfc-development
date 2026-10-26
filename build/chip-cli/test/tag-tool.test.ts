@@ -13,7 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
-import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
+import { createServer as createHttpServer, request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { connect, createServer as createNetServer, type Server as NetServer, type Socket } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -418,6 +418,65 @@ test('scripted: a write asked for with no tag, no reader, or while busy is refus
   }
 });
 
+test('the count is of distinct tags written and verified, and the table has a row for every write', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  const { controller } = controllerFor(reader);
+  const writeAndWait = async (code: string, rows: number, phase: 'written' | 'error'): Promise<Snapshot> => {
+    controller.requestWrite(code);
+    return waitFor(controller, `${rows} rows, ${phase}`, (x) => x.recent.length === rows && x.phase === phase);
+  };
+  const lastWritten = (s: Snapshot) => [...s.notices].reverse().find((n) => n.kind === 'written')?.body ?? '';
+  controller.start();
+  try {
+    await waitFor(controller, 'ready', (x) => x.phase === 'waiting-for-tag');
+    reader.tag = 'E002000000000D01';
+    await waitFor(controller, 'tag 1 seen', (x) => x.phase === 'tag-seen');
+
+    let s = await writeAndWait('ps', 1, 'written');
+    assert.equal(s.writtenCount, 1);
+    assert.match(lastWritten(s), /\. 1 tag written and verified this session\. /);
+
+    // The same tag written again, with another code: two writes, still one tag.
+    s = await writeAndWait('nm', 2, 'written');
+    assert.equal(s.writtenCount, 1);
+    assert.match(lastWritten(s), /\. 1 tag written and verified this session\. /);
+
+    reader.tag = 'E002000000000D02';
+    await waitFor(controller, 'tag 2 seen', (x) => x.phase === 'tag-seen' && x.uid === 'E002000000000D02');
+    s = await writeAndWait('ps', 3, 'written');
+    assert.equal(s.writtenCount, 2);
+    assert.match(lastWritten(s), /\. 2 tags written and verified this session\. /);
+
+    // A write to tag 2 that fails, both attempts: what was verified on it may not be there now.
+    reader.failWrites.add('E002000000000D02');
+    s = await writeAndWait('ps', 5, 'error');
+    assert.equal(s.writtenCount, 1);
+    assert.equal(s.failedAttempts, 2);
+    reader.failWrites.clear();
+    s = await writeAndWait('ps', 6, 'written');
+    assert.equal(s.writtenCount, 2);
+
+    // Well past the 25 rows the table used to keep: every write is still there.
+    for (let rows = 7; rows <= 30; rows += 1) s = await writeAndWait('ps', rows, 'written');
+    assert.equal(s.writtenCount, 2);
+    assert.equal(s.recent.length, 30);
+    assert.deepEqual(
+      s.recent.slice(-6).map((u) => [u.uid, u.code, u.outcome]),
+      [
+        ['E002000000000D02', 'ps', 'verified'],
+        ['E002000000000D02', 'ps', 'failed'],
+        ['E002000000000D02', 'ps', 'failed'],
+        ['E002000000000D02', 'ps', 'verified'],
+        ['E002000000000D01', 'nm', 'verified'],
+        ['E002000000000D01', 'ps', 'verified'],
+      ],
+    );
+  } finally {
+    await controller.stop();
+  }
+});
+
 /* -------------------------------------------------------------------------- */
 /* State machine, bench simulator                                              */
 /* -------------------------------------------------------------------------- */
@@ -683,6 +742,44 @@ test('UnitSession.protect through the wrapper stops at the probe, before any pas
   );
   for (const name of PROTECTION_METHODS) assert.equal(reader.calls.includes(name), false, `${name} reached the reader`);
   await guarded.close();
+});
+
+test('the controller holds the reader only through the write only wrapper, and every call goes through it', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  reader.tag = 'E002000000000E01';
+  const { controller } = controllerFor(reader);
+
+  assert.ok(controller.transport instanceof WriteOnlyTransport, 'the controller must wrap the transport it is given');
+  assert.equal(controller.transport.inner, reader);
+  await assert.rejects(controller.transport.presentPassword(1, new Uint8Array(8)), /never locks them/);
+  assert.equal(reader.calls.includes('presentPassword'), false);
+
+  // And the wrapper is the path the loop and UnitSession actually take: every call
+  // that reaches the reader during a write passed through a WriteOnlyTransport first.
+  const passed = ['open', 'close', 'waitForTag', 'readBlocks', 'writeBlock', 'releaseTag', 'completeUnit'] as const;
+  const proto = WriteOnlyTransport.prototype as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  const originals = new Map(passed.map((name) => [name, proto[name]!]));
+  const throughWrapper: string[] = [];
+  for (const name of passed) {
+    const original = originals.get(name)!;
+    proto[name] = function (this: WriteOnlyTransport, ...args: unknown[]) {
+      if (this.inner === reader) throughWrapper.push(name);
+      return original.apply(this, args);
+    };
+  }
+  try {
+    controller.start();
+    await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+    controller.requestWrite('ps');
+    await waitFor(controller, 'written', (x) => x.phase === 'written');
+    await controller.stop();
+  } finally {
+    for (const [name, original] of originals) proto[name] = original;
+  }
+  const reached = reader.calls.filter((c) => (passed as readonly string[]).includes(c));
+  assert.ok(reached.includes('writeBlock'));
+  assert.deepEqual(throughWrapper, reached);
 });
 
 test('no protect path is reachable from the Tag Tool source or its page', () => {
@@ -1023,6 +1120,66 @@ test('starting it twice opens the copy that is running instead of starting anoth
     assert.deepEqual(opened, ['http://127.0.0.1:10373/']);
     assert.match(out.join('\n'), /already running/);
   });
+});
+
+test('two copies started together: the one on the higher port finds the other once it holds its port, and stops before the reader', async () => {
+  // A copy on 10377 that had not answered yet when this one looked, and does by the
+  // time this one has taken 10378: the race between two quick double clicks.
+  let pings = 0;
+  const other = createHttpServer((_req, res) => {
+    pings += 1;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(pings === 1 ? { starting: true } : { app: 'trevean-tag-tool', version: 'test' }));
+  });
+  await new Promise<void>((r) => other.listen({ host: HOST, port: 10377 }, () => r()));
+  try {
+    const out: string[] = [];
+    const opened: string[] = [];
+    const journalDir = scratch();
+    let ran = false;
+    const code = await runTagTool(['--simulator', '--journal-dir', journalDir], {
+      ports: [10377, 10378],
+      out: (l) => out.push(l),
+      err: (l) => out.push(l),
+      openBrowser: (u) => opened.push(u),
+      untilStopped: async () => {
+        ran = true;
+      },
+    });
+    assert.equal(code, 0);
+    assert.equal(ran, false, 'the second copy must not run');
+    assert.deepEqual(opened, ['http://127.0.0.1:10377/'], 'it opens the copy that is running, not its own page');
+    assert.match(out.join('\n'), /already running at http:\/\/127\.0\.0\.1:10377\//);
+    assert.equal(pings, 2, 'asked once before binding and once after');
+    assert.equal(await tryConnect('127.0.0.1', 10378), false, 'and it let its own port go');
+    assert.deepEqual(readdirSync(journalDir), [], 'nothing was written');
+  } finally {
+    await new Promise<void>((r) => other.close(() => r()));
+  }
+});
+
+test('a copy whose earlier ports hold something other than a Tag Tool starts as normal', async () => {
+  const other = createHttpServer((_req, res) => {
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise<void>((r) => other.listen({ host: HOST, port: 10377 }, () => r()));
+  try {
+    let seen: string | null = null;
+    const code = await runTagTool(['--simulator', '--journal-dir', scratch()], {
+      ports: [10377, 10378],
+      out: () => undefined,
+      err: () => undefined,
+      openBrowser: () => undefined,
+      untilStopped: async (server) => {
+        seen = server.url;
+      },
+    });
+    assert.equal(code, 0);
+    assert.equal(seen, 'http://127.0.0.1:10378/');
+  } finally {
+    await new Promise<void>((r) => other.close(() => r()));
+  }
 });
 
 test('runTagTool starts, opens the browser once on its own address, and stops cleanly', async () => {
