@@ -2,7 +2,7 @@
 
 **For the SOW section 7 background IP obligation:** any pre existing library or framework we reuse must be listed explicitly and licensed to Trevean Spice to run and maintain the product indefinitely. The Scope document, "IP and handoff", names the chip encoding tooling and batch workflow among the deliverables this applies to.
 
-**Status: Saturday 22 August 2026, updated Sunday 25 October 2026** for the PC/SC binding in section 3a. Reviewed on every change to `package.json`, and a test in `test/house-style.test.ts` fails if a dependency appears here without being listed below.
+**Status: Saturday 22 August 2026, updated Sunday 25 October 2026** for the PC/SC binding in section 3a, **and Monday 26 October 2026** for the Tag Tool (`src/app/`, standard library only, section 5) and the browser check in section 6. Reviewed on every change to `package.json`, and a test in `test/house-style.test.ts` fails if a dependency appears here without being listed below.
 
 ---
 
@@ -122,6 +122,7 @@ Built into Node.js and covered by the Node.js licence. Not redistributed, not ve
 |---|---|---|
 | Node.js 20 or newer | MIT | Required to run the tool. Nothing from it is redistributed by us |
 | npm | Artistic-2.0 | Bundled with Node.js. Used to install the development dependencies and the optional PC/SC binding, and to invoke scripts |
+| Playwright 1.64.1 and its Chromium build | Apache-2.0 (Playwright), BSD-3-Clause (Chromium) | Used once, by hand, on Monday 26 October 2026, to drive the Tag Tool page in a real browser. Installed in a scratch folder outside this package: **not in `package.json`, not a dependency, not shipped, and not needed to build, test or run the tool** |
 
 ---
 

@@ -1,8 +1,14 @@
 # Setting up chip-cli on Windows or a Mac, with an ACR1552U reader
 
 **For:** whoever sits at the keyboard on the first real reader run. No programming knowledge needed.
-**Written:** Sunday 25 October 2026, for the screen share on Monday 26 October 2026.
-**Goal:** from a computer with nothing installed to `doctor --transport reader` printing `Ready.`, in about ten minutes.
+**Written:** Sunday 25 October 2026, for the screen share on Monday 26 October 2026. **Updated** Monday 26 October 2026 for the build to download on Tuesday 27 October 2026, which brings the Tag Tool, the clearer `TAG_ABSENT` messages and the protection test together.
+**Goal:** from a computer with nothing installed to tags being written, in about ten minutes.
+
+**Three ways in, in this order:**
+
+1. **The easy way: Start Tag Tool** (just below). Double click, type a product code, swap tags. Never locks a tag.
+2. **The command line** (sections 1 to 4.2). The same writing, one command at a time, and `doctor`, which says what the reader sees. Use it when the easy way stops with something you need to understand.
+3. **The lock session** (section 4.3). The protection test, on one SACRIFICIAL tag only. It is the only thing in this document that can lock a tag for good.
 
 ---
 
@@ -27,8 +33,9 @@ Good to know:
 - **Every tag is recorded**, written or failed, in the `build\chip-cli\runs\tag-tool` folder: one file per product code each time the Tag Tool is started.
 - **Double clicking it a second time** just brings the page back up. It does not start a second copy.
 - **If the black window says Node.js is missing,** install it as in section 2, step 2, then double click again. If it stops for any other reason, it stays open and says why: take a photo of it and send it to Serene Labs.
+- **If the page stays on "Waiting for a tag" with a tag on the reader,** or says **"The reader cannot read the tag"**: close GoToTags (including its tray icon), lay the tag flat and centred, printed face towards the reader, and listen for the reader's beep. If that does not help, close the Tag Tool's black window and run `doctor` as in section 4.1 with the tag lying on the reader. Its `tag on the reader` line says present, mute or absent, and that line is what to send.
 
-**Not checked yet, plainly:** the Tag Tool has only been run on Linux, against the simulated reader. It has not been run on Windows, on a Mac, with the ACR1552U, or on a real tag. On the call on Monday 26 October 2026 the reader was found but the tag was not seen; that is being fixed in the reader code, and the Tag Tool needs the same fix before it can see a tag.
+**Not checked yet, plainly:** the Tag Tool has been run on Linux only, against the simulated reader, and driven there in a real browser (Chromium) through every state above. It has not been run on Windows, on a Mac, in Edge, with the ACR1552U, or on a real tag. On the call on Monday 26 October 2026 the reader was found but the tag was not seen. This build names the reason in every such message, and connects to a tag the reader detects but that did not answer; whether that is enough for that tag on that reader is not yet known.
 
 ---
 
@@ -42,6 +49,7 @@ Good to know:
 - **The Windows command for the throwaway password in section 4 is untested.** A fallback is given beside it.
 - **The protection commands now come from the ST25TV02KC datasheet** (DS13304 Rev 7, obtained Sunday 25 October 2026), and none of them has run on a chip.
 - **The tag geometry is fixed in this version** (Monday 26 October 2026): the tool expects the 80 blocks the datasheet gives. Earlier versions expected 64 and stopped at section 4.2 with "Block 64 answered a read". If you see that message, you have an old copy: stop and ask for the current one.
+- **`TAG_ABSENT` now says which case it is** (this version): every such message begins `Case NO_TAG.`, `Case TAG_MUTE.`, `Case CONNECT_FAILED.`, `Case UID_REFUSED.` or `Case READER_GONE.`, and ends with the reader's name and state. A message without `Case` means an old copy. None of this has met the ACR1552U yet.
 
 If a step does not behave as written, that is a finding, not a failure on your part. Write down what it printed.
 
@@ -77,7 +85,7 @@ If a step does not behave as written, that is a finding, not a failure on your p
    ```
    node bin\chip-cli.mjs doctor --transport reader
    ```
-   **Expected:** three lines beginning `ok`, the third reading `physical reader responded: ACS ACR1552 ...`, then `Ready.`
+   **Expected:** four lines beginning `ok`, the third reading `physical reader responded: ACS ACR1552 ...`, the fourth `tag on the reader` (with no tag down it says `absent`), then `Ready.`
 
 ---
 
@@ -99,13 +107,13 @@ If a step does not behave as written, that is a finding, not a failure on your p
    ```
    node bin/chip-cli.mjs doctor --transport reader
    ```
-   **Expected:** three `ok` lines, the third naming the reader (the name typically includes `PICC`), then `Ready.`
+   **Expected:** four `ok` lines, the third naming the reader (the name typically includes `PICC`), the fourth `tag on the reader`, then `Ready.`
 
 ---
 
-## 4. The three commands for the call
+## 4. The command line, then the lock session
 
-Run them in this order, from the same `build/chip-cli` folder. Windows uses `bin\chip-cli.mjs`, Mac uses `bin/chip-cli.mjs`; otherwise they are identical.
+Run them in this order, from the same `build/chip-cli` folder: 4.1 and 4.2 are the command line, 4.3 is the lock session. Windows uses `bin\chip-cli.mjs`, Mac uses `bin/chip-cli.mjs`; otherwise they are identical. **Close the Tag Tool's black window first**: only one program can drive the reader at a time.
 
 ### 4.1 Doctor
 
@@ -113,7 +121,7 @@ Run them in this order, from the same `build/chip-cli` folder. Windows uses `bin
 node bin/chip-cli.mjs doctor --transport reader
 ```
 
-`Ready.` with the reader named. No tag needed.
+`Ready.` with the reader named. No tag needed. With a tag lying on the reader, the `tag on the reader` line says `present` with its UID, or `mute` (the reader detects a tag that does not answer), or `absent`, with the reader's raw state. If the tag goes down after you start doctor, add `--tag-timeout-ms 15000` to give yourself fifteen seconds.
 
 ### 4.2 Write one tag, then tap it with a phone
 
@@ -137,7 +145,7 @@ OK  ps  Persian Sunrise  https://treveanspice.com/t/ps
 
 **Then tap the tag with a real phone** (screen on, unlocked) and confirm the Persian Sunrise page opens. On an iPhone, tap the banner that appears. **This tap is the check that matters**, README section 6.3 step 3. Write down the UID and what the phone did.
 
-### 4.3 Protection test, on the SACRIFICIAL tag only
+### 4.3 The lock session: protection test, on the SACRIFICIAL tag only
 
 **Clear everything NFC from within arm's length of the reader first:** the tag from 4.2, every other tag, contactless bank cards, door badges, and the phone. Put them in another room or at least two metres away. Then put the **SACRIFICIAL** tag on the reader, alone. (The tool now addresses every command to the one tag it selected, so another tag should stay silent. That is unverified on silicon, and a tag locked by mistake cannot be unlocked.)
 

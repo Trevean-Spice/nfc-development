@@ -122,11 +122,25 @@
     post('/api/write', { code: entry.code }).catch(function (e) { showWriteError(e); render(); });
   }
 
+  /**
+   * Why automatic writing cannot be turned on with what is in the code field. A code
+   * that exists but cannot be written (kg) is named as such, not called unknown.
+   */
+  function autoRefusal(text, entry) {
+    if (entry && !entry.encodable) {
+      return { code: 'CODE_NOT_ENCODABLE', message: entry.code + ' (' + entry.blendName + ') is ' + entry.status + ' and cannot be written onto a tag.', remedy: 'Choose a code that can be written, then tick the box.' };
+    }
+    if (String(text || '').trim() === '') {
+      return { code: 'CODE_UNKNOWN', message: 'Choose the product code first.', remedy: 'Type or pick a code, then tick the box.' };
+    }
+    return { code: 'CODE_UNKNOWN', message: '"' + String(text).trim() + '" is not a product code.', remedy: 'Type or pick a code from the list, then tick the box.' };
+  }
+
   function setAuto(enabled) {
     var entry = checkCode();
     if (enabled && entry === null) {
       $('auto').checked = false;
-      showWriteError({ code: 'CODE_UNKNOWN', message: 'Choose the product code first.', remedy: 'Type or pick a code, then tick the box.' });
+      showWriteError(autoRefusal($('code').value, findCode($('code').value)));
       return;
     }
     showWriteError(null);
@@ -267,6 +281,18 @@
     return { reader: reader, title: title, detail: detail, uid: s.uid && s.phase !== 'waiting-for-tag' ? s.uid : null, error: showError ? s.error : null };
   }
 
+  /** The line beside the Write button. With no reader there is no point asking for a tag. */
+  function writeHint(s, writable) {
+    if (s.phase === 'writing') return 'Writing...';
+    if (s.phase === 'starting' || s.phase === 'reader-not-found') return 'Waiting for the reader.';
+    if (!canWrite(s)) return 'Put a tag on the reader first.';
+    return writable ? '' : 'Choose a product code.';
+  }
+
+  function tagsNoun(n) {
+    return n === 1 ? 'tag' : 'tags';
+  }
+
   function render() {
     var s = state;
     if (!s) return;
@@ -304,7 +330,7 @@
     var entry = codes.length ? findCode($('code').value) : null;
     var writable = entry !== null && entry.encodable;
     $('write').disabled = !(canWrite(s) && writable);
-    $('write-hint').textContent = s.phase === 'writing' ? 'Writing...' : !canWrite(s) ? 'Put a tag on the reader first.' : !writable ? 'Choose a product code.' : '';
+    $('write-hint').textContent = writeHint(s, writable);
 
     if (s.simulator) {
       $('sim').style.display = 'block';
@@ -314,6 +340,7 @@
     }
 
     $('count').textContent = String(s.writtenCount);
+    $('count-noun').textContent = tagsNoun(s.writtenCount);
     $('failed-count').textContent = s.failedAttempts ? ', ' + s.failedAttempts + ' failed attempt' + (s.failedAttempts === 1 ? '' : 's') : '';
     var body = $('recent');
     body.textContent = '';
@@ -348,7 +375,7 @@
 
   // Outside a browser (the tests, the text capture) only the wording is wanted.
   if (typeof document === 'undefined') {
-    globalThis.TagToolPage = { describe: describe, plainTitle: plainTitle };
+    globalThis.TagToolPage = { describe: describe, plainTitle: plainTitle, writeHint: writeHint, tagsNoun: tagsNoun, autoRefusal: autoRefusal };
     return;
   }
 

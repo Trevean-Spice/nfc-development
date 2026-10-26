@@ -1090,6 +1090,46 @@ test('the page says each state in plain words', () => {
   assert.match(again.detail, /just failed/);
 });
 
+test('page fixes from the browser run: the count, the reserved code under auto, and the hint with no reader', () => {
+  // Found driving the page in Chromium on Monday 26 October 2026 (worker-dan-report.md).
+  const sandbox: Record<string, unknown> = {};
+  runInNewContext(readFileSync(join(STATIC_DIR, 'page.js'), 'utf8'), sandbox);
+  const page = sandbox.TagToolPage as {
+    tagsNoun: (n: number) => string;
+    writeHint: (s: Record<string, unknown>, writable: boolean) => string;
+    autoRefusal: (text: string, entry: Record<string, unknown> | null) => { code: string; message: string; remedy: string };
+  };
+
+  // "1 tags written and verified" read wrong.
+  assert.equal(page.tagsNoun(0), 'tags');
+  assert.equal(page.tagsNoun(1), 'tag');
+  assert.equal(page.tagsNoun(2), 'tags');
+  const html = readFileSync(join(STATIC_DIR, 'page.html'), 'utf8');
+  assert.match(html, /<strong id="count">0<\/strong> <span id="count-noun">tags<\/span> written and verified/);
+
+  // The empty code field showed a grey "ps" that read as a chosen code while Write stayed grey.
+  const field = /<input id="code"[^>]*>/.exec(html)?.[0] ?? '';
+  assert.ok(field.length > 0);
+  assert.doesNotMatch(field, /placeholder/);
+
+  // Ticking auto with kg said "That is not a product code". kg is one; it is reserved.
+  const kg = { code: 'kg', blendName: 'Kyoto Garden', status: 'reserved', encodable: false };
+  const reserved = page.autoRefusal('kg', kg);
+  assert.equal(reserved.code, 'CODE_NOT_ENCODABLE');
+  assert.equal(reserved.message, 'kg (Kyoto Garden) is reserved and cannot be written onto a tag.');
+  assert.equal(page.autoRefusal('zz', null).code, 'CODE_UNKNOWN');
+  assert.match(page.autoRefusal('zz', null).message, /"zz" is not a product code/);
+  assert.equal(page.autoRefusal('  ', null).message, 'Choose the product code first.');
+
+  // With the reader unplugged the hint said "Put a tag on the reader first."
+  assert.equal(page.writeHint({ phase: 'reader-not-found', uid: null }, true), 'Waiting for the reader.');
+  assert.equal(page.writeHint({ phase: 'starting', uid: null }, true), 'Waiting for the reader.');
+  assert.equal(page.writeHint({ phase: 'waiting-for-tag', uid: null }, true), 'Put a tag on the reader first.');
+  assert.equal(page.writeHint({ phase: 'tag-seen', uid: 'E002000000000001' }, false), 'Choose a product code.');
+  assert.equal(page.writeHint({ phase: 'tag-seen', uid: 'E002000000000001' }, true), '');
+  assert.equal(page.writeHint({ phase: 'writing', uid: 'E002000000000001' }, true), 'Writing...');
+});
+
 /* -------------------------------------------------------------------------- */
 /* House style for the files the house style test does not cover               */
 /* -------------------------------------------------------------------------- */

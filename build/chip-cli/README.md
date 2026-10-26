@@ -15,8 +15,9 @@ What it is underneath, for the engineer:
 
 - `src/app/`: a Node `http` server on **127.0.0.1 only** (the address is a constant, not an option), first free port from 10350 to 10359, live state over server sent events with polling as the fallback. `node bin/tag-tool.mjs --help` for its options; `--simulator` rehearses with no reader and adds buttons to put a tag down, lift it, and unplug the reader.
 - **Each tag goes through the same `UnitSession` select, write and verify path as `chip-cli write` and `batch`, unchanged**, two attempts per tag as the batch does, and is journalled in the batch journal format (section 9) to `runs/tag-tool/`, one file per product code per session.
-- **It never protects a tag.** It has no password or protection control, never calls the protect step, and wraps the transport so the three password and protection commands are refused before they reach the reader. Tests check all three. Protection stays in `chip-cli` (section 5).
-- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does. **It has not been run on Windows, on a Mac, with a physical reader or on a physical tag**; the tests run it against the simulator and a scripted reader.
+- **It never protects a tag.** It has no password or protection control, never calls the protect step, and wraps the transport (`src/app/write-only.ts`) so that every member on the protection path is refused before it reaches the reader: presenting, changing or applying a password, the protection read, the opcode probe, and the two proofs that follow protection. A test lists every `TagTransport` member and which side of that line it is on, and the build fails until a new member is placed. Protection stays in `chip-cli` (section 5).
+- It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does, including the named `TAG_ABSENT` cases and the connect to a mute tag (section 6.8). A reader that is unplugged shows "Reader not found"; a tag the reader sees but cannot read shows "The reader cannot read the tag" with the case.
+- **It has been driven in a real browser** (Chromium, against `--simulator`, Monday 26 October 2026): reader ready, a tag seen with its UID, `ps` written and read back, the next tag, automatic writing on and off, `kg` refused, the reader unplugged and plugged back, and desktop notifications. **It has not been run on Windows, on a Mac, in Edge, with a physical reader or on a physical tag.**
 
 ---
 
@@ -234,7 +235,7 @@ The three reads of the tag image (at verify, immediately before protection, and 
 
 **Read this before anything encoded by this tool goes on a jar for sale.**
 
-This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 388 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
+This tool was built on a machine with no NFC reader and no tags. Everything above the hardware boundary is exercised by 449 automated tests (Monday 26 October 2026) against a software model of the ST25TV02KC and a fake reader that answers the way the ACS manual says the ACR1552U does, with a tag that answers the way the ST25TV02KC datasheet says it does. That is a real and useful thing, and it is not the same as a tag.
 
 ### 6.1 Proven, by tests you can rerun
 
@@ -471,6 +472,31 @@ coded is now checked on the tag itself, by the presentation straight after it an
 unlock proof. Whether another tool, ST's own app for example, reads the sixteen hex
 characters the same way round is not: until that has been tried on a sacrificial tag, a
 password recorded by this tool is only known to work with this tool.
+
+### 6.8 What changed on Monday 26 October 2026: TAG_ABSENT named, the Tag Tool, one build
+
+Three lines of work were merged into this build: the protection path of section 6.7, the
+`TAG_ABSENT` work that followed the first call with the reader, and the Tag Tool.
+
+- **Every `TAG_ABSENT` names its case** (`NO_TAG`, `TAG_MUTE`, `CONNECT_FAILED`,
+  `UID_REFUSED`, `READER_GONE`), the reader, and the raw reader state, and quotes the PC/SC
+  error by name (for example `SharingViolation` when another program holds the reader).
+  Section 7 has the table.
+- **A tag the reader detects but that did not answer activation (PRESENT with MUTE) is
+  connected to once**, after a one second grace. Before, the tool waited out the timeout and
+  called it "no tag". A tag reached this way is selected like any other: the same UID and
+  geometry checks, and **no proof**. The opcode probe still has to run on it, in that
+  connection, before anything irreversible, and any later selection, release or doctor look
+  at the tag wipes the proof. Tests hold each of these.
+- **Doctor reports the tag** on the reader: present, mute or absent, its UID, and the raw
+  state. No tag is still `Ready.`
+- **The Tag Tool** (the easy way, at the top of this README).
+
+**The protection path is byte for byte the one section 6.7 describes.** In
+`src/transport/pcsc.ts` every declaration of the gate, the probe, the sessions, the frames,
+WritePassword, area protection and both proofs is unchanged; the files in `src/chip/` and
+`src/workflow/` are unchanged. Only the shared connect in `waitForTag` changed, plus the
+wording of one transport error.
 
 ---
 
