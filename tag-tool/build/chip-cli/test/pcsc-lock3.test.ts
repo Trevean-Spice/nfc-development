@@ -37,7 +37,7 @@ import { runBatch, type BatchEvent } from '../src/workflow/batch.js';
 import { readJournal } from '../src/workflow/journal.js';
 import { RedirectTable } from '../src/table/redirect-table.js';
 import { renderBatchSummary } from '../src/cli/render.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, OTHER_UID_LSB_FIRST, ST25TV02KC_BLOCKS, UID_LSB_FIRST, carriesSt, frameOf, hex } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, GET_SYSTEM_INFO_APDU, OTHER_UID_LSB_FIRST, ST25TV02KC_BLOCKS, UID_LSB_FIRST, carriesSt, frameOf, hex } from './fake-acr1552u.js';
 
 const B4 = ST_COMMANDS.GET_RANDOM_NUMBER.code;
 const B3 = ST_COMMANDS.PRESENT_PASSWORD.code;
@@ -150,15 +150,17 @@ test('7: a full --protect on an 80 block tag, with the geometry read passing, en
   assert.equal(outcome.refusalProven, true);
   assert.equal(outcome.unlockProven, true);
   assert.equal(outcome.opcodeProbe, 'passed');
-  // The geometry read at selection and again at the reacquire after protection.
+  // The geometry check at selection and again at the reacquire after protection, and never a read past block 79.
+  assert.equal(tag.sent.filter((a) => a === GET_SYSTEM_INFO_APDU).length, 2);
   assert.equal(tag.sent.filter((a) => a === 'ff b0 00 4f 04').length, 2);
-  assert.equal(tag.sent.filter((a) => a === 'ff b0 00 50 04').length, 2);
+  assert.equal(tag.sent.filter((a) => a.startsWith('ff b0 00 50')).length, 0);
+  assert.equal(tag.drops, 0);
   assert.deepEqual(Array.from(tag.memory.subarray(79 * 4)), [0x5a, 0x5a, 0x5a, 0x5a], 'block 79 is never written');
   assert.equal(tag.areaProtection, 0x01);
   assert.equal(hex(tag.password), '0a 1b 2c 3d 4e 5f 60 71');
 });
 
-test('7: after protection block 79 still reads and block 80 is still refused, so the tag is still selected as 80 blocks', async () => {
+test('7: after protection Get System Information still reports 80 blocks and block 79 still reads, so the tag is still selected as 80 blocks', async () => {
   const reader = new FakeReader(ACR1552U);
   const { transport, result } = await protectOnReader(reader);
   await result;
@@ -167,7 +169,7 @@ test('7: after protection block 79 still reads and block 80 is still refused, so
   const again = await openWith(reader);
   const identity = await again.waitForTag(200);
   assert.equal(identity.blockCount, 80, 'RW_PROTECTION_A1 01b is "read always allowed" (Table 11)');
-  assert.deepEqual(reader.tag.sent.slice(-2), ['ff b0 00 4f 04', 'ff b0 00 50 04']);
+  assert.deepEqual(reader.tag.sent.slice(-2), GEOMETRY_APDUS);
   await again.close();
 });
 
@@ -232,14 +234,17 @@ test('7: one path character more, 64 blocks, is already refused at verify', asyn
   await transport.close();
 });
 
-test('7: TruST25 with END_MEM 3Dh fails closed at the geometry read: block 79 cannot be read, nothing is written', async () => {
+test('7: TruST25 with END_MEM 3Dh fails closed at the geometry check: it reports 62 blocks, nothing is read past them and nothing is written', async () => {
   const tag = new FakeTag(0x3d + 1);
   assert.equal(tag.endA1, 0x3d, 'single area on the reduced memory');
   const reader = new FakeReader(ACR1552U, tag);
   const transport = await openWith(reader);
-  await assert.rejects(() => transport.waitForTag(200), chipCode('TAG_NOT_ST25TV02KC', (e) => assert.match(e.message, /Block 79 could not be read/)));
+  await assert.rejects(() => transport.waitForTag(200), chipCode('TAG_NOT_ST25TV02KC', (e) => assert.match(e.message, /reports 62 blocks of 4 bytes.*fewer than 80 blocks/)));
   assert.equal(tag.sent.filter((a) => a.startsWith('ff d6')).length, 0);
-  assert.deepEqual(framesSent(tag), [], 'no ISO 15693 frame at all');
+  assert.equal(tag.sent.filter((a) => a.startsWith('ff b0')).length, 0, 'block 79 is past the end of this tag and is not read');
+  assert.equal(tag.drops, 0);
+  assert.deepEqual(framesSent(tag), [], 'no transparent session frame at all');
+  assert.deepEqual(tag.executed, [[0x02, 0x2b]], 'the tag executed Get System Information and nothing else');
   await transport.close();
 });
 

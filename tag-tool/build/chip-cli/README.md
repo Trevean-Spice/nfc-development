@@ -212,7 +212,7 @@ Applying protection and being told "accepted" is not proof.
 For every protected unit the tool then:
 
 1. reads the protection register back and requires it to say write protected. This happens **before** the tag leaves the field, because on a reader that read is only allowed while the opcode probe still stands on that tag (section 6.4). On this chip the read returns the **stored** value, which "is immediately readable with a ReadConfiguration request", while the tag only **enforces** it "on next RF boot sequence" (DS13304 6.4.17 and Table 10). So a read that says anything else after the command was accepted is reported as "may already be protected", label it LOCKED?,
-2. drops the tag out of the field, so no password is presented any more, and selects it again, which repeats the geometry read (block 79 must read and block 80 must not),
+2. drops the tag out of the field, so no password is presented any more, and selects it again, which repeats the geometry check (Get System Information must report 80 blocks of 4 bytes, and block 79 must read),
 3. checks that the tag in the field is still the one the unit selected, by its UID, then **turns the RF field off for 10 ms and on again** inside the proof's own reader session (ACR1552U manual 5.3.5.3.3 to 5.3.5.3.5), so the tag boots with the new protection in force and no earlier password still applies, then
 4. attempts a write, addressed to that UID, and **requires the tag itself to refuse it because the block is protected**: error 12h, "Write access to requested block is protected and security session is closed" (DS13304 Table 107). A write that merely fails is not enough. The bytes it attempts are the bytes already there,
 5. reads the NDEF back and requires it to still decode to the right URL, because a protected tag no phone can read is a scrap tag that passed every other check. This comes after step 3's field cycle, so it reads the tag with the new protection in force,
@@ -268,7 +268,7 @@ Run `npm test` and read the count. These are properties of the code and they hol
 Not on SO4731 stock, and not on anything destined for a jar.
 
 1. ~~Implement the transport.~~ **DONE for the encode and verify half**, as `src/transport/pcsc.ts`. The optional binding, `pcsc-mini`, is installed by `npm ci`; see `SETUP-WINDOWS-MAC.md`. The protection half is implemented and gated on the probe, and unverified on silicon; see sections 6.4 and 6.5.
-2. `chip-cli doctor --transport reader` on a blank tag. Doctor opens the reader and, if a tag is on it, says whether it is present, mute or absent, with the raw reader state, and reads its UID. It reads nothing else, so confirm the geometry from the `Tag selected ... 80 blocks of 4 bytes` line that step 3 prints. That line appears only after the probe has read block 79 and seen block 80 refused (DS13304 Rev 7, END_MEM 4Fh).
+2. `chip-cli doctor --transport reader` on a blank tag. Doctor opens the reader and, if a tag is on it, says whether it is present, mute or absent, with the raw reader state, and reads its UID. It reads nothing else, so confirm the geometry from the `Tag selected ... 80 blocks of 4 bytes` line that step 3 prints. That line appears only after the tag has reported 80 blocks of 4 bytes in Get System Information and block 79 has read (DS13304 Rev 7, 6.4.13, END_MEM 4Fh).
 3. `chip-cli write --code ps --transport reader` on a blank tag, then tap it with a real phone and confirm the correct blend page opens. That is the check that actually matters, and it is the one people skip.
 4. Repeat with a tag taken from SO4731, to confirm re encoding works on stock as the client has said it does.
 5. Only then, on a sacrificial tag and with a password nobody minds losing, `--protect`. The opcode probe runs inside it, on that tag, before anything irreversible (section 6.4). It must end `refusal proven: yes` and `unlock proven: yes` (section 5.4). Confirm the tag still reads on a phone afterwards.
@@ -446,7 +446,7 @@ written from the same datasheet.
 refused any tag that answered a read of block 64, so it would have refused every genuine
 ST25TV02KC, which has **80 blocks** of 4 bytes, 320 bytes (Figure 5 note 3, Table 13
 END_MEM `4Fh`, features list "Up to 2560 bits (320 bytes) of EEPROM"). It now models 80,
-reads block 79 and requires block 80 to be refused.
+reads block 79 and requires block 80 to be refused. (Replaced on Thursday 29 October 2026, section 6.11.)
 
 **Still open for review:** whether ReadConfiguration of the protection register, which the
 datasheet documents as always readable, may run without the probe (it would answer the
@@ -561,6 +561,41 @@ moment fits the SCARD_E_NO_SMARTCARD on this tool's first command (section 6.9).
 
 **Unchanged:** the protection path and the D66 gate. Not yet run on Windows or the ACR1552U.
 
+### 6.11 What changed on Thursday 29 October 2026: the geometry check asks the tag its size
+
+Dan's run on Windows 11 with the ACR1552U, GoToTags uninstalled: every blank ST25TV02KC was
+`TAG_NOT_READY` at "the geometry check's read of block 80 (FF B0 00 50 04)", reader state
+`EMPTY`, for ever, and the page blamed another program. The UID read and the block 79 read
+had worked. The check read block 80, one past the end, and required it to fail; on this reader
+the tag's answer to that read ("Requested block not available", DS13304 Table 104) does not
+come back as a status word, the reader drops the tag instead, and every retry read block 80
+again.
+
+- **The geometry check no longer reads past the end of the memory.** It sends ISO 15693 Get
+  System Information (2Bh, DS13304 6.4.13), addressed to the tag's UID, and requires the
+  answer to name that UID and report exactly 80 blocks of 4 bytes (END_MEM `4Fh`, block size
+  `03h`). Only then does it read block 79. Any other size is refused before anything is
+  written, a larger part included, and so is a size that cannot be confirmed.
+- **How it reaches the tag.** The ACS ISO 15693 pass through, `FF FB 00 22 09 2B` and the UID
+  (REF-ACR1552U 1.09, 5.3.4.2, which lists "2Bh ... Get System Information Yes"), one APDU and
+  no session. That section names ACR1552U-M firmware 1.03.00 or later, so a reader that
+  gives no usable answer to it is asked again through the transparent session (5.3.5), which
+  is opened and closed around the one frame. Both shapes the manual allows for the pass
+  through's answer, with or without the tag's flags byte, are read strictly.
+- **`readBlocks` refuses a span past block 79** without sending it.
+- **"Another program is reading the tags" needs evidence.** `TAG_NOT_READY` now says how
+  many commands the tag answered in each try before it was lost (`tagAnswered`). A tag that
+  answered the UID read every time was on the reader and not taken first by anything else, so
+  its remedy no longer names GoToTags and the Tag Tool does not raise the banner for it,
+  however often it repeats. A tag lost at the very first command twice in a row still does,
+  as does the reader reporting it in use.
+- **The fake reader in the tests behaves as Dan's did**: a read past the end drops the tag
+  with `SCARD_E_NO_SMARTCARD`, `EMPTY` and the event counter up, and finds it again.
+
+**Unchanged:** the protection path, its bytes and the D66 gate. Not yet run on the ACR1552U:
+which of the two paths the reader takes, and the exact shape of its pass through answer, are
+for Dan's next run to show.
+
 ---
 
 ## 7. If something goes wrong
@@ -570,7 +605,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 | Code | What happened | What to do |
 |---|---|---|
 | `TAG_ABSENT` | No tag could be selected. The message starts with the case: `NO_TAG` (the reader never reported one), `TAG_MUTE` (the reader detects a tag that does not answer activation), `CONNECT_FAILED` (with the PC/SC error, for example `SharingViolation` when another application holds the reader), `UID_REFUSED`, `READER_GONE` or `TAG_NOT_READY` (the reader connected and then found no tag, three times: `SCARD_E_NO_SMARTCARD` and its kind, with the command it was lost at), then the reader name and its raw state | Place the tag centred on the reader and retry the unit. Follow the remedy printed for the case, and send the whole message when reporting it. For `TAG_NOT_READY` the Tag Tool retries by itself; if it never clears, close GoToTags and unplug and replug the reader |
-| `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: block 79 would not read (`fewer than 80 blocks`) or block 80 did (`larger than ST25TV02KC`) | This is not the part. Check which tags you have. Nothing was written |
+| `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: it reports another size in Get System Information (`fewer than 80 blocks`, `larger than ST25TV02KC`, `a different part`), its size `could not be confirmed`, or block 79 would not read | This is not the part, or it could not be shown to be. Check which tags you have. Nothing was written |
 | `TAG_CHANGED` | A different tag came back into the field partway through a unit | Nothing was locked by that step. Set both tags aside, label them, and rerun the unit with one tag on the reader |
 | `WRITE_FAILED` | The tag refused the write, or the write stopped partway | Rewrite the tag. It cannot be carrying a wrong URL: see section 7.1 |
 | `READBACK_FAILED` | The tag stopped responding during the read back | Hold the tag still and retry the unit |

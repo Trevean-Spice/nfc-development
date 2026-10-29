@@ -88,6 +88,14 @@ export const carriesSt = (apdu: string, code: number) => {
 };
 
 /**
+ * The geometry check as it reaches the reader since Thursday 29 October 2026: Get System
+ * Information addressed to UID_LSB_FIRST through the ACS pass through, then a read of block
+ * 79. Nothing past the end of the memory.
+ */
+export const GET_SYSTEM_INFO_APDU = 'ff fb 00 22 09 2b 66 55 44 33 22 11 02 e0';
+export const GEOMETRY_APDUS = [GET_SYSTEM_INFO_APDU, 'ff b0 00 4f 04'];
+
+/**
  * DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC, so 80 blocks. Typed in
  * rather than taken from PART, so the fake tag is the datasheet's and a model that
  * drifts from it fails the probe here as it would on silicon.
@@ -182,6 +190,35 @@ export class FakeTag {
   /** Every RND_NUMBER this tag handed out, in order. */
   readonly randomsIssued: number[] = [];
 
+  /**
+   * What the ACR1552U does with a Read Binary past the end of the memory, as Dan's reader did
+   * on Thursday 29 October 2026: no status word. The tag answers error 10h, "Requested block
+   * not available" (DS13304 Table 104), the reader drops it, the transmit fails with
+   * SCARD_E_NO_SMARTCARD, the reader state goes EMPTY with the event counter up one, and the
+   * reader finds the tag again on its next poll. False gives the `6A 82` a PC/SC part 3
+   * reader might answer instead.
+   */
+  outOfRangeDropsCard = true;
+  /** Out of range reads this tag has been dropped for. */
+  drops = 0;
+  /** True from a drop until the next connect: the connection that lost the tag is dead. */
+  dropped = false;
+  /** Set by the reader the tag lies on, so a drop shows in the reader state. */
+  onDrop: (() => void) | null = null;
+  /**
+   * Whether the reader takes the ISO 15693 pass through, `FF FB` (REF-ACR1552U 1.09, 5.3.4.2),
+   * which needs ACR1552U-M firmware 1.03.00 or later. False answers it as an older firmware
+   * might, with a status word and nothing else.
+   */
+  passThrough = true;
+  /** Whether the pass through hands back the tag's Response_flags byte. The manual says only "Result Data". */
+  passThroughKeepsFlags = true;
+  /** DSFID and AFI, factory 00h (DS13304 Table 5). */
+  dsfid = 0x00;
+  afi = 0x00;
+  /** IC_REF, "08h" (DS13304 Table 82). */
+  icRef = 0x08;
+
   private inSession = false;
   private switchedTo15693 = false;
 
@@ -196,6 +233,7 @@ export class FakeTag {
       transmit: async (apdu) => {
         this.sent.push(hex(apdu));
         if (this.failTransmit) throw new Error('[ RemovedCard ] - Error in native function');
+        if (this.dropped) throw noSmartCard();
         if (this.noCardTransmits > 0 || Date.now() < this.noCardUntil || this.noCardOn?.(hex(apdu)) === true) {
           if (this.noCardTransmits > 0) this.noCardTransmits -= 1;
           throw noSmartCard();
@@ -264,7 +302,13 @@ export class FakeTag {
     if (ins === 0xca) return this.uidAnswer ?? [...this.uidLsbFirst, ...OK];
     if (ins === 0xb0) {
       const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
-      if (block + count > this.blockCount) return [0x6a, 0x82];
+      if (block + count > this.blockCount) {
+        if (!this.outOfRangeDropsCard) return [0x6a, 0x82];
+        this.drops += 1;
+        this.dropped = true;
+        this.onDrop?.();
+        throw noSmartCard();
+      }
       for (let b = block; b < block + count; b += 1) if (this.readProtected(b)) return [0x63, 0x00];
       return [...this.memory.subarray(block * 4, (block + count) * 4), ...OK];
     }
@@ -276,7 +320,27 @@ export class FakeTag {
       return OK;
     }
     if (ins === 0xc2) return this.pcsc2(p2, apdu);
+    if (ins === 0xfb) return this.passThroughAnswer(p2, apdu);
     return [0x6d, 0x00];
+  }
+
+  /**
+   * 5.3.4.2: "FFh FBh 00h Flags [Data Length +1] Command Code Data". Flags 00h has the reader
+   * use 22h and the selected tag's UID itself. The frame goes over the air like a transparent
+   * exchange, so every tag in range hears it. "Error 6X XXh Fail." when nothing comes back.
+   */
+  private passThroughAnswer(flags: number, apdu: Uint8Array): number[] {
+    if (!this.passThrough) return [0x6d, 0x00];
+    const lc = apdu[4] ?? 0;
+    const data = Array.from(apdu.subarray(5, 5 + lc));
+    if (data.length !== lc || lc < 1) return [0x67, 0x00];
+    const [cmd = 0, ...rest] = data;
+    const frame = flags === 0x00 ? [0x22, cmd, ...this.uidLsbFirst, ...rest] : [flags, ...data];
+    const answers = [this, ...this.neighbours].map((t) => t.respond(frame)).filter((a): a is number[] => a !== null);
+    const first = answers[0];
+    if (first === undefined) return [0x64, 0x01];
+    if (!answers.every((a) => hex(Uint8Array.from(a)) === hex(Uint8Array.from(first)))) return [0x6f, 0x00];
+    return [...(this.passThroughKeepsFlags ? first : first.slice(1)), ...OK];
   }
 
   private pcsc2(fn: number, apdu: Uint8Array): number[] {
@@ -410,6 +474,14 @@ export class FakeTag {
       this.memory.set(params, block * 4);
       return [0x00];
     }
+    if (cmd === 0x2b) {
+      // 6.4.13, Tables 132 and 133: no parameters, answer 00h, 0Fh, UID, DSFID, AFI, then
+      // Memory_size LSB first (END_MEM, then 03h), then IC_ref. One byte holds END_MEM, so a
+      // part with more than 256 blocks cannot report itself here: it reports FFh.
+      if (mfg !== undefined) return [0x01, 0x02];
+      const endMem = Math.min(this.blockCount - 1, 0xff);
+      return [0x00, 0x0f, ...this.uidLsbFirst, this.dsfid, this.afi, endMem, PART.blockSizeBytes - 1, this.icRef];
+    }
     if (cmd === undefined || cmd < 0xa0 || cmd > 0xdf) return [0x01, 0x02];
     if (mfg !== 0x02) return [0x01, 0x01];
 
@@ -520,7 +592,24 @@ export class FakeReader implements PcscReaderHandle {
     this.connects += 1;
     this.onConnect?.(this.connects);
     if (this.connectError) throw this.connectError();
+    if ((this.raw & PRESENT) === 0) throw pcscError('NoSmartCard');
+    this.tag.dropped = false;
+    this.tag.onDrop = () => this.drop();
     return this.tag.handle();
+  }
+
+  /** How long the reader takes to find a dropped tag again. */
+  redetectMs = 30;
+  /**
+   * The reader loses the tag, as Dan's did: EMPTY|CHANGED with the event counter in the high
+   * 16 bits up one, and PRESENT again, counter up another, once it has polled the tag back.
+   */
+  drop(): void {
+    const events = (this.raw >>> 16) + 1;
+    this.raw = ((events << 16) | EMPTY | CHANGED) >>> 0;
+    setTimeout(() => {
+      this.raw = (((events + 1) << 16) | PRESENT | CHANGED) >>> 0;
+    }, this.redetectMs);
   }
 }
 
