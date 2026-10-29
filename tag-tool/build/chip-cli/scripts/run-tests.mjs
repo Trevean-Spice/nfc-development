@@ -23,5 +23,7 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const result = spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' });
+// A per-test limit, so a machine that blocks 127.0.0.1 fails the HTTP tests fast instead
+// of hanging on each connect. The whole suite runs in seconds, so a minute is generous.
+const result = spawnSync(process.execPath, ['--test', '--test-timeout=60000', ...files], { stdio: 'inherit' });
 process.exit(result.status ?? 1);
