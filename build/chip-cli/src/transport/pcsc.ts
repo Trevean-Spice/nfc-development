@@ -338,6 +338,8 @@ const CLA_PCSC = 0xff;
 const INS_GET_DATA = 0xca;
 const INS_READ_BINARY = 0xb0;
 const INS_UPDATE_BINARY = 0xd6;
+/** REF-ACR1552U 1.09, 5.3.4.2, "Accessing ISO15693 Tags": `FF FB`. See `passThroughApdu`. */
+const INS_PASS_THROUGH_15693 = 0xfb;
 
 /** Status words. 0x9000 is success; everything else is the card or reader saying no. */
 const SW_OK = 0x9000;
@@ -691,6 +693,103 @@ export function writeSingleBlockFrame(uidMsbFirst: Uint8Array, block: number, da
 }
 
 /**
+ * ISO/IEC 15693-3 Get System Information, which the ST25TV02KC answers with its memory size.
+ *
+ * DS13304 Rev 7, 6.4.13, Table 132: request "00xx00xxb 2Bh 64 bits" (flags, opcode, UID), so
+ * the addressed flags `22h` are allowed. Table 133: the answer is Response_flags `00h`,
+ * Information_flags `0Fh`, the UID, DSFID, AFI, a two byte Memory_size and IC_ref `08h`,
+ * with Memory_size "8-MSB (03h) = Block size in number of Bytes - 1, 8-LSB (END_MEM) = User
+ * memory size in number of Blocks - 1". It goes on the air LSB first, so `4F 03`. Table 134
+ * gives it only two error codes, 02h and 03h, both about the request's format.
+ *
+ * **Why the geometry check uses it (Thursday 29 October 2026).** Until then the check read
+ * block 80, one past the end, and required the read to fail. On Dan's ACR1552U the tag's
+ * answer to that read (error 10h, "Requested block not available", DS13304 Table 104) is
+ * not turned into a status word: the reader drops the tag, the transmit fails with
+ * SCARD_E_NO_SMARTCARD and the state goes EMPTY, so every genuine tag was taken for a tag
+ * that was not ready, and retried for ever. This asks the tag its size instead, and never
+ * reads past the end of its memory.
+ */
+const ISO15693_GET_SYSTEM_INFO = 0x2b;
+
+/** The addressed Get System Information frame: `22 2B` and the UID LSB first. Exported for the tests. */
+export function getSystemInfoFrame(uidMsbFirst: Uint8Array): Uint8Array {
+  return Uint8Array.from([FLAGS_ADDRESSED, ISO15693_GET_SYSTEM_INFO, ...uidOnAir(uidMsbFirst)]);
+}
+
+/**
+ * Wraps a standard ISO 15693 frame in the ACS pass through APDU, REF-ACR1552U 1.09 5.3.4.2:
+ * "FFh FBh 00h Flags [Data Length +1] Command Code Data", Le "--/00h". P2 carries the
+ * request flags and the data field starts at the command code, as in the manual's Example 1,
+ * "FF FB 00 22 09 02 XX XX XX XX XX XX XX XX" for an addressed Stay Quiet. Le is left out,
+ * as in all three of its examples. P2 is never `00h`, which would have the reader choose the
+ * flags and the address, because this tool addresses every frame itself (review finding F1).
+ *
+ * Only for standard commands, which is what 5.3.4.2.2 lists, "2Bh Optional Get System
+ * Information Yes" among them. Never for an ST custom command. Exported for the tests.
+ */
+export function passThroughApdu(frame: Uint8Array): Uint8Array {
+  const [flags = 0, ...command] = frame;
+  if (flags === 0x00 || command.length < 1 || command.length > 0xff || (command[0] ?? 0) >= 0xa0) {
+    throw new Error('The pass through carries one standard ISO 15693 command with its own request flags.');
+  }
+  return Uint8Array.from([CLA_PCSC, INS_PASS_THROUGH_15693, 0x00, flags, command.length, ...command]);
+}
+
+/** What Get System Information says about the tag's memory. */
+export interface SystemInfo {
+  readonly blockCount: number;
+  readonly blockSizeBytes: number;
+  /** IC_ref, `08h` on ST25TVxxxC (DS13304 Table 82), or null when the tag leaves it out. */
+  readonly icRef: number | null;
+}
+
+/**
+ * Reads a Get System Information answer, from Information_flags on (the Response_flags byte
+ * already taken off), strictly. ISO/IEC 15693-3 Information_flags: b1 DSFID, b2 AFI, b3
+ * memory size, b4 IC reference, each field present when its bit is set, b5 to b8 RFU. The
+ * answer must carry the memory size, be exactly as long as its flags say, and name the UID
+ * the frame was addressed to, so an answer from any other tag cannot be read as this one's.
+ * Returns the reason when it is not usable. Exported for the tests.
+ */
+export function parseSystemInfo(data: Uint8Array, uidMsbFirst: Uint8Array): SystemInfo | string {
+  const infoFlags = data[0];
+  if (infoFlags === undefined) return 'an empty answer';
+  if ((infoFlags & 0xf0) !== 0) return `Information_flags 0x${hex2(infoFlags)}, with reserved bits set`;
+  if ((infoFlags & 0x04) === 0) return `Information_flags 0x${hex2(infoFlags)}, with no memory size`;
+  const length = 1 + 8 + (infoFlags & 0x01) + ((infoFlags >> 1) & 0x01) + 2 + ((infoFlags >> 3) & 0x01);
+  if (data.length !== length) return `${data.length} bytes after the response flags, where Information_flags 0x${hex2(infoFlags)} makes it ${length}`;
+  const uid = Uint8Array.from(data.subarray(1, 9)).reverse();
+  if (hex(uid) !== hex(uidMsbFirst)) return `the answer names uid ${hex(uid)}, not the selected ${hex(uidMsbFirst)}`;
+  const at = 9 + (infoFlags & 0x01) + ((infoFlags >> 1) & 0x01);
+  const blocksLess1 = data[at] ?? 0;
+  const sizeByte = data[at + 1] ?? 0;
+  if ((sizeByte & 0xe0) !== 0) return `memory size ${hex2(blocksLess1)} ${hex2(sizeByte)}, with reserved bits set`;
+  return {
+    blockCount: blocksLess1 + 1,
+    blockSizeBytes: (sizeByte & 0x1f) + 1,
+    icRef: (infoFlags & 0x08) !== 0 ? (data[at + 2] ?? 0) : null,
+  };
+}
+
+/**
+ * Reads the pass through's answer to Get System Information. The manual gives the answer
+ * only as "Result Data SW1 SW2" (5.3.4.2), and does not say whether the tag's Response_flags
+ * byte is kept, so both shapes are read, and each is held to the full check in
+ * `parseSystemInfo`: a `00h` first and the rest a valid answer, or a valid answer from
+ * Information_flags on. They cannot be confused, because Information_flags always carries the
+ * memory size bit here and so is never `00h`. Returns the reason when it is not usable, an
+ * error flagged answer included. Exported for the tests.
+ */
+export function parsePassThroughSystemInfo(response: Uint8Array, uidMsbFirst: Uint8Array): SystemInfo | string {
+  if (sw(response) !== SW_OK) return `status word 0x${sw(response).toString(16)}`;
+  const data = body(response);
+  if (data.length === 2 && data[0] === ISO15693_RESPONSE_FLAG_ERROR) return `tag error code 0x${hex2(data[1] ?? 0)}`;
+  if (data[0] === 0x00) return parseSystemInfo(data.subarray(1), uidMsbFirst);
+  return parseSystemInfo(data, uidMsbFirst);
+}
+
+/**
  * Decides whether the Present Password pair of the probe proved the command path. Pure, so
  * every way it can go wrong is tested without a reader. Exported for the tests.
  *
@@ -1011,6 +1110,9 @@ export class PcscTransport implements TagTransport {
   /** WritePassword and WriteConfiguration frames handed to the reader since this transport was made. See `irreversibleFramesSent`. */
   private irreversibleSent = 0;
 
+  /** Commands the connected tag has answered since `waitForTag` last started on it. See TAG_NOT_READY. */
+  private answered = 0;
+
   /** What the last wait for a tag ended on, so a tag arriving between two waits is seen to arrive. Null after open. */
   private lastPresence: TagPresence | null = null;
 
@@ -1151,6 +1253,9 @@ export class PcscTransport implements TagTransport {
     // The reader state saying the card is in use (INUSE) or held exclusively (EXCLUSIVE)
     // before this tool connected to it: another program has it.
     let otherProgram: string | null = null;
+    // The fewest commands the tag answered in any try before it was lost. 0 means it was lost
+    // at the first command, which is what another program reading the tag first looks like.
+    let fewestAnswered = Number.POSITIVE_INFINITY;
     for (let attempt = 1; ; attempt += 1) {
       const seen = await this.awaitTag(reader, timeoutMs);
       if (seen === 'reader-gone') {
@@ -1181,6 +1286,7 @@ export class PcscTransport implements TagTransport {
       }
       this.connected = true;
 
+      this.answered = 0;
       try {
         return await this.identify(reader);
       } catch (err) {
@@ -1190,17 +1296,25 @@ export class PcscTransport implements TagTransport {
         // the reader drop it and find it again, and select it from scratch after a pause.
         const pcscCode = isChipError(err) ? err.detail.pcscCode : undefined;
         if (typeof pcscCode !== 'string' || !TAG_NOT_READY_ERRORS.has(pcscCode)) throw err;
+        fewestAnswered = Math.min(fewestAnswered, this.answered);
         await this.releaseTag('leave');
         if (attempt >= NOT_READY_ATTEMPTS) {
           const step = isChipError(err) && typeof err.detail.step === 'string' ? err.detail.step : 'the first command';
           const why = isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode;
           const elsewhere = otherProgram === null ? '' : ` Before the connect the reader reported the tag in use by another program (${otherProgram}).`;
+          // A tag that answered the UID read in every try was there and not held by anything
+          // else: it was lost later, at a command of this tool's. Sending the operator off to
+          // look for GoToTags then is wrong, as it was on Dan's machine on 29 October 2026.
+          const answeredFirst = otherProgram === null && fewestAnswered > 0;
+          const remedy = answeredFirst
+            ? `The tool tries again by itself. The tag answered ${fewestAnswered === 1 ? 'the first command' : `the first ${fewestAnswered} commands`} in every try and was lost after that, so it was on the reader and not held by another program. Keep the tag flat and still in the centre of the reader. If it never clears, unplug the reader, plug it back in, and send this whole message: it names the command the tag was lost at.`
+            : `The tool tries again by itself. Keep the tag flat and still in the centre of the reader, printed face towards it. If it never becomes ready, another program is most likely reading the tag first. ${OTHER_PROGRAM_REMEDY} Then unplug the reader, plug it back in, and send this whole message if it still happens.`;
           throw this.tagAbsent(
             reader,
             'TAG_NOT_READY',
             `The tag was not ready. The reader connected to it, and then ${step} found no tag: ${why}. Tried ${attempt} times.${elsewhere}`,
-            `The tool tries again by itself. Keep the tag flat and still in the centre of the reader, printed face towards it. If it never becomes ready, another program is most likely reading the tag first. ${OTHER_PROGRAM_REMEDY} Then unplug the reader, plug it back in, and send this whole message if it still happens.`,
-            { pcscCode, step, otherProgram },
+            remedy,
+            { pcscCode, step, otherProgram, tagAnswered: fewestAnswered },
           );
         }
         await new Promise((r) => setTimeout(r, this.notReadyRetryMs * attempt));
@@ -1249,35 +1363,91 @@ export class PcscTransport implements TagTransport {
   }
 
   /**
-   * Establishes the block count by reading, rather than asserting it from the datasheet.
+   * Establishes the block count from the tag, rather than asserting it from the datasheet.
    *
    * README section 6.3 step 2 says to confirm the geometry is 80 blocks of 4 bytes
-   * (DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC). A constant cannot
-   * confirm anything, so this reads block 79, the last the part should have, and then
-   * block 80, one past it, and requires the first to succeed and the second to fail.
-   * **A part that answers both is not the part this tool models**, and writing a 312
-   * byte image to it could run off the end of its area.
+   * (DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC). A constant cannot confirm
+   * anything, so this asks the tag: Get System Information must report exactly 80 blocks of
+   * 4 bytes (see `getSystemInfoFrame`), and then block 79, the last of them, must read.
+   * **A tag that reports any other size is not the part this tool models**, and writing a
+   * 312 byte image to it could run off the end of its area, so it is refused here, before
+   * anything is written.
+   *
+   * Nothing past the end of the memory is ever read. Until Thursday 29 October 2026 this read
+   * block 80 and required it to fail, and on Dan's ACR1552U that read lost the tag every time
+   * (see `getSystemInfoFrame`). The size is asked first for the same reason: block 79 is past
+   * the end of a smaller part.
    */
   private async probeBlockCount(): Promise<number> {
+    const info = await this.readSystemInfo();
+    if (info.blockCount !== PART.blockCount || info.blockSizeBytes !== PART.blockSizeBytes) {
+      const reported = `The tag reports ${info.blockCount} blocks of ${info.blockSizeBytes} bytes in Get System Information, and an ST25TV02KC has ${PART.blockCount} blocks of ${PART.blockSizeBytes} (DS13304 6.4.13, END_MEM 4Fh)`;
+      throw info.blockSizeBytes === PART.blockSizeBytes && info.blockCount > PART.blockCount
+        ? new ChipError(
+            'TAG_NOT_ST25TV02KC',
+            `${reported}, so this tag is larger than ST25TV02KC.`,
+            'This is a bigger ST25 part. It is not what the redirect table and the 312 byte area calculation assume, so it is refused rather than half written. Nothing was written.',
+            { blockCount: info.blockCount, blockSizeBytes: info.blockSizeBytes },
+          )
+        : new ChipError(
+            'TAG_NOT_ST25TV02KC',
+            `${reported}, so this tag ${info.blockSizeBytes === PART.blockSizeBytes ? `has fewer than ${PART.blockCount} blocks` : 'is a different part'}.`,
+            'ST25TV02KC has 80 blocks of 4 bytes (DS13304, END_MEM 4Fh). A smaller part is a different chip, an ST25TV512C has 16, and this tool will not write it. A genuine ST25TV02KC reports 80 unless its TruST25 configuration has reduced END_MEM, which DS13304 section 5.6 says can bring it to 3Dh. Report it with the UID rather than forcing it. Nothing was written.',
+            { blockCount: info.blockCount, blockSizeBytes: info.blockSizeBytes },
+          );
+    }
+
     const last = await this.transmit(readBinaryApdu(PART.blockCount - 1, 1), PART.blockSizeBytes + 2, `the geometry check's read of block ${PART.blockCount - 1}`);
     if (sw(last) !== SW_OK) {
       throw new ChipError(
         'TAG_NOT_ST25TV02KC',
-        `Block ${PART.blockCount - 1} could not be read, so this tag has fewer than ${PART.blockCount} blocks.`,
-        'ST25TV02KC has 80 blocks of 4 bytes (DS13304, END_MEM 4Fh). A smaller part is a different chip, an ST25TV512C has 16, and this tool will not write it. A genuine ST25TV02KC answers here unless its TruST25 configuration has reduced END_MEM, which DS13304 section 5.6 says can bring it to 3Dh. Report it with the UID rather than forcing it.',
-      );
-    }
-
-    const past = await this.transmit(readBinaryApdu(PART.blockCount, 1), PART.blockSizeBytes + 2, `the geometry check's read of block ${PART.blockCount}`);
-    if (sw(past) === SW_OK) {
-      throw new ChipError(
-        'TAG_NOT_ST25TV02KC',
-        `Block ${PART.blockCount} answered a read, so this tag is larger than ST25TV02KC.`,
-        'This is a bigger ST25 part. It is not what the redirect table and the 312 byte area calculation assume, so it is refused rather than half written.',
+        `The tag reports ${PART.blockCount} blocks, and block ${PART.blockCount - 1}, the last of them, could not be read (status 0x${sw(last).toString(16)}).`,
+        'The reader does not reach the whole memory of this tag the way the tool expects, so it is not written. Report this message with the UID. Nothing was written.',
       );
     }
 
     return PART.blockCount;
+  }
+
+  /**
+   * Get System Information from the selected tag, addressed to its UID. Read only.
+   *
+   * First through the ACS pass through (5.3.4.2), one APDU with no session to open or close,
+   * which ACS lists as tested for this command. That needs ACR1552U-M firmware 1.03.00 or
+   * later, so if the reader does not give a usable answer, the same frame is sent through the
+   * transparent session (5.3.5), which the manual gives no firmware condition for. A tag
+   * that is lost on the way (SCARD_E_NO_SMARTCARD and its kind) is thrown as it is, so it is
+   * retried as a tag that was not ready. Any other failure on both paths refuses the tag:
+   * a size that cannot be confirmed is not written to.
+   */
+  private async readSystemInfo(): Promise<SystemInfo> {
+    const uid = uidBytes(this.currentUid ?? '');
+    const frame = getSystemInfoFrame(uid);
+    const step = "the geometry check's Get System Information";
+    const first = parsePassThroughSystemInfo(
+      await this.transmit(passThroughApdu(frame), 32, `${step} through the reader's pass through`),
+      uid,
+    );
+    if (typeof first !== 'string') return first;
+
+    let second: SystemInfo | string;
+    try {
+      const answer = await this.transceive(frame, step);
+      second = answer.kind === 'ok' ? parseSystemInfo(answer.data, uid) : describeAnswer(answer);
+    } catch (err) {
+      if (isChipError(err) && typeof err.detail.pcscCode === 'string') {
+        throw new ChipError(err.code, err.message, err.remedy, { ...err.detail, step: `${step} in a transparent session` });
+      }
+      second = (err instanceof Error ? err.message : String(err)).replace(/\.$/, '');
+    }
+    if (typeof second !== 'string') return second;
+
+    throw new ChipError(
+      'TAG_NOT_ST25TV02KC',
+      `The tag's size could not be confirmed, so it is not written. Get System Information through the reader's pass through got ${first}, and through a transparent session got ${second}.`,
+      'A genuine ST25TV02KC answers Get System Information with its size (DS13304 6.4.13). Nothing was written. Report this whole message with the UID and the reader model, and do not try other tags to make it pass.',
+      { passThrough: first, transparentSession: second },
+    );
   }
 
   /**
@@ -1415,6 +1585,15 @@ export class PcscTransport implements TagTransport {
   }
 
   async readBlocks(firstBlock: number, count: number): Promise<Uint8Array> {
+    if (firstBlock < 0 || firstBlock + count > PART.blockCount) {
+      // Never sent. On the ACR1552U a read past the end of the memory loses the tag rather
+      // than failing with a status word (see `getSystemInfoFrame`).
+      throw new ChipError(
+        'READBACK_FAILED',
+        `Blocks ${firstBlock} to ${firstBlock + count - 1} are not all inside the ${PART.blockCount} block memory, so they were not read.`,
+        'This is a bug in the caller rather than anything to do with the tag. Report it.',
+      );
+    }
     const expected = count * PART.blockSizeBytes;
     const response = await this.transmit(readBinaryApdu(firstBlock, count), expected + 2);
 
@@ -2070,7 +2249,9 @@ export class PcscTransport implements TagTransport {
       throw new ChipError('TRANSPORT_UNAVAILABLE', 'The reader rejected a command: no tag is connected.', 'Reseat the tag. If it repeats, close any other application holding the reader.');
     }
     try {
-      return new Uint8Array(await card.transmit(Uint8Array.from(apdu)));
+      const response = new Uint8Array(await card.transmit(Uint8Array.from(apdu)));
+      this.answered += 1;
+      return response;
     } catch (err) {
       // Whatever happened, the tag that was proven may not be the tag that answers next.
       this.resetProof();

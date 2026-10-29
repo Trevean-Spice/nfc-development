@@ -150,7 +150,7 @@ Verified         https://treveanspice.com/t/ps
 OK  ps  Persian Sunrise  https://treveanspice.com/t/ps
 ```
 
-**80 blocks of 4 bytes is the ST25TV02KC user memory** in STMicroelectronics datasheet DS13304 Rev 7, section 4.2 ("Value of END_MEM is ... 4Fh for ... ST25TV02KC"). The tool proves it on each tag by reading block 79 and requiring block 80 to be refused. Only the blocks the URL needs are written: blocks 1 to 8, block 1 twice, and block 0 (the capability container) only when the tag has none, which is the difference between 9 and 10.
+**80 blocks of 4 bytes is the ST25TV02KC user memory** in STMicroelectronics datasheet DS13304 Rev 7, section 4.2 ("Value of END_MEM is ... 4Fh for ... ST25TV02KC"). The tool proves it on each tag by asking the tag its size (Get System Information, DS13304 6.4.13), which must be 80 blocks of 4 bytes, and then reading block 79. It never reads past block 79: on the ACR1552U that loses the tag. Only the blocks the URL needs are written: blocks 1 to 8, block 1 twice, and block 0 (the capability container) only when the tag has none, which is the difference between 9 and 10.
 
 **Then tap the tag with a real phone** (screen on, unlocked) and confirm the Persian Sunrise page opens. On an iPhone, tap the banner that appears. **This tap is the check that matters**, README section 6.3 step 3. Write down the UID and what the phone did.
 
@@ -191,7 +191,7 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 
 | What it prints | What it means | What to do |
 |---|---|---|
-| `TAG_NOT_ST25TV02KC`, "Block 79 could not be read" or "Block 80 answered a read" | The tag is not the 80 block part the tool expects, or the reader reads blocks differently | **STOP.** The tag is unharmed. Report it with the UID |
+| `TAG_NOT_ST25TV02KC`, "The tag reports ... blocks", "size could not be confirmed" or "block 79 ... could not be read" | The tag is not the 80 block part the tool expects, or the reader did not let the tool ask it | **STOP.** The tag is unharmed. Report it with the UID |
 | `PROTECT_FAILED`, "The reader did not complete ...", "GetRandomNumber before ... got no usable answer" or "PresentPassword got no usable answer" | The ACS session or the ST command path failed | **STOP.** The tag is unharmed |
 | `PASSWORD_REJECTED` | The tag refused the factory password 1 | **STOP.** Do not try any other password |
 | Any other code before `Verified` (`TAG_ABSENT`, `WRITE_FAILED`, `READBACK_...`, `TRANSPORT_UNAVAILABLE`) | Section 4.2's path failed | **STOP.** The tag is unharmed |
@@ -252,10 +252,10 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | doctor: `No PC/SC reader appeared within 10 seconds` | Unplug and replug. Then install the ACS driver (section 2 step 1, section 3 step 1) |
 | doctor names a reader ending `SAM` | Pass the contactless one by name: add `--reader-name PICC` to every command |
 | write: `TAG_ABSENT` | Tag flat and centred, one tag only, then run it again. Close GoToTags. The message names the case and the reader state; with the tag on the reader, `doctor --transport reader` says whether the tag is present, mute or absent and reads its UID |
-| `TAG_ABSENT` with `Case TAG_NOT_READY`, or the Tag Tool page says "Tag not ready, retrying" | The reader connected to the tag and then found no tag (`SCARD_E_NO_SMARTCARD` or similar), three times in a row. Not a reader fault. Keep the tag flat and still in the centre; the Tag Tool retries by itself, and a `write` can simply be run again. If it never clears: close GoToTags, unplug and replug the reader, and send the whole message, which names the command the tag was lost at (`the UID read (FF CA 00 00 00)` or one of the geometry check's reads) |
+| `TAG_ABSENT` with `Case TAG_NOT_READY`, or the Tag Tool page says "Tag not ready, retrying" | The reader connected to the tag and then found no tag (`SCARD_E_NO_SMARTCARD` or similar), three times in a row. Not a reader fault. Keep the tag flat and still in the centre; the Tag Tool retries by itself, and a `write` can simply be run again. If it never clears: close GoToTags, unplug and replug the reader, and send the whole message, which names the command the tag was lost at (`the UID read (FF CA 00 00 00)` or one of the geometry check's commands). If the message says the tag answered the first command in every try, it is not another program: do not look for GoToTags, send the message |
 | The tag's ID gets typed into the box, like `35 49 5E 6D 05 08 02 E0` over and over, Caps Lock turns itself on and off, or the Tag Tool page says "Another program is reading the tags" | GoToTags (or another NFC program) is running and reading every tag. Right click its icon near the clock and choose Exit, or end it in Task Manager (Ctrl+Shift+Esc, Processes, right click, End task). Stop it starting with Windows: Task Manager, Startup apps, right click GoToTags, Disable. Then lift the tag and put it back. Turn Caps Lock off if it was left on |
 | Tag Tool black window: `Reader trouble, reconnecting: The reader rejected a command: NoSmartCard (SCARD_E_NO_SMARTCARD)` several times a second, without stopping | An old copy (afternoon of Monday 26 October 2026). Close it and download the current one. Rebooting does not help |
-| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says `Block 79 could not be read` or `Block 80 answered a read` on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
+| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says the tag reports another size, its size could not be confirmed, or block 79 could not be read, on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
 | write: `WRITE_FAILED` on a tag that should be blank | Report it with the full message. Try one more blank tag |
 | anything else | Every failure prints a code and a line beginning `What to do:`. README section 7 lists them all |
 

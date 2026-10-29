@@ -1080,7 +1080,7 @@ test('F2 and F8 (U1): a different tag after release is TAG_CHANGED, reported LOC
   const { result } = await protectOnReader(reader);
   await assert.rejects(() => result, mayBeLocked('TAG_CHANGED', /A different tag came back into the field/));
   assert.equal(other.sent.filter((a) => a.startsWith('ff c2 00 01')).length, 0, 'no transceived frame reached the second tag');
-  assert.deepEqual(other.executed, []);
+  assert.deepEqual(other.executed, [[0x02, 0x2b]], 'only the geometry check\'s read only Get System Information, addressed to it at its selection');
 });
 
 /* ------------------------------------------------------------------------ */

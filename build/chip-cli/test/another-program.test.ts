@@ -31,7 +31,7 @@ import { STATIC_DIR } from '../src/app/server.js';
 import { isChipError } from '../src/chip/errors.js';
 import { RedirectTable } from '../src/table/redirect-table.js';
 import { OTHER_PROGRAM_REMEDY, PcscTransport, READER_STATE_FLAGS, type PcscTransportOptions } from '../src/transport/pcsc.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, pcscError } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GET_SYSTEM_INFO_APDU, pcscError } from './fake-acr1552u.js';
 
 /** The banner, word for word as asked for. */
 const BANNER =
@@ -226,6 +226,36 @@ test('GoToTags holding every tag: not ready twice in a row is "another program",
     assert.equal(seen.anotherProgram, null);
     assert.equal(pageWords().anotherProgramShowing(seen as unknown as Record<string, unknown>, null, 0), false);
   } finally {
+    await controller.stop();
+  }
+});
+
+test('Dan, 29 October 2026: a tag lost every time after it answered the UID read is retried, and never called another program', async () => {
+  // GoToTags uninstalled, rebooted twice, and the banner still sent him back to it: the tag
+  // answered the UID read in every try and was lost at a later command of this tool's.
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  reader.tag.noCardOn = (apdu) => apdu === GET_SYSTEM_INFO_APDU;
+  const { controller, lines } = tagTool(reader);
+  const flagged: (string | null)[] = [];
+  const stop = controller.subscribe((x) => flagged.push(x.anotherProgram));
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    await waitFor(controller, 'three not ready rounds', () => lines.filter((l) => l.startsWith('Tag not ready')).length >= 3);
+    const s = controller.snapshot();
+    assert.equal(s.phase, 'tag-not-ready');
+    assert.equal(s.anotherProgram, null);
+    assert.ok(flagged.every((x) => x === null), 'never flagged on the way');
+    assert.equal(lines.filter((l) => l.startsWith('Another program')).length, 0);
+    assert.equal(pageWords().describe(s as unknown as Record<string, unknown>).title, 'Tag not ready, retrying', 'not "Another program is reading the tags"');
+    assert.doesNotMatch(s.error?.remedy ?? '', /GoToTags/);
+    assert.match(s.error?.remedy ?? '', /not held by another program/);
+    // The cause goes: the tag is seen at once.
+    reader.tag.noCardOn = null;
+    await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+  } finally {
+    stop();
     await controller.stop();
   }
 });

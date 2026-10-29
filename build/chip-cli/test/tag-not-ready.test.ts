@@ -35,7 +35,7 @@ import { unwrapNdefTlv } from '../src/ndef/tlv.js';
 import { RedirectTable } from '../src/table/redirect-table.js';
 import { PcscTransport, type PcscTransportOptions } from '../src/transport/pcsc.js';
 import { UnitSession } from '../src/workflow/unit.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, pcscError } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, GET_SYSTEM_INFO_APDU, pcscError } from './fake-acr1552u.js';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -101,7 +101,7 @@ test('NoSmartCard on the first transmit after a connect is retried, and the tag 
   const identity = await transport.waitForTag(200);
   assert.equal(identity.uid, 'e002112233445566');
   assert.equal(reader.connects, 2, 'the dead connection is dropped and a new one made');
-  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff ca 00 00 00', 'ff b0 00 4f 04', 'ff b0 00 50 04']);
+  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff ca 00 00 00', ...GEOMETRY_APDUS]);
   assert.equal(reader.tag.leaves, 1, 'let go of without powering the tag down');
   assert.equal(reader.tag.disconnects, 0, 'never SCARD_UNPOWER_CARD on a tag that is not ready');
   await transport.close();
@@ -128,17 +128,50 @@ test('a tag that is never ready is TAG_ABSENT, case TAG_NOT_READY, naming the co
   await transport.close();
 });
 
-test('a tag lost at the geometry check names that read, so a field report says which command it was', async () => {
+test('a tag lost at the geometry check names that command, so a field report says which it was', async () => {
   const reader = new FakeReader(ACR1552U);
-  reader.tag.noCardOn = (apdu) => apdu === 'ff b0 00 50 04';
+  reader.tag.noCardOn = (apdu) => apdu === GET_SYSTEM_INFO_APDU;
   const { transport } = await openWith(reader, { notReadyRetryMs: 10 });
   await assert.rejects(
     () => transport.waitForTag(200),
     rejectsWith('TAG_ABSENT', (e) => {
       assert.equal(e.detail.case, 'TAG_NOT_READY');
-      assert.equal(e.detail.step, "the geometry check's read of block 80 (FF B0 00 50 04)");
+      assert.equal(e.detail.step, "the geometry check's Get System Information through the reader's pass through (FF FB 00 22 09 2B 66 55 44 33 22 11 02 E0)");
+      assert.equal(e.detail.tagAnswered, 1, 'the UID read was answered in every try');
+      assert.doesNotMatch(e.remedy, /GoToTags/, 'a tag that answered the UID read was not taken by another program first');
+      assert.match(e.remedy, /not held by another program/);
     }),
   );
+  await transport.close();
+});
+
+test('a tag lost at the UID read every time still points at another program, with the GoToTags remedy', async () => {
+  const reader = new FakeReader(ACR1552U, notReadyTag());
+  const { transport } = await openWith(reader, { notReadyRetryMs: 10 });
+  await assert.rejects(
+    () => transport.waitForTag(200),
+    rejectsWith('TAG_ABSENT', (e) => {
+      assert.equal(e.detail.tagAnswered, 0);
+      assert.match(e.remedy, /another program is most likely reading the tag first/);
+      assert.match(e.remedy, /GoToTags/);
+    }),
+  );
+  await transport.close();
+});
+
+test('a tag really taken off during the geometry check is still TAG_NOT_READY after three tries, then NO_TAG once the reader reports it gone', async () => {
+  const reader = new FakeReader(ACR1552U);
+  // Lifted off as Get System Information goes out: the transmit finds no card and the reader
+  // reports EMPTY from then on. No reconnect can find it.
+  reader.tag.noCardOn = (apdu) => {
+    if (apdu !== GET_SYSTEM_INFO_APDU) return false;
+    reader.present = false;
+    return true;
+  };
+  const { transport } = await openWith(reader, { notReadyRetryMs: 10 });
+  await assert.rejects(() => transport.waitForTag(120), rejectsWith('TAG_ABSENT', (e) => assert.equal(e.detail.case, 'NO_TAG')));
+  assert.equal(reader.connects, 1, 'not connected again to a tag that is not there');
+  assert.equal(reader.tag.disconnects, 0);
   await transport.close();
 });
 
@@ -317,6 +350,27 @@ test('Dan\'s 14:08:59: a tag that is never ready is "tag not ready, retrying", t
     const connectsBefore = reader.connects;
     await sleep(400);
     assert.ok(reader.connects - connectsBefore <= 6, 'at the cap, one poll of three tries every 0.32 s at most');
+  } finally {
+    await controller.stop();
+  }
+});
+
+test('Dan, 29 October 2026: on an ACR1552U that drops the tag on a read past the end, a blank tag is seen at once and written and verified', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  assert.equal(reader.tag.outOfRangeDropsCard, true);
+  const { controller, lines } = tagTool(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    let s = await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+    assert.equal(s.anotherProgram, null);
+    controller.requestWrite('ps');
+    s = await waitFor(controller, 'written', (x) => x.phase === 'written');
+    assert.equal(decodeUriMessage(unwrapNdefTlv(reader.tag.memory.subarray(CC_BYTES))).uri, 'https://treveanspice.com/t/ps');
+    assert.equal(reader.tag.drops, 0, 'the tag was never dropped');
+    assert.equal(lines.some((l) => l.line.startsWith('Tag not ready')), false);
+    assert.ok(reader.tag.sent.every((apdu) => !apdu.startsWith('ff b0 00 50')), 'block 80 is never read');
   } finally {
     await controller.stop();
   }
