@@ -283,7 +283,12 @@ test('review C3: a mixed run, lost at the first command in one try and later in 
 });
 
 test('review C3: in the Tag Tool, mixed runs twice in a row raise the banner', async () => {
-  const reader = new FakeReader(ACR1552U, mixedTag((n) => n % 2 === 1), false);
+  // Lost at the UID read three times in every four, and at block 79 the fourth. Since
+  // desk-root's ruling trevean#12 a block 79 loss counts as a drop when the same tag answers
+  // its UID within three connects, and a tag that lost only the next UID read each time ends
+  // in SELECTION_LOST (size-check-drop.test.ts). Three lost in a row is the tag another program
+  // reads first, so this one is never confirmed, and stays the banner.
+  const reader = new FakeReader(ACR1552U, mixedTag((n) => n % 4 !== 1), false);
   const { controller } = tagTool(reader);
   controller.start();
   try {

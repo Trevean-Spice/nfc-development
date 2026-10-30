@@ -14,6 +14,11 @@
  * its UID and is lost at any later command of the selection, block 79 included, is asked at
  * most twice more and then ends in one SELECTION_LOST naming the reader and the step.
  *
+ * Desk-root's ruling trevean#12, the same day: a drop counts when the same tag answers its UID
+ * within the next three connects, not only the next one, so a reader that also loses the UID
+ * read after each drop still ends in SELECTION_LOST (review C1); and a pass through that fails
+ * with any error that is not a drop is asked the other way, the same as a refusal (review C2).
+ *
  * Like every fake reader test here, this proves what the tool does with those answers, not
  * that Dan's reader gives them.
  */
@@ -79,6 +84,32 @@ function dropBlock79(tag: FakeTag, times: number): void {
     tag.drop();
   };
 }
+
+const UID_READ = 'ff ca 00 00 00';
+
+/**
+ * Every read of block 79 drops the tag (while `drops.left`, when given), and the reader then
+ * loses the UID read on the next `uidLosses` connects, the tag left in place: review C1, a
+ * reader that also loses the first transmit after it finds the tag again.
+ */
+function dropsThenLosesUid(tag: FakeTag, uidLosses: number, drops = { left: Number.POSITIVE_INFINITY }, onUidLoss?: () => void): void {
+  let uidLossesLeft = 0;
+  tag.noCardOn = (apdu) => {
+    if (apdu === UID_READ) {
+      if (uidLossesLeft === 0) return false;
+      uidLossesLeft -= 1;
+      onUidLoss?.();
+      return true;
+    }
+    if (apdu !== BLOCK_79 || drops.left === 0) return false;
+    drops.left -= 1;
+    uidLossesLeft = uidLosses;
+    tag.drop();
+  };
+}
+
+/** Review C2: SCARD_E_NOT_TRANSACTED, as an older firmware's PC/SC layer may answer an APDU it does not take. */
+const notTransacted = () => Object.assign(new Error('[ Session.TaskTransmit ] Async task error'), { code: 'NotTransacted' });
 
 /* -------------------------------------------------------------------------- */
 /* The transport                                                               */
@@ -359,6 +390,119 @@ test('trevean#10: another tag between two drops of the same tag starts the count
   await transport.close();
 });
 
+test('trevean#12 C1: a reader that loses the UID read straight after every drop still ends in SELECTION_LOST, in the second wait, then nothing past the UID read', async () => {
+  const tag = new FakeTag();
+  dropsThenLosesUid(tag, 1);
+  const reader = new FakeReader(ACR1552U, tag);
+  const transport = await openWith(reader);
+
+  // Dropped at block 79, the UID read lost, then the same tag back: that drop counts.
+  const first = await rejection(transport.waitForTag(200));
+  assert.equal(first.detail.case, 'TAG_NOT_READY');
+  const lost = await rejection(transport.waitForTag(200));
+  assert.equal(lost.detail.case, 'SELECTION_LOST', 'not another not ready round under the GoToTags banner');
+  assert.equal(lost.detail.step, BLOCK_79_STEP);
+  assert.equal(lost.detail.drops, 2);
+  assert.equal(lost.detail.readerName, ACR1552U);
+  assert.doesNotMatch(lost.remedy, /GoToTags/);
+  assert.equal(tag.drops, 2);
+  assert.equal(reader.connects, 5, 'drop, UID lost, drop, then UID lost and the same tag back');
+
+  for (let i = 0; i < 3; i += 1) {
+    await transport.releaseTag('leave');
+    assert.equal((await rejection(transport.waitForTag(200))).detail.case, 'SELECTION_LOST');
+  }
+  assert.equal(block79Reads(tag), 2, 'block 79 not asked again');
+  assert.equal(tag.drops, 2);
+  assert.ok(tag.sent.every((a) => !a.startsWith('ff d6')), 'nothing written');
+  await transport.close();
+});
+
+test('trevean#12 C1: the same tag answering within three connects of a drop confirms it; three UID reads lost after it forget it', async () => {
+  // Two lost: each drop is confirmed on the third connect after it, so it ends in the third wait.
+  const within = new FakeTag();
+  dropsThenLosesUid(within, 2);
+  const near = await openWith(new FakeReader(ACR1552U, within));
+  assert.equal((await rejection(near.waitForTag(200))).detail.case, 'TAG_NOT_READY');
+  assert.equal((await rejection(near.waitForTag(200))).detail.case, 'TAG_NOT_READY');
+  const lost = await rejection(near.waitForTag(200));
+  assert.equal(lost.detail.case, 'SELECTION_LOST');
+  assert.equal(lost.detail.drops, 2);
+  await near.close();
+
+  // Three lost: the tag missed every connect it had to answer in, so it counts as taken off.
+  // Lost at the UID read three times in four, this is the tag another program reads first, and
+  // stays TAG_NOT_READY with the GoToTags remedy.
+  const beyond = new FakeTag();
+  dropsThenLosesUid(beyond, 3);
+  const far = await openWith(new FakeReader(ACR1552U, beyond));
+  for (let wait = 0; wait < 4; wait += 1) {
+    const e = await rejection(far.waitForTag(200));
+    assert.equal(e.detail.case, 'TAG_NOT_READY', `wait ${wait + 1}`);
+    assert.equal(e.detail.tagAnswered, 0);
+  }
+  assert.equal(block79Reads(beyond), 3, 'every fourth connect gets as far as block 79, and none is counted');
+  await far.close();
+});
+
+test('trevean#12 C1: a tag taken off, or another tag answering, while a drop waits through lost UID reads still forgets the drop', async () => {
+  // Taken off: dropped, the UID read lost, and the reader EMPTY until the wait ends. NO_TAG.
+  const tag = new FakeTag();
+  const drops = { left: 1 };
+  const reader = new FakeReader(ACR1552U, tag);
+  let remove = true;
+  dropsThenLosesUid(tag, 1, drops, () => {
+    if (remove) reader.present = false;
+  });
+  const transport = await openWith(reader);
+  assert.equal((await rejection(transport.waitForTag(200))).detail.case, 'NO_TAG');
+  // Put back, and dropped once more the same way: only that drop counts, so it is selected.
+  // Had the first drop been kept, the same tag answering would have made it two, SELECTION_LOST.
+  remove = false;
+  drops.left = 1;
+  reader.present = true;
+  assert.equal((await transport.waitForTag(400)).blockCount, 80);
+  assert.equal(tag.drops, 2);
+  await transport.close();
+
+  // Another tag: dropped, the UID read lost, then another tag answers, and the first comes back.
+  const a = new FakeTag();
+  const b = new FakeTag();
+  b.uidLsbFirst = OTHER_UID_LSB_FIRST;
+  const aDrops = { left: 1 };
+  dropsThenLosesUid(a, 1, aDrops);
+  const swap = new FakeReader(ACR1552U, a);
+  swap.onConnect = (count) => {
+    swap.tag = count === 3 ? b : a;
+  };
+  const other = await openWith(swap);
+  assert.notEqual((await other.waitForTag(200)).uid, 'e002112233445566', 'the other tag, selected');
+  await other.releaseTag('leave');
+  // The first tag back, dropped once more the same way: only that drop counts, so it is selected.
+  aDrops.left = 1;
+  assert.equal((await other.waitForTag(200)).uid, 'e002112233445566');
+  assert.equal(a.drops, 2);
+  assert.equal(swap.connects, 6);
+  await other.close();
+});
+
+test('trevean#12 C2: a pass through that throws an error that is not a drop is asked through the transparent session, at once, for every tag', async () => {
+  const tag = new FakeTag();
+  tag.passThroughThrows = notTransacted;
+  const reader = new FakeReader(ACR1552U, tag);
+  const transport = await openWith(reader);
+  for (let round = 1; round <= 2; round += 1) {
+    const identity = await transport.waitForTag(200);
+    assert.equal(identity.blockCount, 80, `round ${round}`);
+    assert.equal(passThroughAsks(tag), round, 'the pass through is tried, as for a refusal word');
+    assert.equal(transparentAsks(tag), round);
+    await transport.releaseTag('leave');
+  }
+  assert.equal(reader.connects, 2, 'no retry: it is not a lost tag');
+  assert.equal(tag.drops, 0);
+  await transport.close();
+});
+
 /* -------------------------------------------------------------------------- */
 /* The Tag Tool                                                                */
 /* -------------------------------------------------------------------------- */
@@ -534,6 +678,58 @@ test('trevean#10, Tag Tool: one loss at block 79, then the tag reads: seen, writ
     await waitFor(controller, 'written', (x) => x.phase === 'written');
     assert.equal(decodeUriMessage(unwrapNdefTlv(reader.tag.memory.subarray(CC_BYTES))).uri, 'https://treveanspice.com/t/ps');
     assert.equal(reader.tag.drops, 1);
+    assert.equal(lines.some((l) => l.startsWith('Tag on the reader cannot be written')), false);
+  } finally {
+    await controller.stop();
+  }
+});
+
+test('trevean#12 C1, Tag Tool: a reader that loses the UID read straight after every drop: one clear message, no banner, and it stops asking', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  dropsThenLosesUid(reader.tag, 1);
+  const { controller, lines } = tagTool(reader);
+  const flagged: (string | null)[] = [];
+  const stop = controller.subscribe((x) => flagged.push(x.anotherProgram));
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const s = await waitFor(controller, 'the selection message', (x) => x.phase === 'error' && (x.error?.message ?? '').startsWith('Case SELECTION_LOST.'));
+    assert.equal(describe(s).title, 'The reader cannot read the tag');
+    assert.ok(s.error?.message.includes(ACR1552U), 'names the reader');
+    assert.ok(s.error?.message.includes(BLOCK_79_STEP), 'names the step');
+    assert.doesNotMatch(s.error?.remedy ?? '', /GoToTags/);
+    assert.ok(flagged.every((x) => x === null), 'the banner never raised');
+    assert.equal(lines.filter((l) => l.startsWith('Another program')).length, 0);
+
+    const reads = block79Reads(reader.tag);
+    await sleep(400);
+    assert.equal(block79Reads(reader.tag), reads, 'block 79 not asked again');
+    assert.equal(reader.tag.drops, 2);
+    assert.equal(lines.filter((l) => l.startsWith('Tag on the reader cannot be written')).length, 1, 'said once');
+    assert.equal(controller.snapshot().phase, 'error', 'still showing it');
+    assert.ok(reader.tag.sent.every((a) => !a.startsWith('ff d6')), 'nothing written');
+  } finally {
+    stop();
+    await controller.stop();
+  }
+});
+
+test('trevean#12 C2, Tag Tool: an older firmware reader whose pass through throws an error that is not a drop: seen through the transparent session, written and verified', async () => {
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  reader.tag.passThroughThrows = notTransacted;
+  const { controller, lines } = tagTool(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const seen = await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+    assert.equal(seen.anotherProgram, null);
+    assert.equal(transparentAsks(reader.tag), 1, 'its size asked in a transparent session');
+    controller.requestWrite('ps');
+    await waitFor(controller, 'written', (x) => x.phase === 'written');
+    assert.equal(decodeUriMessage(unwrapNdefTlv(reader.tag.memory.subarray(CC_BYTES))).uri, 'https://treveanspice.com/t/ps');
+    assert.equal(reader.tag.drops, 0);
     assert.equal(lines.some((l) => l.startsWith('Tag on the reader cannot be written')), false);
   } finally {
     await controller.stop();

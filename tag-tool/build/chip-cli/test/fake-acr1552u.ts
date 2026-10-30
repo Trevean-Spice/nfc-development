@@ -216,6 +216,12 @@ export class FakeTag {
   /** Replaces the whole answer to a pass through, status word included, when set: a reader that says 90 00 over a body the tool cannot use. */
   passThroughOverride: number[] | null = null;
   /**
+   * Review C2, desk-root's ruling trevean#12, 30 October 2026: when set, every pass through fails
+   * with this error, thrown from the transmit, and the tag stays where it is: an older firmware's
+   * PC/SC layer refusing an APDU it does not know, rather than a status word or a drop.
+   */
+  passThroughThrows: (() => Error) | null = null;
+  /**
    * Review C1, 30 October 2026: a reader that drops the tag on Get System Information the way
    * Dan's dropped it on the read past the end, the transmit failing with SCARD_E_NO_SMARTCARD
    * and the reader going EMPTY and then finding the tag again (see `outOfRangeDropsCard`).
@@ -363,6 +369,7 @@ export class FakeTag {
    * exchange, so every tag in range hears it. "Error 6X XXh Fail." when nothing comes back.
    */
   private passThroughAnswer(flags: number, apdu: Uint8Array): number[] {
+    if (this.passThroughThrows) throw this.passThroughThrows();
     if (!this.passThrough) return [0x6d, 0x00];
     if (this.passThroughOverride) return this.passThroughOverride;
     const lc = apdu[4] ?? 0;

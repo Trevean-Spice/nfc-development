@@ -997,12 +997,23 @@ const SIZE_CHECK_DROPS_TO_GIVE_UP: Readonly<Record<SizeCheckPath, number>> = { '
  * How many times in a row the reader may drop one tag after it answered its UID, at any
  * command of the selection after the UID read, before the tool stops asking that tag and says
  * so once, SELECTION_LOST (desk-root's ruling trevean#10, 30 October 2026). Each drop counts
- * only once the same tag has answered its UID again straight after it. Twice, for the same
+ * only once the same tag has answered its UID again, within SELECTION_LOSS_CONNECTS connects
+ * after it. Twice, for the same
  * reason as the transparent session: one tag lifted off and put back at the wrong moment must
  * not stop the tool. A drop at the pass through is not counted here: it is given up after one,
  * and asked the other way.
  */
 const SELECTION_DROPS_TO_STOP = 2;
+
+/**
+ * How many connects after a tag was lost past its UID read the same tag has to answer its UID
+ * again for the loss to count as a drop (review C1, desk-root's ruling trevean#12, 30 October
+ * 2026). Three, not one: a reader that also loses the UID read on the connect straight after
+ * each drop, as Dan's lost the first transmit after a connect on 26 October, would otherwise
+ * never confirm a drop and retry for ever under the GoToTags banner. A tag that misses its UID
+ * read on all three, or is not there (NO_TAG), or another tag answers, was taken off.
+ */
+const SELECTION_LOSS_CONNECTS = 3;
 
 /** One drop counted towards SELECTION_DROPS_TO_STOP: the command that lost the tag, and the PC/SC error. */
 interface SelectionDrop {
@@ -1164,12 +1175,13 @@ export class PcscTransport implements TagTransport {
   /**
    * A tag lost after it answered its UID, and not yet seen again: its UID, the command that lost
    * it, the PC/SC error, and the size check path when it was lost at Get System Information.
-   * The next UID read decides it. The same UID back is the reader dropping a tag that never
-   * left, and is counted in `selectionDrops`, and in `sizeCheckDrops` for a path. No tag, or
-   * another one, is a tag taken off, and it is forgotten. So is a loss at the UID read itself
-   * on the way back, because then the same tag did not answer straight after the drop.
+   * The next UID read that answers decides it, within SELECTION_LOSS_CONNECTS connects. The same
+   * UID back is the reader dropping a tag that never left, and is counted in `selectionDrops`,
+   * and in `sizeCheckDrops` for a path. No tag, or another one, is a tag taken off, and it is
+   * forgotten. A connect that loses the UID read itself only uses up one of the connects
+   * (`uidReadsLost`): with all of them used up, the loss is forgotten too.
    */
-  private selectionLoss: { uid: string; step: string; pcscError: string; path: SizeCheckPath | null } | null = null;
+  private selectionLoss: { uid: string; step: string; pcscError: string; path: SizeCheckPath | null; uidReadsLost: number } | null = null;
   /**
    * The drops counted against one tag since it was last selected, by UID: see
    * SELECTION_DROPS_TO_STOP. Another UID starts the count again, and so does a selection that
@@ -1371,9 +1383,12 @@ export class PcscTransport implements TagTransport {
         const pcscCode = isChipError(err) ? err.detail.pcscCode : undefined;
         if (typeof pcscCode !== 'string' || !TAG_NOT_READY_ERRORS.has(pcscCode)) throw err;
         fewestAnswered = Math.min(fewestAnswered, this.answered);
-        // Lost at the UID read: an earlier loss is not confirmed by this connection. The count
-        // already made stands. See `selectionLoss`.
-        if (this.answered === 0) this.selectionLoss = null;
+        // Lost at the UID read: an earlier loss is not settled by this connection, and has one
+        // connect fewer left to be. The count already made stands. See `selectionLoss`.
+        if (this.answered === 0 && this.selectionLoss !== null) {
+          const uidReadsLost = this.selectionLoss.uidReadsLost + 1;
+          this.selectionLoss = uidReadsLost >= SELECTION_LOSS_CONNECTS ? null : { ...this.selectionLoss, uidReadsLost };
+        }
         await this.releaseTag('leave');
         if (attempt >= NOT_READY_ATTEMPTS) {
           const step = isChipError(err) && typeof err.detail.step === 'string' ? err.detail.step : 'the first command';
@@ -1502,9 +1517,11 @@ export class PcscTransport implements TagTransport {
    *
    * First through the ACS pass through (5.3.4.2), one APDU with no session to open or close,
    * which ACS lists as tested for this command. That needs ACR1552U-M firmware 1.03.00 or
-   * later, so if the reader does not give a usable answer, the same frame is sent through the
-   * transparent session (5.3.5), which the manual gives no firmware condition for. Any other
-   * failure on both paths refuses the tag: a size that cannot be confirmed is not written to.
+   * later, so if the reader does not give a usable answer, or the pass through fails with any
+   * error that is not the tag lost (an older firmware's PC/SC layer refusing the APDU, review
+   * C2, desk-root's ruling trevean#12), the same frame is sent through the transparent session
+   * (5.3.5), which the manual gives no firmware condition for. Any other failure on both paths
+   * refuses the tag: a size that cannot be confirmed is not written to.
    *
    * **A tag lost on the way** (SCARD_E_NO_SMARTCARD and its kind) is thrown as it is, so the
    * tag is selected again as one that was not ready, and the path it was lost on is noted
@@ -1524,8 +1541,15 @@ export class PcscTransport implements TagTransport {
     if (this.givenUp('pass-through')) {
       first = `no answer, because this reader dropped the tag there before (${this.dropsOn('pass-through')}), so it was not asked that way again`;
     } else {
-      const answer = await this.lostAt('pass-through', () => this.transmit(passThroughApdu(frame), 32, `${step} through the reader's pass through`));
-      first = parsePassThroughSystemInfo(answer, uid);
+      try {
+        const answer = await this.lostAt('pass-through', () => this.transmit(passThroughApdu(frame), 32, `${step} through the reader's pass through`));
+        first = parsePassThroughSystemInfo(answer, uid);
+      } catch (err) {
+        // The tag lost goes on to `noteSelectionLoss`. Anything else is the pass through not
+        // working on this reader, the same as a refusal word: ask the other way.
+        if (isChipError(err) && err.detail.sizeCheckPath === 'pass-through') throw err;
+        first = `the error ${isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : describePcscError(err)}`;
+      }
       if (typeof first !== 'string') return first;
     }
 
@@ -1586,12 +1610,13 @@ export class PcscTransport implements TagTransport {
       step: typeof err.detail.step === 'string' ? err.detail.step : 'a command after the UID read',
       pcscError: typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode,
       path: path === 'pass-through' || path === 'transparent' ? path : null,
+      uidReadsLost: 0,
     };
   }
 
   /**
-   * Called once the tag has answered its UID. Settles a tag lost after its UID read on the last
-   * try: the same tag back means the reader dropped a tag that never left. That counts against
+   * Called once the tag has answered its UID. Settles a tag lost after its UID read on one of the
+   * last SELECTION_LOSS_CONNECTS tries: the same tag back means the reader dropped a tag that never left. That counts against
    * the tag (SELECTION_DROPS_TO_STOP), and against the path on this reader when it was lost at
    * Get System Information (SIZE_CHECK_DROPS_TO_GIVE_UP). Another tag means the first was taken
    * off, and the loss and the count are forgotten. A tag taken off and not put back never gets
