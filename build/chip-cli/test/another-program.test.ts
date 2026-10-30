@@ -28,10 +28,10 @@ import { runInNewContext } from 'node:vm';
 
 import { ANOTHER_PROGRAM_ADVICE, TagToolController, type Snapshot } from '../src/app/controller.js';
 import { STATIC_DIR } from '../src/app/server.js';
-import { isChipError } from '../src/chip/errors.js';
+import { ChipError, isChipError } from '../src/chip/errors.js';
 import { RedirectTable } from '../src/table/redirect-table.js';
 import { OTHER_PROGRAM_REMEDY, PcscTransport, READER_STATE_FLAGS, type PcscTransportOptions } from '../src/transport/pcsc.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, GET_SYSTEM_INFO_APDU, pcscError } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, pcscError } from './fake-acr1552u.js';
 
 /** The banner, word for word as asked for. */
 const BANNER =
@@ -142,8 +142,7 @@ for (const [code, raw, otherProgram] of [
 /* The Tag Tool                                                                */
 /* -------------------------------------------------------------------------- */
 
-function tagTool(reader: FakeReader) {
-  const transport = new PcscTransport(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 });
+function tagTool(reader: FakeReader, transport = new PcscTransport(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 })) {
   const lines: string[] = [];
   const journalDir = mkdtempSync(join(tmpdir(), 'chip-cli-another-program-'));
   scratchDirs.push(journalDir);
@@ -232,9 +231,11 @@ test('GoToTags holding every tag: not ready twice in a row is "another program",
 
 test('Dan, 29 October 2026: a tag lost every time after it answered the UID read is retried, and never called another program', async () => {
   // GoToTags uninstalled, rebooted twice, and the banner still sent him back to it: the tag
-  // answered the UID read in every try and was lost at a later command of this tool's.
+  // answered the UID read in every try and was lost at a later command of this tool's, here
+  // the block 79 read. (A tag lost at Get System Information is asked another way since 30
+  // October 2026: see size-check-drop.test.ts.)
   const reader = new FakeReader(ACR1552U, new FakeTag(), false);
-  reader.tag.noCardOn = (apdu) => apdu === GET_SYSTEM_INFO_APDU;
+  reader.tag.noCardOn = (apdu) => apdu === GEOMETRY_APDUS[1];
   const { controller, lines } = tagTool(reader);
   const flagged: (string | null)[] = [];
   const stop = controller.subscribe((x) => flagged.push(x.anotherProgram));
@@ -256,6 +257,72 @@ test('Dan, 29 October 2026: a tag lost every time after it answered the UID read
     await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
   } finally {
     stop();
+    await controller.stop();
+  }
+});
+
+/** UID reads lost where `lostAt` says (counting from 1), and every read of block 79 lost: a tag lost at the first command in some tries and later in others. */
+function mixedTag(lostAt: (uidRead: number) => boolean): FakeTag {
+  const tag = new FakeTag();
+  let uidReads = 0;
+  tag.noCardOn = (apdu) => {
+    if (apdu === 'ff ca 00 00 00') return lostAt((uidReads += 1));
+    return apdu === GEOMETRY_APDUS[1];
+  };
+  return tag;
+}
+
+test('review C3: a mixed run, lost at the first command in one try and later in the others, counts as lost at the first: fewest 0, the GoToTags remedy', async () => {
+  const reader = new FakeReader(ACR1552U, mixedTag((n) => n === 1));
+  const transport = await openWith(reader);
+  const e = await rejection(transport.waitForTag(200));
+  assert.equal(e.detail.case, 'TAG_NOT_READY');
+  assert.equal(e.detail.tagAnswered, 0, 'the fewest in any try');
+  assert.equal(reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length, 2, 'the other two tries got as far as block 79');
+  namesTheTrayExit(e.remedy);
+  await transport.close();
+});
+
+test('review C3: in the Tag Tool, mixed runs twice in a row raise the banner', async () => {
+  const reader = new FakeReader(ACR1552U, mixedTag((n) => n % 2 === 1), false);
+  const { controller } = tagTool(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const s = await waitFor(controller, 'another program', (x) => x.anotherProgram !== null);
+    assert.equal(s.anotherProgram, 'The tag was not ready 2 times in a row, each after three tries.');
+    assert.equal(pageWords().describe(s as unknown as Record<string, unknown>).title, 'Another program is reading the tags');
+  } finally {
+    await controller.stop();
+  }
+});
+
+/** A transport whose TAG_NOT_READY does not say how many commands the tag answered, as one before 29 October 2026 did not. */
+class SaysNothingAnswered extends PcscTransport {
+  override async waitForTag(timeoutMs: number) {
+    try {
+      return await super.waitForTag(timeoutMs);
+    } catch (error) {
+      if (!isChipError(error) || !('tagAnswered' in error.detail)) throw error;
+      const { tagAnswered: _dropped, ...detail } = error.detail;
+      throw new ChipError(error.code, error.message, error.remedy, detail);
+    }
+  }
+}
+
+test('review C3: a not ready error that does not say how many commands the tag answered is taken as lost at the first, and raises the banner', async () => {
+  // The tag answers the UID read and Get System Information every time: with tagAnswered this is never the banner.
+  const reader = new FakeReader(ACR1552U, mixedTag(() => false), false);
+  const transport = new SaysNothingAnswered(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 });
+  const { controller } = tagTool(reader, transport);
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const s = await waitFor(controller, 'another program', (x) => x.anotherProgram !== null);
+    assert.equal(s.anotherProgram, 'The tag was not ready 2 times in a row, each after three tries.');
+  } finally {
     await controller.stop();
   }
 });

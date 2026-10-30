@@ -75,6 +75,30 @@ test('Get System Information is the addressed 2Bh of DS13304 Table 132, in the A
   assert.throws(() => passThroughApdu(Uint8Array.from([0x22, 0xb3, 0x02])), 'never an ST custom command');
 });
 
+test('the pass through is an allowlist of Get System Information alone: write, lock and every other code are refused (review C2)', () => {
+  const addressed = (code: number, ...rest: number[]) => Uint8Array.from([0x22, code, ...UID_ON_AIR, ...rest]);
+  // 21h Write Single Block and 22h Lock Block, which ACS 5.3.4.2.2 lists for the pass through.
+  assert.throws(() => passThroughApdu(addressed(0x21, 0x00, 1, 2, 3, 4)), /allowlist \(2Bh\)/, 'Write Single Block');
+  assert.throws(() => passThroughApdu(addressed(0x22, 0x00)), /allowlist/, 'Lock Block');
+  for (const code of [0x20, 0x23, 0x24, 0x27, 0x28, 0x29, 0x2a, 0x2c]) {
+    assert.throws(() => passThroughApdu(addressed(code)), /allowlist/, `0x${code.toString(16)}`);
+  }
+  // The old denylist's edge, A0h, on both sides: neither is on the list.
+  assert.throws(() => passThroughApdu(addressed(0x9f)), /allowlist/, '9Fh, below the old edge');
+  assert.throws(() => passThroughApdu(addressed(0xa0)), /allowlist/, 'A0h, the old edge');
+  assert.equal(hex(passThroughApdu(addressed(0x2b)).subarray(0, 6)), 'ff fb 00 22 09 2b');
+});
+
+test('the pass through refuses an empty command and one longer than its one byte length, and takes 255 bytes exactly (review C3)', () => {
+  assert.throws(() => passThroughApdu(Uint8Array.from([0x22])), /allowlist/, 'flags and no command');
+  assert.throws(() => passThroughApdu(new Uint8Array(0)), /allowlist/, 'nothing at all');
+  const long = (n: number) => Uint8Array.from([0x22, 0x2b, ...new Array<number>(n - 1).fill(0)]);
+  assert.throws(() => passThroughApdu(long(256)), /allowlist/, '256 command bytes do not fit Lc');
+  const apdu = passThroughApdu(long(255));
+  assert.equal(apdu[4], 0xff);
+  assert.equal(apdu.length, 5 + 255);
+});
+
 test('the datasheet\'s answer reads as 80 blocks of 4 bytes, IC_ref 08h, with or without the response flags byte', () => {
   assert.deepEqual(parseSystemInfo(Uint8Array.from(DATASHEET_ANSWER), UID), { blockCount: 80, blockSizeBytes: 4, icRef: 0x08 });
   const ok = [0x90, 0x00];

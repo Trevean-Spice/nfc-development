@@ -213,6 +213,16 @@ export class FakeTag {
   passThrough = true;
   /** Whether the pass through hands back the tag's Response_flags byte. The manual says only "Result Data". */
   passThroughKeepsFlags = true;
+  /** Replaces the whole answer to a pass through, status word included, when set: a reader that says 90 00 over a body the tool cannot use. */
+  passThroughOverride: number[] | null = null;
+  /**
+   * Review C1, 30 October 2026: a reader that drops the tag on Get System Information the way
+   * Dan's dropped it on the read past the end, the transmit failing with SCARD_E_NO_SMARTCARD
+   * and the reader going EMPTY and then finding the tag again (see `outOfRangeDropsCard`).
+   * Dan's firmware is not known, so either path may do it. Each is false by default.
+   */
+  passThroughDropsSystemInfo = false;
+  transparentDropsSystemInfo = false;
   /** DSFID and AFI, factory 00h (DS13304 Table 5). */
   dsfid = 0x00;
   afi = 0x00;
@@ -256,6 +266,20 @@ export class FakeTag {
         this.leaves += 1;
       },
     };
+  }
+
+  /**
+   * The reader loses the tag: the transmit fails with SCARD_E_NO_SMARTCARD, the connection that
+   * lost it stays dead, any transparent session ends, and the reader the tag lies on goes
+   * EMPTY and finds it again (`FakeReader.drop`).
+   */
+  drop(): never {
+    this.drops += 1;
+    this.dropped = true;
+    this.inSession = false;
+    this.switchedTo15693 = false;
+    this.onDrop?.();
+    throw noSmartCard();
   }
 
   /** The field drops: a presented password stops applying, on every tag in range, and any session ends. */
@@ -304,10 +328,7 @@ export class FakeTag {
       const count = (lc === 0 ? 256 : lc) / PART.blockSizeBytes;
       if (block + count > this.blockCount) {
         if (!this.outOfRangeDropsCard) return [0x6a, 0x82];
-        this.drops += 1;
-        this.dropped = true;
-        this.onDrop?.();
-        throw noSmartCard();
+        this.drop();
       }
       for (let b = block; b < block + count; b += 1) if (this.readProtected(b)) return [0x63, 0x00];
       return [...this.memory.subarray(block * 4, (block + count) * 4), ...OK];
@@ -331,10 +352,12 @@ export class FakeTag {
    */
   private passThroughAnswer(flags: number, apdu: Uint8Array): number[] {
     if (!this.passThrough) return [0x6d, 0x00];
+    if (this.passThroughOverride) return this.passThroughOverride;
     const lc = apdu[4] ?? 0;
     const data = Array.from(apdu.subarray(5, 5 + lc));
     if (data.length !== lc || lc < 1) return [0x67, 0x00];
     const [cmd = 0, ...rest] = data;
+    if (cmd === 0x2b && this.passThroughDropsSystemInfo) this.drop();
     const frame = flags === 0x00 ? [0x22, cmd, ...this.uidLsbFirst, ...rest] : [flags, ...data];
     const answers = [this, ...this.neighbours].map((t) => t.respond(frame)).filter((a): a is number[] => a !== null);
     const first = answers[0];
@@ -388,6 +411,7 @@ export class FakeTag {
       if (le !== 0x00) return [0x67, 0x00];
       const frame = frameOf(hex(apdu));
       if (frame === null) return [...C0_OK.slice(0, 2), 0x00, 0x6a, 0x80, ...OK];
+      if (frame[1] === 0x2b && this.transparentDropsSystemInfo) this.drop();
       const normal = () => this.exchange(data, frame);
       if (this.exchangeOverride) return this.exchangeOverride(unaddressed(frame) ?? frame, normal);
       return normal();
