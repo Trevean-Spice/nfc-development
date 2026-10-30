@@ -651,6 +651,21 @@ and that was still retried for ever as not ready.
 
 **Unchanged:** the protection path, its bytes and the D66 gate. Not yet run on the ACR1552U.
 
+### 6.14 What changed last on Friday 30 October 2026: lost UID reads, and older firmware
+
+- **A drop counts when the same tag answers its UID within the next three connects**, not only
+  the next one. A reader that also loses the UID read straight after each drop now ends in
+  `SELECTION_LOST` too, instead of retrying for ever under the "another program" banner. No
+  tag (`NO_TAG`), or another tag answering, still forgets the drop. A tag that misses its UID
+  read on all three connects counts as taken off: lost at the first command that often, it is
+  the "another program" case, and keeps its banner.
+- **Any pass through error that is not a lost tag is asked the other way.** An older
+  firmware's PC/SC layer may fail the `FF FB` APDU with an error of its own rather than a
+  status word. That now falls back to the transparent session, the same as a refusal, and the
+  tag is selected and written, rather than refused.
+
+**Unchanged:** the protection path, its bytes and the D66 gate. Not yet run on the ACR1552U.
+
 ---
 
 ## 7. If something goes wrong
