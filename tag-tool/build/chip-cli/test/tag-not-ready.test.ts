@@ -129,15 +129,16 @@ test('a tag that is never ready is TAG_ABSENT, case TAG_NOT_READY, naming the co
 });
 
 test('a tag lost at the geometry check names that command, so a field report says which it was', async () => {
+  // Lost at the block 79 read. A tag lost at Get System Information is asked another way: see size-check-drop.test.ts.
   const reader = new FakeReader(ACR1552U);
-  reader.tag.noCardOn = (apdu) => apdu === GET_SYSTEM_INFO_APDU;
+  reader.tag.noCardOn = (apdu) => apdu === GEOMETRY_APDUS[1];
   const { transport } = await openWith(reader, { notReadyRetryMs: 10 });
   await assert.rejects(
     () => transport.waitForTag(200),
     rejectsWith('TAG_ABSENT', (e) => {
       assert.equal(e.detail.case, 'TAG_NOT_READY');
-      assert.equal(e.detail.step, "the geometry check's Get System Information through the reader's pass through (FF FB 00 22 09 2B 66 55 44 33 22 11 02 E0)");
-      assert.equal(e.detail.tagAnswered, 1, 'the UID read was answered in every try');
+      assert.equal(e.detail.step, "the geometry check's read of block 79 (FF B0 00 4F 04)");
+      assert.equal(e.detail.tagAnswered, 2, 'the UID read and Get System Information were answered in every try');
       assert.doesNotMatch(e.remedy, /GoToTags/, 'a tag that answered the UID read was not taken by another program first');
       assert.match(e.remedy, /not held by another program/);
     }),

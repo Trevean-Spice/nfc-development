@@ -725,16 +725,26 @@ export function getSystemInfoFrame(uidMsbFirst: Uint8Array): Uint8Array {
  * as in all three of its examples. P2 is never `00h`, which would have the reader choose the
  * flags and the address, because this tool addresses every frame itself (review finding F1).
  *
- * Only for standard commands, which is what 5.3.4.2.2 lists, "2Bh Optional Get System
- * Information Yes" among them. Never for an ST custom command. Exported for the tests.
+ * Only for the commands in PASS_THROUGH_COMMANDS, an allowlist (review C2, 30 October 2026).
+ * 5.3.4.2.2 also lists the standard write and lock commands, Write Single Block 21h and Lock
+ * Block 22h among them, and this helper refuses those and anything else not on the list, so
+ * nothing sent through it can change or lock a tag. Never an ST custom command. Exported for
+ * the tests.
  */
 export function passThroughApdu(frame: Uint8Array): Uint8Array {
   const [flags = 0, ...command] = frame;
-  if (flags === 0x00 || command.length < 1 || command.length > 0xff || (command[0] ?? 0) >= 0xa0) {
-    throw new Error('The pass through carries one standard ISO 15693 command with its own request flags.');
+  if (flags === 0x00 || command.length < 1 || command.length > 0xff || !PASS_THROUGH_COMMANDS.has(command[0] ?? -1)) {
+    throw new Error(`The pass through carries one ISO 15693 command from its allowlist (${[...PASS_THROUGH_COMMANDS].map((c) => `${hex2(c).toUpperCase()}h`).join(', ')}) with its own request flags.`);
   }
   return Uint8Array.from([CLA_PCSC, INS_PASS_THROUGH_15693, 0x00, flags, command.length, ...command]);
 }
+
+/**
+ * The only command codes `passThroughApdu` will wrap: Get System Information 2Bh, which reads
+ * and changes nothing (DS13304 6.4.13). Its one caller is the geometry check. A code is added
+ * here only with the datasheet section that shows it changes nothing on the tag.
+ */
+const PASS_THROUGH_COMMANDS: ReadonlySet<number> = new Set([ISO15693_GET_SYSTEM_INFO]);
 
 /** What Get System Information says about the tag's memory. */
 export interface SystemInfo {
@@ -968,7 +978,20 @@ function heldBy(raw: number): string | null {
 export type ReleaseDisposition = 'unpower' | 'leave';
 
 /** Which TAG_ABSENT this is. Each one is named in the message the operator sees. */
-export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED' | 'TAG_NOT_READY';
+export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED' | 'TAG_NOT_READY' | 'SIZE_CHECK_LOST';
+
+/** The two ways the geometry check can ask the tag its size. See `readSystemInfo`. */
+type SizeCheckPath = 'pass-through' | 'transparent';
+
+/**
+ * How many times a reader must drop a tag at Get System Information on one path before that
+ * path is given up, for as long as the reader stays open. Once on the pass through: the
+ * transparent session that replaces it costs three more APDUs and nothing else. Twice on the
+ * transparent session, because giving that up stops the tool, so one tag lifted off and put
+ * straight back at the wrong moment must not do it. A size answered on the transparent
+ * session starts its count again.
+ */
+const SIZE_CHECK_DROPS_TO_GIVE_UP: Readonly<Record<SizeCheckPath, number>> = { 'pass-through': 1, transparent: 2 };
 
 /** The result of `inspectTag`, which is what doctor prints about the tag on the reader. */
 export interface TagInspection {
@@ -1113,6 +1136,22 @@ export class PcscTransport implements TagTransport {
   /** Commands the connected tag has answered since `waitForTag` last started on it. See TAG_NOT_READY. */
   private answered = 0;
 
+  /**
+   * The PC/SC errors this reader has dropped a tag with at Get System Information since it was
+   * opened, by path, each counted only once the same tag answered its UID again afterwards (see
+   * `sizeCheckLoss`). A path is given up at SIZE_CHECK_DROPS_TO_GIVE_UP. With the pass through
+   * given up the geometry check asks through a transparent session, and with both it stops
+   * asking: see SIZE_CHECK_LOST. Cleared when the reader is opened.
+   */
+  private readonly sizeCheckDrops = new Map<SizeCheckPath, string[]>();
+  /**
+   * A tag lost at Get System Information and not yet seen again: its UID, the path and the
+   * PC/SC error. The next UID read decides it. The same UID back is the reader dropping a tag
+   * that never left, and is counted in `sizeCheckDrops`. No tag, or another one, is a tag taken
+   * off, and it is forgotten.
+   */
+  private sizeCheckLoss: { uid: string; path: SizeCheckPath; pcscError: string } | null = null;
+
   /** What the last wait for a tag ended on, so a tag arriving between two waits is seen to arrive. Null after open. */
   private lastPresence: TagPresence | null = null;
 
@@ -1157,6 +1196,9 @@ export class PcscTransport implements TagTransport {
   async open(): Promise<void> {
     this.resetProof();
     this.lastPresence = null;
+    // A reader opened again, after it was unplugged or by another run, is given both paths again.
+    this.sizeCheckDrops.clear();
+    this.sizeCheckLoss = null;
     let binding: PcscBinding;
     try {
       binding = await this.loadBinding();
@@ -1267,6 +1309,8 @@ export class PcscTransport implements TagTransport {
         );
       }
       if (seen === 'absent') {
+        // A tag lost at the size check that is not there now was taken off, not dropped.
+        this.sizeCheckLoss = null;
         throw this.tagAbsent(
           reader,
           'NO_TAG',
@@ -1351,6 +1395,7 @@ export class PcscTransport implements TagTransport {
     }
 
     this.currentUid = hex(normalised.uid);
+    this.settleSizeCheckLoss(reader);
 
     return {
       uid: this.currentUid,
@@ -1415,25 +1460,37 @@ export class PcscTransport implements TagTransport {
    * First through the ACS pass through (5.3.4.2), one APDU with no session to open or close,
    * which ACS lists as tested for this command. That needs ACR1552U-M firmware 1.03.00 or
    * later, so if the reader does not give a usable answer, the same frame is sent through the
-   * transparent session (5.3.5), which the manual gives no firmware condition for. A tag
-   * that is lost on the way (SCARD_E_NO_SMARTCARD and its kind) is thrown as it is, so it is
-   * retried as a tag that was not ready. Any other failure on both paths refuses the tag:
-   * a size that cannot be confirmed is not written to.
+   * transparent session (5.3.5), which the manual gives no firmware condition for. Any other
+   * failure on both paths refuses the tag: a size that cannot be confirmed is not written to.
+   *
+   * **A tag lost on the way** (SCARD_E_NO_SMARTCARD and its kind) is thrown as it is, so the
+   * tag is selected again as one that was not ready, and the path it was lost on is noted
+   * (review C1, 30 October 2026). Dan's reader dropped the tag at the old read past the end,
+   * and its firmware is not known here, so it may drop it at the pass through too. If the same
+   * tag then answers its UID again, the reader dropped a tag that never left, and from then on
+   * this reader is asked through the transparent session only. If it drops the tag there too,
+   * twice, the check stops asking and says so once, SIZE_CHECK_LOST, rather than losing the
+   * tag for ever. See `settleSizeCheckLoss`. A tag taken off is still NO_TAG, as before.
    */
   private async readSystemInfo(): Promise<SystemInfo> {
     const uid = uidBytes(this.currentUid ?? '');
     const frame = getSystemInfoFrame(uid);
     const step = "the geometry check's Get System Information";
-    const first = parsePassThroughSystemInfo(
-      await this.transmit(passThroughApdu(frame), 32, `${step} through the reader's pass through`),
-      uid,
-    );
-    if (typeof first !== 'string') return first;
+
+    let first: SystemInfo | string;
+    if (this.givenUp('pass-through')) {
+      first = `no answer, because this reader dropped the tag there before (${this.dropsOn('pass-through')}), so it was not asked that way again`;
+    } else {
+      const answer = await this.lostAt('pass-through', () => this.transmit(passThroughApdu(frame), 32, `${step} through the reader's pass through`));
+      first = parsePassThroughSystemInfo(answer, uid);
+      if (typeof first !== 'string') return first;
+    }
 
     let second: SystemInfo | string;
     try {
-      const answer = await this.transceive(frame, step);
+      const answer = await this.lostAt('transparent', () => this.transceive(frame, step));
       second = answer.kind === 'ok' ? parseSystemInfo(answer.data, uid) : describeAnswer(answer);
+      if (typeof second !== 'string') this.sizeCheckDrops.delete('transparent');
     } catch (err) {
       if (isChipError(err) && typeof err.detail.pcscCode === 'string') {
         throw new ChipError(err.code, err.message, err.remedy, { ...err.detail, step: `${step} in a transparent session` });
@@ -1447,6 +1504,60 @@ export class PcscTransport implements TagTransport {
       `The tag's size could not be confirmed, so it is not written. Get System Information through the reader's pass through got ${first}, and through a transparent session got ${second}.`,
       'A genuine ST25TV02KC answers Get System Information with its size (DS13304 6.4.13). Nothing was written. Report this whole message with the UID and the reader model, and do not try other tags to make it pass.',
       { passThrough: first, transparentSession: second },
+    );
+  }
+
+  /** True once this reader has dropped tags on `path` SIZE_CHECK_DROPS_TO_GIVE_UP times. */
+  private givenUp(path: SizeCheckPath): boolean {
+    return (this.sizeCheckDrops.get(path)?.length ?? 0) >= SIZE_CHECK_DROPS_TO_GIVE_UP[path];
+  }
+
+  /** The PC/SC errors of the drops on `path`, for a message. */
+  private dropsOn(path: SizeCheckPath): string {
+    return (this.sizeCheckDrops.get(path) ?? []).join(', then ');
+  }
+
+  /** Runs one way of asking the tag its size, and notes the tag lost on it. See `readSystemInfo`. */
+  private async lostAt<T>(path: SizeCheckPath, ask: () => Promise<T>): Promise<T> {
+    try {
+      return await ask();
+    } catch (err) {
+      const pcscCode = isChipError(err) ? err.detail.pcscCode : undefined;
+      if (typeof pcscCode === 'string' && TAG_NOT_READY_ERRORS.has(pcscCode) && this.currentUid !== null) {
+        const pcscError = isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode;
+        this.sizeCheckLoss = { uid: this.currentUid, path, pcscError };
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Called once the tag has answered its UID. Settles a tag lost at Get System Information
+   * on the last try: the same tag back means the reader dropped a tag that never left, and that
+   * counts towards giving the path up on this reader (SIZE_CHECK_DROPS_TO_GIVE_UP). Another tag
+   * means the first was taken off, and the loss is forgotten. A tag taken off and not put back
+   * never gets here: it ends as NO_TAG, and the loss is forgotten then.
+   *
+   * With both paths given up, it throws SIZE_CHECK_LOST at once, before anything is sent to
+   * the tag past its UID read, on this and every later tag, until the reader is opened again.
+   * One clear message, not a tag lost and found for ever (desk-root's ruling on review C1).
+   */
+  private settleSizeCheckLoss(reader: PcscReaderHandle): void {
+    const loss = this.sizeCheckLoss;
+    this.sizeCheckLoss = null;
+    if (loss !== null && loss.uid === this.currentUid) {
+      this.sizeCheckDrops.set(loss.path, [...(this.sizeCheckDrops.get(loss.path) ?? []), loss.pcscError]);
+    }
+
+    if (!this.givenUp('pass-through') || !this.givenUp('transparent')) return;
+    const passThrough = this.dropsOn('pass-through');
+    const transparent = this.dropsOn('transparent');
+    throw this.tagAbsent(
+      reader,
+      'SIZE_CHECK_LOST',
+      `The reader loses the tag at the size check, the geometry check's Get System Information (DS13304 6.4.13), which comes before anything is written. It lost it through the reader's pass through, FF FB (${passThrough}), and through a transparent session, FF C2 (${transparent}), and each time the same tag was still on the reader and answered its UID again. So this reader cannot confirm the tag's size, and the tool has stopped asking. Nothing was written.`,
+      'The tag is not the problem: this reader is. Unplug the reader, plug it back in, and put one tag on: the tool then tries both ways again. If this message comes back, stop and send this whole message: it names the reader and the step.',
+      { step: 'the size check (Get System Information)', passThrough, transparentSession: transparent, uid: this.currentUid },
     );
   }
 
