@@ -484,8 +484,8 @@ export class TagToolController {
         if (elsewhere !== null) {
           this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
           this.onBadTag(error, 'Another program is reading the tags');
-        } else if (absentCase === 'SIZE_CHECK_LOST' || this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) {
-          // SIZE_CHECK_LOST is the transport's last word on this reader, after its own retries: shown at once.
+        } else if (absentCase === 'SIZE_CHECK_LOST' || absentCase === 'SELECTION_LOST' || this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) {
+          // SIZE_CHECK_LOST and SELECTION_LOST are the transport's last word, after its own retries: shown at once.
           this.onBadTag(error, 'The reader cannot read the tag');
         }
         await this.sleep(idleMs);

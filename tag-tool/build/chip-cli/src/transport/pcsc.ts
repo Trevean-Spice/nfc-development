@@ -978,7 +978,7 @@ function heldBy(raw: number): string | null {
 export type ReleaseDisposition = 'unpower' | 'leave';
 
 /** Which TAG_ABSENT this is. Each one is named in the message the operator sees. */
-export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED' | 'TAG_NOT_READY' | 'SIZE_CHECK_LOST';
+export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED' | 'TAG_NOT_READY' | 'SIZE_CHECK_LOST' | 'SELECTION_LOST';
 
 /** The two ways the geometry check can ask the tag its size. See `readSystemInfo`. */
 type SizeCheckPath = 'pass-through' | 'transparent';
@@ -992,6 +992,23 @@ type SizeCheckPath = 'pass-through' | 'transparent';
  * session starts its count again.
  */
 const SIZE_CHECK_DROPS_TO_GIVE_UP: Readonly<Record<SizeCheckPath, number>> = { 'pass-through': 1, transparent: 2 };
+
+/**
+ * How many times in a row the reader may drop one tag after it answered its UID, at any
+ * command of the selection after the UID read, before the tool stops asking that tag and says
+ * so once, SELECTION_LOST (desk-root's ruling trevean#10, 30 October 2026). Each drop counts
+ * only once the same tag has answered its UID again straight after it. Twice, for the same
+ * reason as the transparent session: one tag lifted off and put back at the wrong moment must
+ * not stop the tool. A drop at the pass through is not counted here: it is given up after one,
+ * and asked the other way.
+ */
+const SELECTION_DROPS_TO_STOP = 2;
+
+/** One drop counted towards SELECTION_DROPS_TO_STOP: the command that lost the tag, and the PC/SC error. */
+interface SelectionDrop {
+  readonly step: string;
+  readonly pcscError: string;
+}
 
 /** The result of `inspectTag`, which is what doctor prints about the tag on the reader. */
 export interface TagInspection {
@@ -1139,18 +1156,28 @@ export class PcscTransport implements TagTransport {
   /**
    * The PC/SC errors this reader has dropped a tag with at Get System Information since it was
    * opened, by path, each counted only once the same tag answered its UID again afterwards (see
-   * `sizeCheckLoss`). A path is given up at SIZE_CHECK_DROPS_TO_GIVE_UP. With the pass through
+   * `selectionLoss`). A path is given up at SIZE_CHECK_DROPS_TO_GIVE_UP. With the pass through
    * given up the geometry check asks through a transparent session, and with both it stops
    * asking: see SIZE_CHECK_LOST. Cleared when the reader is opened.
    */
   private readonly sizeCheckDrops = new Map<SizeCheckPath, string[]>();
   /**
-   * A tag lost at Get System Information and not yet seen again: its UID, the path and the
-   * PC/SC error. The next UID read decides it. The same UID back is the reader dropping a tag
-   * that never left, and is counted in `sizeCheckDrops`. No tag, or another one, is a tag taken
-   * off, and it is forgotten.
+   * A tag lost after it answered its UID, and not yet seen again: its UID, the command that lost
+   * it, the PC/SC error, and the size check path when it was lost at Get System Information.
+   * The next UID read decides it. The same UID back is the reader dropping a tag that never
+   * left, and is counted in `selectionDrops`, and in `sizeCheckDrops` for a path. No tag, or
+   * another one, is a tag taken off, and it is forgotten. So is a loss at the UID read itself
+   * on the way back, because then the same tag did not answer straight after the drop.
    */
-  private sizeCheckLoss: { uid: string; path: SizeCheckPath; pcscError: string } | null = null;
+  private selectionLoss: { uid: string; step: string; pcscError: string; path: SizeCheckPath | null } | null = null;
+  /**
+   * The drops counted against one tag since it was last selected, by UID: see
+   * SELECTION_DROPS_TO_STOP. Another UID starts the count again, and so does a selection that
+   * gets through. Cleared when the reader is opened.
+   */
+  private selectionDrops: { uid: string; drops: SelectionDrop[] } | null = null;
+  /** The tags this reader has stopped asking, SELECTION_LOST, with the drops that did it. Cleared when the reader is opened. */
+  private readonly selectionStopped = new Map<string, readonly SelectionDrop[]>();
 
   /** What the last wait for a tag ended on, so a tag arriving between two waits is seen to arrive. Null after open. */
   private lastPresence: TagPresence | null = null;
@@ -1196,9 +1223,12 @@ export class PcscTransport implements TagTransport {
   async open(): Promise<void> {
     this.resetProof();
     this.lastPresence = null;
-    // A reader opened again, after it was unplugged or by another run, is given both paths again.
+    // A reader opened again, after it was unplugged or by another run, is given both paths
+    // again, and every tag it stopped asking is asked again.
     this.sizeCheckDrops.clear();
-    this.sizeCheckLoss = null;
+    this.selectionLoss = null;
+    this.selectionDrops = null;
+    this.selectionStopped.clear();
     let binding: PcscBinding;
     try {
       binding = await this.loadBinding();
@@ -1309,8 +1339,8 @@ export class PcscTransport implements TagTransport {
         );
       }
       if (seen === 'absent') {
-        // A tag lost at the size check that is not there now was taken off, not dropped.
-        this.sizeCheckLoss = null;
+        // A tag lost after its UID read that is not there now was taken off, not dropped.
+        this.selectionLoss = null;
         throw this.tagAbsent(
           reader,
           'NO_TAG',
@@ -1341,6 +1371,9 @@ export class PcscTransport implements TagTransport {
         const pcscCode = isChipError(err) ? err.detail.pcscCode : undefined;
         if (typeof pcscCode !== 'string' || !TAG_NOT_READY_ERRORS.has(pcscCode)) throw err;
         fewestAnswered = Math.min(fewestAnswered, this.answered);
+        // Lost at the UID read: an earlier loss is not confirmed by this connection. The count
+        // already made stands. See `selectionLoss`.
+        if (this.answered === 0) this.selectionLoss = null;
         await this.releaseTag('leave');
         if (attempt >= NOT_READY_ATTEMPTS) {
           const step = isChipError(err) && typeof err.detail.step === 'string' ? err.detail.step : 'the first command';
@@ -1395,14 +1428,24 @@ export class PcscTransport implements TagTransport {
     }
 
     this.currentUid = hex(normalised.uid);
-    this.settleSizeCheckLoss(reader);
+    this.settleSelectionLoss(reader);
+
+    let blockCount: number;
+    try {
+      blockCount = await this.probeBlockCount();
+    } catch (err) {
+      this.noteSelectionLoss(err);
+      throw err;
+    }
+    // Selected: a drop on a later selection starts the count again.
+    this.selectionDrops = null;
 
     return {
       uid: this.currentUid,
       // PC/SC cannot report a part number. Null is the documented, expected answer here
       // and the UID check above is what stands in for it.
       partNumber: null,
-      blockCount: await this.probeBlockCount(),
+      blockCount,
       blockSizeBytes: PART.blockSizeBytes,
     };
   }
@@ -1470,7 +1513,7 @@ export class PcscTransport implements TagTransport {
    * tag then answers its UID again, the reader dropped a tag that never left, and from then on
    * this reader is asked through the transparent session only. If it drops the tag there too,
    * twice, the check stops asking and says so once, SIZE_CHECK_LOST, rather than losing the
-   * tag for ever. See `settleSizeCheckLoss`. A tag taken off is still NO_TAG, as before.
+   * tag for ever. See `settleSelectionLoss`. A tag taken off is still NO_TAG, as before.
    */
   private async readSystemInfo(): Promise<SystemInfo> {
     const uid = uidBytes(this.currentUid ?? '');
@@ -1517,39 +1560,79 @@ export class PcscTransport implements TagTransport {
     return (this.sizeCheckDrops.get(path) ?? []).join(', then ');
   }
 
-  /** Runs one way of asking the tag its size, and notes the tag lost on it. See `readSystemInfo`. */
+  /** Runs one way of asking the tag its size, and marks a tag lost on it with the path, for `noteSelectionLoss`. See `readSystemInfo`. */
   private async lostAt<T>(path: SizeCheckPath, ask: () => Promise<T>): Promise<T> {
     try {
       return await ask();
     } catch (err) {
-      const pcscCode = isChipError(err) ? err.detail.pcscCode : undefined;
-      if (typeof pcscCode === 'string' && TAG_NOT_READY_ERRORS.has(pcscCode) && this.currentUid !== null) {
-        const pcscError = isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode;
-        this.sizeCheckLoss = { uid: this.currentUid, path, pcscError };
+      if (isChipError(err) && typeof err.detail.pcscCode === 'string' && TAG_NOT_READY_ERRORS.has(err.detail.pcscCode)) {
+        throw new ChipError(err.code, err.message, err.remedy, { ...err.detail, sizeCheckPath: path });
       }
       throw err;
     }
   }
 
   /**
-   * Called once the tag has answered its UID. Settles a tag lost at Get System Information
-   * on the last try: the same tag back means the reader dropped a tag that never left, and that
-   * counts towards giving the path up on this reader (SIZE_CHECK_DROPS_TO_GIVE_UP). Another tag
-   * means the first was taken off, and the loss is forgotten. A tag taken off and not put back
-   * never gets here: it ends as NO_TAG, and the loss is forgotten then.
-   *
-   * With both paths given up, it throws SIZE_CHECK_LOST at once, before anything is sent to
-   * the tag past its UID read, on this and every later tag, until the reader is opened again.
-   * One clear message, not a tag lost and found for ever (desk-root's ruling on review C1).
+   * Notes a tag lost after it answered its UID, at any command of the selection, so the next UID
+   * read can tell a drop from a removal. See `selectionLoss`.
    */
-  private settleSizeCheckLoss(reader: PcscReaderHandle): void {
-    const loss = this.sizeCheckLoss;
-    this.sizeCheckLoss = null;
-    if (loss !== null && loss.uid === this.currentUid) {
-      this.sizeCheckDrops.set(loss.path, [...(this.sizeCheckDrops.get(loss.path) ?? []), loss.pcscError]);
+  private noteSelectionLoss(err: unknown): void {
+    if (!isChipError(err) || this.currentUid === null) return;
+    const pcscCode = err.detail.pcscCode;
+    if (typeof pcscCode !== 'string' || !TAG_NOT_READY_ERRORS.has(pcscCode)) return;
+    const path = err.detail.sizeCheckPath;
+    this.selectionLoss = {
+      uid: this.currentUid,
+      step: typeof err.detail.step === 'string' ? err.detail.step : 'a command after the UID read',
+      pcscError: typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode,
+      path: path === 'pass-through' || path === 'transparent' ? path : null,
+    };
+  }
+
+  /**
+   * Called once the tag has answered its UID. Settles a tag lost after its UID read on the last
+   * try: the same tag back means the reader dropped a tag that never left. That counts against
+   * the tag (SELECTION_DROPS_TO_STOP), and against the path on this reader when it was lost at
+   * Get System Information (SIZE_CHECK_DROPS_TO_GIVE_UP). Another tag means the first was taken
+   * off, and the loss and the count are forgotten. A tag taken off and not put back never gets
+   * here: it ends as NO_TAG, and the loss is forgotten then.
+   *
+   * With both size check paths given up, it throws SIZE_CHECK_LOST, on this and every later
+   * tag. With this tag dropped SELECTION_DROPS_TO_STOP times in a row, it throws SELECTION_LOST,
+   * on this tag every time it comes back. Either way it is at once, before anything is sent to
+   * the tag past its UID read, until the reader is opened again. One clear message, not a tag
+   * lost and found for ever (desk-root's rulings on review C1 and trevean#10).
+   */
+  private settleSelectionLoss(reader: PcscReaderHandle): void {
+    const uid = this.currentUid ?? '';
+    const loss = this.selectionLoss;
+    this.selectionLoss = null;
+    if (this.selectionDrops !== null && this.selectionDrops.uid !== uid) this.selectionDrops = null;
+    if (loss !== null && loss.uid === uid) {
+      if (loss.path !== null) this.sizeCheckDrops.set(loss.path, [...(this.sizeCheckDrops.get(loss.path) ?? []), loss.pcscError]);
+      if (loss.path !== 'pass-through') {
+        const drops = [...(this.selectionDrops?.drops ?? []), { step: loss.step, pcscError: loss.pcscError }];
+        this.selectionDrops = { uid, drops };
+        if (drops.length >= SELECTION_DROPS_TO_STOP) this.selectionStopped.set(uid, drops);
+      }
     }
 
-    if (!this.givenUp('pass-through') || !this.givenUp('transparent')) return;
+    if (this.givenUp('pass-through') && this.givenUp('transparent')) this.throwSizeCheckLost(reader);
+    const stopped = this.selectionStopped.get(uid);
+    if (stopped === undefined) return;
+    const last = stopped[stopped.length - 1]!;
+    const each = stopped.map((d) => `at ${d.step} (${d.pcscError})`).join(', then ');
+    throw this.tagAbsent(
+      reader,
+      'SELECTION_LOST',
+      `The reader loses the tag at ${last.step}, which comes before anything is written. It lost it ${stopped.length} times in a row, ${each}, and each time the same tag was still on the reader and answered its UID again. So this reader cannot select this tag, and the tool has stopped asking it. Nothing was written.`,
+      'The tag is most likely not the problem: this reader is. Unplug the reader, plug it back in, and put one tag on: the tool then tries again. If this message comes back, stop and send this whole message: it names the reader and the step that loses the tag.',
+      { step: last.step, drops: stopped.length, lostAt: each, uid },
+    );
+  }
+
+  /** SIZE_CHECK_LOST, from `settleSelectionLoss`. */
+  private throwSizeCheckLost(reader: PcscReaderHandle): never {
     const passThrough = this.dropsOn('pass-through');
     const transparent = this.dropsOn('transparent');
     throw this.tagAbsent(

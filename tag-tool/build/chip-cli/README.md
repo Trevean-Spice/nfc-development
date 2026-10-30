@@ -624,6 +624,33 @@ as not ready for ever. His reader's firmware is not known here.
 The tests run with a per test limit, `--test-timeout`, which needs Node 20.11 or later; the
 `engines` field already asks for that, and the Tag Tool itself needs nothing newer.
 
+### 6.13 What changed later on Friday 30 October 2026: one limit for the whole selection
+
+6.12 stopped the retrying at the size check only. If the transparent session answers but
+resets the reader's connection, the read of block 79 that follows loses the tag every time,
+and that was still retried for ever as not ready.
+
+- **One limit now covers every command of the selection after the UID read:** the size check
+  on either path, the read of block 79, and anything added later. If the same tag answers its
+  UID again straight after a drop, that drop counts against the tag. After two in a row the
+  tool stops asking that tag and shows one message, `TAG_ABSENT` with `Case SELECTION_LOST`.
+  It names the reader and the exact command that lost the tag, and the Tag Tool page says
+  "The reader cannot read the tag" at once.
+- **After that the tag gets nothing past its UID read** until the reader is unplugged and
+  plugged back in.
+- **Two, not one,** so one tag lifted off and put straight back at the wrong moment cannot stop
+  the tool. A selection that gets through, or another tag, starts the count again.
+- **Unchanged:**
+  - A tag taken off, so the reader reports no tag, is still `NO_TAG`, and the tool waits.
+  - A drop at the pass through still only moves the size check to the transparent session, and
+    `SIZE_CHECK_LOST` still covers both paths.
+- **Still open:**
+  - A tag lost at the UID read itself is the "another program" case, with its own banner.
+  - A reader slower than 400 ms to find a dropped tag again shows each drop as no tag, and the
+    tool waits for one (ruled acceptable on 30 October).
+
+**Unchanged:** the protection path, its bytes and the D66 gate. Not yet run on the ACR1552U.
+
 ---
 
 ## 7. If something goes wrong
@@ -632,7 +659,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 
 | Code | What happened | What to do |
 |---|---|---|
-| `TAG_ABSENT` | No tag could be selected. The message starts with the case: `NO_TAG` (the reader never reported one), `TAG_MUTE` (the reader detects a tag that does not answer activation), `CONNECT_FAILED` (with the PC/SC error, for example `SharingViolation` when another application holds the reader), `UID_REFUSED`, `READER_GONE`, `TAG_NOT_READY` (the reader connected and then found no tag, three times: `SCARD_E_NO_SMARTCARD` and its kind, with the command it was lost at) or `SIZE_CHECK_LOST` (the reader drops the tag when asked its size, through the pass through and the transparent session alike, section 6.12), then the reader name and its raw state | Place the tag centred on the reader and retry the unit. Follow the remedy printed for the case, and send the whole message when reporting it. For `TAG_NOT_READY` the Tag Tool retries by itself; if it never clears, close GoToTags and unplug and replug the reader. For `SIZE_CHECK_LOST` nothing was written and the tag is fine: unplug and replug the reader once, and if it comes back, send the whole message |
+| `TAG_ABSENT` | No tag could be selected. The message starts with the case: `NO_TAG` (the reader never reported one), `TAG_MUTE` (the reader detects a tag that does not answer activation), `CONNECT_FAILED` (with the PC/SC error, for example `SharingViolation` when another application holds the reader), `UID_REFUSED`, `READER_GONE`, `TAG_NOT_READY` (the reader connected and then found no tag, three times: `SCARD_E_NO_SMARTCARD` and its kind, with the command it was lost at) `SIZE_CHECK_LOST` (the reader drops the tag when asked its size, through the pass through and the transparent session alike, section 6.12) or `SELECTION_LOST` (the reader dropped the same tag twice in a row at a command after its UID read, named in the message, section 6.13), then the reader name and its raw state | Place the tag centred on the reader and retry the unit. Follow the remedy printed for the case, and send the whole message when reporting it. For `TAG_NOT_READY` the Tag Tool retries by itself; if it never clears, close GoToTags and unplug and replug the reader. For `SIZE_CHECK_LOST` and `SELECTION_LOST` nothing was written and the tag is fine: unplug and replug the reader once, and if it comes back, send the whole message |
 | `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: it reports another size in Get System Information (`fewer than 80 blocks`, `larger than ST25TV02KC`, `a different part`), its size `could not be confirmed`, or block 79 would not read | This is not the part, or it could not be shown to be. Check which tags you have. Nothing was written |
 | `TAG_CHANGED` | A different tag came back into the field partway through a unit | Nothing was locked by that step. Set both tags aside, label them, and rerun the unit with one tag on the reader |
 | `WRITE_FAILED` | The tag refused the write, or the write stopped partway | Rewrite the tag. It cannot be carrying a wrong URL: see section 7.1 |

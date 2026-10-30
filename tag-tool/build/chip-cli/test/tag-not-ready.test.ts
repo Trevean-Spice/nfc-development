@@ -129,20 +129,23 @@ test('a tag that is never ready is TAG_ABSENT, case TAG_NOT_READY, naming the co
 });
 
 test('a tag lost at the geometry check names that command, so a field report says which it was', async () => {
-  // Lost at the block 79 read. A tag lost at Get System Information is asked another way: see size-check-drop.test.ts.
+  // Lost at the block 79 read, the tag left in place. A tag lost at Get System Information is
+  // asked another way: see size-check-drop.test.ts. Since desk-root's ruling trevean#10 a tag
+  // that answers its UID and is lost later every time is not retried for ever: within the three
+  // tries it ends in SELECTION_LOST, which names the command.
   const reader = new FakeReader(ACR1552U);
   reader.tag.noCardOn = (apdu) => apdu === GEOMETRY_APDUS[1];
   const { transport } = await openWith(reader, { notReadyRetryMs: 10 });
   await assert.rejects(
     () => transport.waitForTag(200),
     rejectsWith('TAG_ABSENT', (e) => {
-      assert.equal(e.detail.case, 'TAG_NOT_READY');
+      assert.equal(e.detail.case, 'SELECTION_LOST');
       assert.equal(e.detail.step, "the geometry check's read of block 79 (FF B0 00 4F 04)");
-      assert.equal(e.detail.tagAnswered, 2, 'the UID read and Get System Information were answered in every try');
+      assert.ok(e.message.includes(`Reader "${ACR1552U}"`));
       assert.doesNotMatch(e.remedy, /GoToTags/, 'a tag that answered the UID read was not taken by another program first');
-      assert.match(e.remedy, /not held by another program/);
     }),
   );
+  assert.equal(reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length, 2);
   await transport.close();
 });
 

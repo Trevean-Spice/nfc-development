@@ -223,6 +223,14 @@ export class FakeTag {
    */
   passThroughDropsSystemInfo = false;
   transparentDropsSystemInfo = false;
+  /**
+   * Desk-root's ruling trevean#10, 30 October 2026: a reader whose transparent session answers,
+   * and whose session end (82 00) resets the PC/SC connection, so the next command on it, the
+   * geometry check's read of block 79, loses the tag (`drop`). False by default.
+   */
+  sessionEndResets = false;
+  /** Set by a session end when `sessionEndResets`: the next command that is not FF C2 drops the tag. */
+  private resetPending = false;
   /** DSFID and AFI, factory 00h (DS13304 Table 5). */
   dsfid = 0x00;
   afi = 0x00;
@@ -322,6 +330,10 @@ export class FakeTag {
   private answer(apdu: Uint8Array): number[] {
     const [cla, ins, p1 = 0, p2 = 0, lc = 0] = apdu;
     if (cla !== 0xff) return [0x6e, 0x00];
+    if (this.resetPending && ins !== 0xc2) {
+      this.resetPending = false;
+      this.drop();
+    }
     const block = (p1 << 8) | p2;
     if (ins === 0xca) return this.uidAnswer ?? [...this.uidLsbFirst, ...OK];
     if (ins === 0xb0) {
@@ -387,6 +399,7 @@ export class FakeTag {
         else if (tag === 0x82 && len === 0) {
           this.inSession = false;
           this.switchedTo15693 = false;
+          if (this.sessionEndResets) this.resetPending = true;
         } else if (tag === 0x83 && len === 0) this.rfOff();
         else if (tag === 0x84 && len === 0) this.rfOns += 1;
         else if (tag === 0x5f46 && len === 4) {

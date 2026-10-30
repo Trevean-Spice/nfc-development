@@ -31,7 +31,7 @@ import { STATIC_DIR } from '../src/app/server.js';
 import { ChipError, isChipError } from '../src/chip/errors.js';
 import { RedirectTable } from '../src/table/redirect-table.js';
 import { OTHER_PROGRAM_REMEDY, PcscTransport, READER_STATE_FLAGS, type PcscTransportOptions } from '../src/transport/pcsc.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, pcscError } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, OTHER_UID_LSB_FIRST, pcscError } from './fake-acr1552u.js';
 
 /** The banner, word for word as asked for. */
 const BANNER =
@@ -229,11 +229,12 @@ test('GoToTags holding every tag: not ready twice in a row is "another program",
   }
 });
 
-test('Dan, 29 October 2026: a tag lost every time after it answered the UID read is retried, and never called another program', async () => {
+test('Dan, 29 October 2026: a tag lost every time after it answered the UID read is retried within a bound, never called another program, and ends in one message', async () => {
   // GoToTags uninstalled, rebooted twice, and the banner still sent him back to it: the tag
   // answered the UID read in every try and was lost at a later command of this tool's, here
   // the block 79 read. (A tag lost at Get System Information is asked another way since 30
-  // October 2026: see size-check-drop.test.ts.)
+  // October 2026: see size-check-drop.test.ts.) Since desk-root's ruling trevean#10 that ends
+  // in SELECTION_LOST, which names the reader and the command, rather than retrying for ever.
   const reader = new FakeReader(ACR1552U, new FakeTag(), false);
   reader.tag.noCardOn = (apdu) => apdu === GEOMETRY_APDUS[1];
   const { controller, lines } = tagTool(reader);
@@ -243,18 +244,16 @@ test('Dan, 29 October 2026: a tag lost every time after it answered the UID read
   try {
     await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
     reader.present = true;
-    await waitFor(controller, 'three not ready rounds', () => lines.filter((l) => l.startsWith('Tag not ready')).length >= 3);
-    const s = controller.snapshot();
-    assert.equal(s.phase, 'tag-not-ready');
+    const s = await waitFor(controller, 'the selection message', (x) => x.phase === 'error' && (x.error?.message ?? '').startsWith('Case SELECTION_LOST.'));
     assert.equal(s.anotherProgram, null);
     assert.ok(flagged.every((x) => x === null), 'never flagged on the way');
     assert.equal(lines.filter((l) => l.startsWith('Another program')).length, 0);
-    assert.equal(pageWords().describe(s as unknown as Record<string, unknown>).title, 'Tag not ready, retrying', 'not "Another program is reading the tags"');
+    assert.equal(pageWords().describe(s as unknown as Record<string, unknown>).title, 'The reader cannot read the tag', 'not "Another program is reading the tags"');
+    assert.ok(s.error?.message.includes("the geometry check's read of block 79 (FF B0 00 4F 04)"));
     assert.doesNotMatch(s.error?.remedy ?? '', /GoToTags/);
-    assert.match(s.error?.remedy ?? '', /not held by another program/);
-    // The cause goes: the tag is seen at once.
-    reader.tag.noCardOn = null;
-    await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+    const reads = reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length;
+    await sleep(300);
+    assert.equal(reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length, reads, 'block 79 not asked again');
   } finally {
     stop();
     await controller.stop();
@@ -312,8 +311,16 @@ class SaysNothingAnswered extends PcscTransport {
 }
 
 test('review C3: a not ready error that does not say how many commands the tag answered is taken as lost at the first, and raises the banner', async () => {
-  // The tag answers the UID read and Get System Information every time: with tagAnswered this is never the banner.
+  // Two tags taking turns, each answering the UID read and Get System Information every time
+  // and lost at block 79: with tagAnswered this is never the banner. Two, so no tag is lost
+  // twice in a row and the not ready rounds go on (SELECTION_LOST is per tag).
   const reader = new FakeReader(ACR1552U, mixedTag(() => false), false);
+  const other = mixedTag(() => false);
+  other.uidLsbFirst = OTHER_UID_LSB_FIRST;
+  const first = reader.tag;
+  reader.onConnect = (count) => {
+    reader.tag = count % 2 === 0 ? other : first;
+  };
   const transport = new SaysNothingAnswered(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 });
   const { controller } = tagTool(reader, transport);
   controller.start();
