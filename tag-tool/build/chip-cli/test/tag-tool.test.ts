@@ -1088,7 +1088,15 @@ test('the server binds 127.0.0.1 only, and is unreachable on every other address
     assert.equal(await tryConnect('127.0.0.1', 10366), true);
 
     const others: string[] = ['::1'];
-    for (const list of Object.values(networkInterfaces())) {
+    // Some hosts refuse to list their interfaces (a hardened service or container): the bind
+    // address checks above still hold there, and ::1 is still dialled.
+    let interfaces: ReturnType<typeof networkInterfaces> = {};
+    try {
+      interfaces = networkInterfaces();
+    } catch {
+      interfaces = {};
+    }
+    for (const list of Object.values(interfaces)) {
       for (const info of list ?? []) {
         if (info.address !== '127.0.0.1') others.push(info.address.includes(':') ? `${info.address.split('%')[0]}` : info.address);
       }
