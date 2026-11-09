@@ -125,14 +125,18 @@
   function loadCodes() {
     return fetch('/api/codes', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (body) {
       codes = body.codes || [];
-      var list = $('code-list');
-      list.textContent = '';
+      // A select, not a datalist: a datalist shows only the codes that match what is in the box.
+      var pick = $('code-pick');
+      pick.textContent = '';
+      var first = document.createElement('option');
+      first.value = '';
+      first.textContent = 'Pick a blend';
+      pick.appendChild(first);
       encodableList().forEach(function (c) {
         var option = document.createElement('option');
         option.value = c.code;
-        option.label = c.code + '  ' + c.blendName;
-        option.textContent = c.blendName;
-        list.appendChild(option);
+        option.textContent = c.code + ' ' + c.blendName;
+        pick.appendChild(option);
       });
       var help = encodableList().map(function (c) { return c.code + ' ' + c.blendName; }).join(', ');
       var refused = codes.filter(function (c) { return !c.encodable; }).map(function (c) { return c.code + ' (' + c.blendName + ')'; });
@@ -429,6 +433,7 @@
     var autoBox = $('auto');
     autoBox.checked = s.auto.enabled;
     $('code').disabled = s.auto.enabled;
+    $('code-pick').disabled = s.auto.enabled;
     if (s.auto.enabled && s.auto.code && $('code').value !== s.auto.code) { $('code').value = s.auto.code; checkCode(); }
 
     var entry = codes.length ? findCode($('code').value) : null;
@@ -540,6 +545,17 @@
     render();
   });
   $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('write').disabled) write(); });
+  // A pick goes into the box as if typed there, and the list goes back to "Pick a blend".
+  $('code-pick').addEventListener('change', function () {
+    var pick = $('code-pick');
+    if (pick.value === '') return;
+    $('code').value = pick.value;
+    pick.value = '';
+    pick.blur();
+    $('code').dispatchEvent(new Event('input'));
+  });
+  // A letter typed into a select picks the first blend starting with it: a wedge typing "C4 ..." would pick cs.
+  $('code-pick').addEventListener('keydown', function (e) { if (typeof e.key === 'string' && e.key.length === 1 && e.key !== ' ') e.preventDefault(); });
   $('auto').addEventListener('change', function () { setAuto($('auto').checked); });
   $('notify').addEventListener('click', askNotify);
   Array.prototype.forEach.call(document.querySelectorAll('[data-sim]'), function (button) {

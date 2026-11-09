@@ -497,7 +497,7 @@ class FakeElement {
     readonly doc: FakeDocument,
     readonly id: string,
     readonly tag: string,
-    readonly kind: 'text' | 'checkbox' | 'button' | 'other' = 'other',
+    readonly kind: 'text' | 'checkbox' | 'button' | 'select' | 'other' = 'other',
   ) {}
   addEventListener(type: string, fn: Listener): void {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
@@ -527,6 +527,10 @@ class FakeElement {
       fn(event);
     }
   }
+  dispatchEvent(event: FakeEvent): boolean {
+    this.fire(event);
+    return !event.defaultPrevented;
+  }
 }
 
 class FakeDocument {
@@ -540,7 +544,7 @@ class FakeDocument {
     this.activeElement = this.body;
     for (const m of html.matchAll(/<(\w+)[^>]*\sid="([^"]+)"[^>]*>/g)) {
       const [whole, tag = '', id = ''] = m;
-      const kind = tag === 'button' ? 'button' : tag === 'input' ? (/type="checkbox"/.test(whole) ? 'checkbox' : 'text') : 'other';
+      const kind = tag === 'button' ? 'button' : tag === 'select' ? 'select' : tag === 'input' ? (/type="checkbox"/.test(whole) ? 'checkbox' : 'text') : 'other';
       this.elements.set(id, new FakeElement(this, id, tag, kind));
     }
   }
@@ -591,6 +595,11 @@ async function browser() {
       return { ok: true, status: 200, json: async () => reply };
     },
   };
+  sandbox.Event = class extends FakeEvent {
+    constructor(type: string) {
+      super(type, now);
+    }
+  };
   sandbox.window = sandbox;
   runInNewContext(readFileSync(join(STATIC_DIR, 'page.js'), 'utf8'), sandbox);
   const settle = async () => {
@@ -618,6 +627,13 @@ async function browser() {
       target.fire(new FakeEvent('change', at));
     } else if (target.kind === 'button' && (name === ' ' || name === 'Enter') && !target.disabled) {
       target.fire(new FakeEvent('click', at));
+    } else if (target.kind === 'select' && name.length === 1 && name !== ' ' && !target.disabled) {
+      // A select's own type-ahead: a letter picks the first option whose text starts with it.
+      const hit = target.children.find((o) => o.textContent.toLowerCase().startsWith(name.toLowerCase()));
+      if (hit && hit.value !== target.value) {
+        target.value = hit.value;
+        target.fire(new FakeEvent('change', at));
+      }
     }
   }
 
@@ -635,11 +651,20 @@ async function browser() {
       key(name, now + gapMs);
       for (let i = 0; i < repeats; i += 1) key(name, now + gapMs, true);
     },
-    /** A pick from the code list: one input event that is not a typed key. */
+    /** A code put into the box whole: one input event that is not a typed key. */
     pick(code: string): void {
       const box = el('code');
       box.value = code;
       box.fire(new FakeEvent('input', now, { inputType: 'insertReplacementText' }));
+    },
+    /** A blend chosen with the mouse from the "Pick a blend" list: focus, then one change event. */
+    choose(code: string): void {
+      const list = el('code-pick');
+      assert.ok(!list.disabled, 'the list can be opened');
+      assert.ok(list.children.some((o) => o.value === code), `${code} is in the list`);
+      list.focus();
+      list.value = code;
+      list.fire(new FakeEvent('change', now));
     },
     async setState(fields: Record<string, unknown>): Promise<void> {
       state = snapshotOf(fields);
@@ -790,6 +815,69 @@ test('page: a key held down is a person, however fast it repeats', async () => {
   b.hold('p', 3, 20);
   assert.equal(b.el('code').value, 'pppp');
   assert.equal(b.bannerShowing(), false);
+});
+
+test('page: Dan 11-09, after writing sr, ps picked from the list is written', async () => {
+  const b = await browser();
+  await b.settle();
+  await b.setState({ phase: 'tag-seen', uid: 'e002112233445566' });
+  b.choose('sr');
+  b.el('write').fire(new FakeEvent('click', 0));
+  assert.deepEqual(b.posted, [{ path: '/api/write', body: { code: 'sr' } }]);
+  assert.equal(b.el('code').value, 'sr', 'the last code stays in the box');
+  await b.setState({ phase: 'tag-seen', uid: 'e002112233445577' });
+  b.choose('ps');
+  assert.equal(b.el('code').value, 'ps');
+  assert.equal(b.el('code-pick').value, '', 'the list goes back to "Pick a blend"');
+  assert.notEqual(b.doc.activeElement, b.el('code-pick'), 'the list lets go of the focus');
+  assert.equal(b.el('code-note').className, 'muted');
+  assert.equal(b.el('write').disabled, false);
+  b.el('write').fire(new FakeEvent('click', 0));
+  assert.deepEqual(b.posted[1], { path: '/api/write', body: { code: 'ps' } });
+  assert.equal(b.bannerShowing(), false);
+});
+
+test('page: the list shows every writable blend whatever is in the box, and never kg', async () => {
+  const b = await browser();
+  await b.settle();
+  const writable = codeList().filter((c) => c.encodable).map((c) => c.code);
+  assert.deepEqual(writable, ['ps', 'cs', 'sr', 'nm']);
+  const options = () => b.el('code-pick').children.map((o) => o.value);
+  assert.deepEqual(options(), ['', ...writable]);
+  assert.equal(b.el('code-pick').children[0]?.textContent, 'Pick a blend');
+  for (const c of codeList().filter((e) => e.encodable)) {
+    assert.ok(b.el('code-pick').children.some((o) => o.value === c.code && o.textContent === `${c.code} ${c.blendName}`), c.code);
+  }
+  assert.ok(codeList().some((c) => c.code === 'kg' && !c.encodable), 'kg is in the table, reserved');
+  b.pick('sr');
+  assert.deepEqual(options(), ['', ...writable], 'sr in the box does not narrow the list');
+  assert.equal(b.doc.getElementById('code-list'), null, 'the datalist is gone');
+});
+
+test('page: the list is off while writing automatically, and an ID typed into it picks nothing', async () => {
+  const b = await browser();
+  await b.settle();
+  await b.setState({ phase: 'waiting-for-tag', auto: { enabled: true, code: 'sr', blendName: 'x' } });
+  assert.equal(b.el('code-pick').disabled, true);
+  assert.equal(b.el('code').disabled, true);
+  assert.equal(b.el('code').value, 'sr');
+  await b.setState({ phase: 'waiting-for-tag' });
+  assert.equal(b.el('code-pick').disabled, false);
+  b.choose('ps');
+  // A person clicks the list and closes it again, so it keeps the focus. GoToTags types a UID starting C.
+  b.el('code-pick').focus();
+  b.advance(2000);
+  b.type('C4 49 5E 6D 05 08 02 E0\n', WEDGE_MS);
+  assert.equal(b.el('code').value, 'ps', 'the C did not pick cs');
+  assert.equal(b.el('code-pick').value, '');
+  assert.equal(b.bannerShowing(), true);
+  assert.deepEqual(b.posted, []);
+  // The box's own guard still holds after a pick from the list.
+  b.advance(2000);
+  b.el('code').focus();
+  b.type('35 49 5E 6D 05 08 02 E0', WEDGE_MS);
+  assert.equal(b.el('code').value, 'ps');
+  assert.notEqual(b.doc.activeElement, b.el('code'));
 });
 
 test('page: while the banner shows, an error notice does not put a second red banner over it', async () => {
