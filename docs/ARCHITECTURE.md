@@ -33,6 +33,7 @@ Records scan event for analytics
 ### Frontend Layer
 
 #### Mobile App (React Native)
+
 - **Responsibility**: NFC tag reading, user interface, offline support
 - **Key Components**:
   - `NFCService`: Handles iOS CoreNFC and Android NFC API abstraction
@@ -42,6 +43,7 @@ Records scan event for analytics
 - **Data Flow**: User interactions → NFC reading → URL extraction → API queries
 
 #### Web Dashboard (React/Next.js)
+
 - **Responsibility**: Admin panel, blend management, analytics
 - **Key Features**:
   - Blend CRUD operations
@@ -53,6 +55,7 @@ Records scan event for analytics
 ### API Layer
 
 #### GraphQL API (Apollo Server on Lambda)
+
 - **Responsibility**: Data querying, mutation handling, business logic
 - **Key Features**:
   - Blend and recipe queries
@@ -64,36 +67,43 @@ Records scan event for analytics
 ### Data Layer
 
 #### DynamoDB
+
 Provides scalable, NoSQL storage with the following tables:
 
 **SpiceBlends**
+
 - Partition Key: `blendId`
 - Contains: name, origin, story, ingredients, grower reference
 - GSI: createdAt for listing recent blends
 
 **ScanEvents**
+
 - Partition Key: `chipUid`
 - Sort Key: `timestamp`
 - Tracks: blend ID, user, metadata
 - Purpose: Analytics and engagement tracking
 
 **Recipes**
+
 - Partition Key: `blendId`
 - Sort Key: `recipeId`
 - Contains: full recipe data with ingredients
 - Purpose: Serve recipes linked to blends
 
 **Growers**
+
 - Partition Key: `growerId`
 - Contains: farmer details, certifications, locations
 - Purpose: Transparency and brand storytelling
 
 **NFCTags**
+
 - Partition Key: `chipUid`
 - Tracks: programming status, blend reference
 - Purpose: Chip inventory and programming history
 
 #### Redis
+
 - **Purpose**: Caching and session management
 - **Data**: Frequently accessed blends, user sessions
 - **TTL Strategy**: Blends cached for 24 hours, sessions for 7 days
@@ -101,33 +111,36 @@ Provides scalable, NoSQL storage with the following tables:
 ### NFC Programming Layer
 
 #### Chip Programmer
-- **Input**: Blend ID, chip type (NTAG216/NTAG213)
+
+- **Input**: Blend ID, chip type (ST25TV02KC; NFC Forum Type 5 / ISO/IEC 15693, 13.56 MHz)
 - **Process**:
   1. Generate target URL: `https://trevean.com/blend/{blendId}`
   2. Create NDEF URL record
   3. Validate payload fits in chip memory
   4. Generate programming report
 - **Output**: Ready-to-program chip configuration
-- **Storage**: NDEF message (120-150 bytes per chip)
+- **Storage**: NFC Forum Type 5 NDEF URI record within the ST25TV02KC's 2.5-Kbit (320-byte) EEPROM; account for Capability Container (CC), TLV overhead, and reserved/configuration memory. Data is written in 4-byte ISO 15693 blocks.
 
 #### Chip Validator
+
 - **Validates**: Memory constraints, URL format, payload size
 - **Checks**:
-  - URL length < 300 characters
-  - Payload fits in NTAG216 (888 bytes) or NTAG213 (180 bytes)
+  - Encoded NDEF URI record and Type 5 TLV fit within the tag's actual writable NDEF area (not a fixed URL character limit)
+  - Payload fits in ST25TV02KC's 320-byte EEPROM after Type 5 CC, TLV, and other reserved-memory overhead; validate against the actual formatted tag capacity
   - Protocol is http/https
 - **Reports**: Detailed validation results with memory breakdown
 
 ## Data Flow Patterns
 
 ### Scan and Display Flow
+
 ```
 1. User holds phone to package
    ├─ iOS: Triggers NFC reader UI
    └─ Android: Automatic detection if NFC enabled
 
 2. App reads NDEF message
-   ├─ Decodes status byte to find URI prefix
+   ├─ Decodes NFC Forum URI identifier code (prefix byte) from the Type 5 NDEF URI record
    ├─ Extracts full URL
    └─ Parses blend ID from path
 
@@ -147,10 +160,11 @@ Provides scalable, NoSQL storage with the following tables:
 ```
 
 ### Programming Flow
+
 ```
 1. Programmer tool receives blend ID
    ├─ Validates blend exists
-   └─ Confirms chip type
+   └─ Confirms ST25TV02KC chip type and NFC-V / ISO 15693 compatibility
 
 2. Generates NDEF record
    ├─ Creates URL record
@@ -158,7 +172,7 @@ Provides scalable, NoSQL storage with the following tables:
    └─ Calculates payload size
 
 3. Validates against chip specs
-   ├─ Checks memory capacity
+   ├─ Checks ST25TV02KC available NDEF capacity (320-byte EEPROM, 4-byte ISO 15693 blocks, CC/TLV overhead)
    ├─ Confirms URL format
    └─ Generates report
 
@@ -169,6 +183,7 @@ Provides scalable, NoSQL storage with the following tables:
 ```
 
 ### Analytics Flow
+
 ```
 1. App records scan event
    ├─ Captures chipUid, blendId, timestamp
@@ -189,6 +204,7 @@ Provides scalable, NoSQL storage with the following tables:
 ## Caching Strategy
 
 ### Redis Cache Hierarchy
+
 ```
 Level 1: In-App Cache
 └─ AsyncStorage (mobile)
@@ -207,6 +223,7 @@ Level 3: DynamoDB
 ```
 
 ### Cache Invalidation
+
 - **Manual**: Admin invalidates blend cache after edits
 - **Automatic**: TTL expiration for time-based data
 - **Cascade**: Invalidate related caches (blend → recipes)
@@ -214,23 +231,27 @@ Level 3: DynamoDB
 ## Security Model
 
 ### Authentication
+
 - JWT tokens issued on login
 - Stored securely in AsyncStorage (mobile) or localStorage (web)
 - Included in Authorization header for API requests
 - Validate on each request with secret key
 
 ### Authorization
+
 - Public: Blend browsing, recipe viewing
 - Authenticated: Favorites, user preferences
 - Admin: Blend management, analytics
 
 ### Data Protection
+
 - HTTPS/TLS for all API communications
 - AWS KMS encryption for sensitive data at rest
 - No PII in NFC tags (only blend ID and URL)
 - Scan event user IDs encrypted when stored
 
 ### NFC-Specific Security
+
 - URLs are publicly guessable (no tokens in URL)
 - QR code fallback for offline scenarios
 - Chip UID not sensitive (widely available on physical tag)
@@ -239,18 +260,21 @@ Level 3: DynamoDB
 ## Scalability Considerations
 
 ### Horizontal Scaling
+
 - **Lambda**: Auto-scales on demand, pay per invocation
 - **DynamoDB**: On-demand billing, scales automatically
 - **Redis**: Cluster mode for sharding across nodes
 - **CloudFront**: Automatic global distribution
 
 ### Performance Optimization
+
 - Lazy load images in blend list
 - Cache API responses client-side
-- Compress NDEF payloads for chip storage
+- Minimize NDEF URI size using the NFC Forum URI prefix code (for example, 0x04 for https://) and short canonical URLs; validate the full Type 5 CC/TLV footprint against ST25TV02KC memory
 - Use connection pooling for database queries
 
 ### Monitoring & Observability
+
 - CloudWatch logs for Lambda errors
 - DynamoDB capacity monitoring
 - Redis command latency metrics
@@ -259,12 +283,14 @@ Level 3: DynamoDB
 ## Disaster Recovery
 
 ### Backup Strategy
+
 - Daily DynamoDB snapshots to S3
 - Redis persistence enabled
 - Source code in Git with multiple remotes
 - Configuration backed up to AWS Secrets Manager
 
 ### Recovery Procedures
+
 - RTO (Recovery Time Objective): < 1 hour
 - RPO (Recovery Point Objective): < 24 hours
 - Test restore procedures quarterly
@@ -273,6 +299,7 @@ Level 3: DynamoDB
 ## Infrastructure as Code
 
 Deployment uses CloudFormation/Terraform:
+
 - Lambda function definitions
 - API Gateway configuration
 - DynamoDB table creation
