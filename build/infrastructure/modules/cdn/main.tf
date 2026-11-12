@@ -860,24 +860,33 @@ resource "aws_cloudfront_distribution" "apex" {
     }
   }
 
-  # Behaviour 2: /blend.html
-  ordered_cache_behavior {
-    path_pattern               = "/blend.html"
-    target_origin_id           = local.aws_origin_id
-    viewer_protocol_policy     = "redirect-to-https"
-    allowed_methods            = ["GET", "HEAD"]
-    cached_methods             = ["GET", "HEAD"]
-    compress                   = true
-    cache_policy_id            = aws_cloudfront_cache_policy.blend_html.id
-    origin_request_policy_id   = aws_cloudfront_origin_request_policy.blend_html.id
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.app.id
+  # Behaviour 2: /blend.html, only when there is no Vercel origin.
+  #
+  # With one, /blend.html falls through to the default and Dan's Vercel page
+  # serves it, all query strings (blend, via) forwarded by vercel_default.
+  # Live regression 11-04: this behaviour sent taps to our S3 page, which never
+  # got Dan's copy. D67 scan counting resumes via a beacon on his page.
+  dynamic "ordered_cache_behavior" {
+    for_each = local.has_vercel_origin ? [] : [1]
 
-    dynamic "function_association" {
-      for_each = aws_cloudfront_function.blend_rewrite
+    content {
+      path_pattern               = "/blend.html"
+      target_origin_id           = local.aws_origin_id
+      viewer_protocol_policy     = "redirect-to-https"
+      allowed_methods            = ["GET", "HEAD"]
+      cached_methods             = ["GET", "HEAD"]
+      compress                   = true
+      cache_policy_id            = aws_cloudfront_cache_policy.blend_html.id
+      origin_request_policy_id   = aws_cloudfront_origin_request_policy.blend_html.id
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.app.id
 
-      content {
-        event_type   = "viewer-request"
-        function_arn = function_association.value.arn
+      dynamic "function_association" {
+        for_each = aws_cloudfront_function.blend_rewrite
+
+        content {
+          event_type   = "viewer-request"
+          function_arn = function_association.value.arn
+        }
       }
     }
   }

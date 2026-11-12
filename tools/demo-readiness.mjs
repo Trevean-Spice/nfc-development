@@ -27,6 +27,8 @@
  *      physical layer. That is the tap test, it is the M2 gate, and it has never run.
  */
 
+import { readFileSync } from 'node:fs';
+
 const DEFAULT_BASE = 'https://treveanspice.com';
 const TIMEOUT_MS = 20000;
 
@@ -36,6 +38,15 @@ const CODES = [
   ['sr', 'silk-road', 'The Silk Road'],
   ['nm', 'north-african-night-market', 'North African Night Market'],
 ];
+
+// Every slug in the redirect table, reserved ones included: a tap lands on
+// /blend.html?blend={slug}&via=nfc for each of them.
+const TABLE_SLUGS = JSON.parse(
+  readFileSync(new URL('../build/edge/redirect-table.json', import.meta.url), 'utf8'),
+).entries.map((e) => e.blendSlug);
+
+// Our S3 page carries this marker. Dan's Vercel page does not (live regression 11-04).
+const PLACEHOLDER = 'Placeholder content, not for release';
 
 const args = process.argv.slice(2);
 const baseIdx = args.indexOf('--base');
@@ -95,6 +106,21 @@ async function checkTagRoute(prefix, via, code, slug, label) {
   record('PASS', `${prefix}/${code}`, `307 to ${slug}, destination ${final.status}. ${label}.`);
 }
 
+async function checkBlendPage(slug) {
+  const url = `${BASE}/blend.html?blend=${slug}&via=nfc`;
+  try {
+    const res = await head(url, 'follow');
+    const body = await res.text();
+    if (body.includes(PLACEHOLDER)) {
+      record('FAIL', `blend/${slug}`, `serves "${PLACEHOLDER}", our page and not Dan's. A tap lands on placeholder copy.`);
+    } else {
+      record('PASS', `blend/${slug}`, `${res.status}, no placeholder copy.`);
+    }
+  } catch (err) {
+    record('FAIL', `blend/${slug}`, `request failed: ${err.message}`);
+  }
+}
+
 async function checkBranded404() {
   try {
     const res = await head(`${BASE}/t/zz`, 'follow');
@@ -140,6 +166,7 @@ const HUMAN = {
 
   for (const [code, slug, label] of CODES) await checkTagRoute('t', 'nfc', code, slug, label);
   for (const [code, slug, label] of CODES) await checkTagRoute('q', 'qr', code, slug, label);
+  for (const slug of TABLE_SLUGS) await checkBlendPage(slug);
   await checkBranded404();
   await checkApexChain();
 
