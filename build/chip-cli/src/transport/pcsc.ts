@@ -338,6 +338,8 @@ const CLA_PCSC = 0xff;
 const INS_GET_DATA = 0xca;
 const INS_READ_BINARY = 0xb0;
 const INS_UPDATE_BINARY = 0xd6;
+/** REF-ACR1552U 1.09, 5.3.4.2, "Accessing ISO15693 Tags": `FF FB`. See `passThroughApdu`. */
+const INS_PASS_THROUGH_15693 = 0xfb;
 
 /** Status words. 0x9000 is success; everything else is the card or reader saying no. */
 const SW_OK = 0x9000;
@@ -691,6 +693,113 @@ export function writeSingleBlockFrame(uidMsbFirst: Uint8Array, block: number, da
 }
 
 /**
+ * ISO/IEC 15693-3 Get System Information, which the ST25TV02KC answers with its memory size.
+ *
+ * DS13304 Rev 7, 6.4.13, Table 132: request "00xx00xxb 2Bh 64 bits" (flags, opcode, UID), so
+ * the addressed flags `22h` are allowed. Table 133: the answer is Response_flags `00h`,
+ * Information_flags `0Fh`, the UID, DSFID, AFI, a two byte Memory_size and IC_ref `08h`,
+ * with Memory_size "8-MSB (03h) = Block size in number of Bytes - 1, 8-LSB (END_MEM) = User
+ * memory size in number of Blocks - 1". It goes on the air LSB first, so `4F 03`. Table 134
+ * gives it only two error codes, 02h and 03h, both about the request's format.
+ *
+ * **Why the geometry check uses it (Thursday 29 October 2026).** Until then the check read
+ * block 80, one past the end, and required the read to fail. On Dan's ACR1552U the tag's
+ * answer to that read (error 10h, "Requested block not available", DS13304 Table 104) is
+ * not turned into a status word: the reader drops the tag, the transmit fails with
+ * SCARD_E_NO_SMARTCARD and the state goes EMPTY, so every genuine tag was taken for a tag
+ * that was not ready, and retried for ever. This asks the tag its size instead, and never
+ * reads past the end of its memory.
+ */
+const ISO15693_GET_SYSTEM_INFO = 0x2b;
+
+/** The addressed Get System Information frame: `22 2B` and the UID LSB first. Exported for the tests. */
+export function getSystemInfoFrame(uidMsbFirst: Uint8Array): Uint8Array {
+  return Uint8Array.from([FLAGS_ADDRESSED, ISO15693_GET_SYSTEM_INFO, ...uidOnAir(uidMsbFirst)]);
+}
+
+/**
+ * Wraps a standard ISO 15693 frame in the ACS pass through APDU, REF-ACR1552U 1.09 5.3.4.2:
+ * "FFh FBh 00h Flags [Data Length +1] Command Code Data", Le "--/00h". P2 carries the
+ * request flags and the data field starts at the command code, as in the manual's Example 1,
+ * "FF FB 00 22 09 02 XX XX XX XX XX XX XX XX" for an addressed Stay Quiet. Le is left out,
+ * as in all three of its examples. P2 is never `00h`, which would have the reader choose the
+ * flags and the address, because this tool addresses every frame itself (review finding F1).
+ *
+ * Only for the commands in PASS_THROUGH_COMMANDS, an allowlist (review C2, 30 October 2026).
+ * 5.3.4.2.2 also lists the standard write and lock commands, Write Single Block 21h and Lock
+ * Block 22h among them, and this helper refuses those and anything else not on the list, so
+ * nothing sent through it can change or lock a tag. Never an ST custom command. Exported for
+ * the tests.
+ */
+export function passThroughApdu(frame: Uint8Array): Uint8Array {
+  const [flags = 0, ...command] = frame;
+  if (flags === 0x00 || command.length < 1 || command.length > 0xff || !PASS_THROUGH_COMMANDS.has(command[0] ?? -1)) {
+    throw new Error(`The pass through carries one ISO 15693 command from its allowlist (${[...PASS_THROUGH_COMMANDS].map((c) => `${hex2(c).toUpperCase()}h`).join(', ')}) with its own request flags.`);
+  }
+  return Uint8Array.from([CLA_PCSC, INS_PASS_THROUGH_15693, 0x00, flags, command.length, ...command]);
+}
+
+/**
+ * The only command codes `passThroughApdu` will wrap: Get System Information 2Bh, which reads
+ * and changes nothing (DS13304 6.4.13). Its one caller is the geometry check. A code is added
+ * here only with the datasheet section that shows it changes nothing on the tag.
+ */
+const PASS_THROUGH_COMMANDS: ReadonlySet<number> = new Set([ISO15693_GET_SYSTEM_INFO]);
+
+/** What Get System Information says about the tag's memory. */
+export interface SystemInfo {
+  readonly blockCount: number;
+  readonly blockSizeBytes: number;
+  /** IC_ref, `08h` on ST25TVxxxC (DS13304 Table 82), or null when the tag leaves it out. */
+  readonly icRef: number | null;
+}
+
+/**
+ * Reads a Get System Information answer, from Information_flags on (the Response_flags byte
+ * already taken off), strictly. ISO/IEC 15693-3 Information_flags: b1 DSFID, b2 AFI, b3
+ * memory size, b4 IC reference, each field present when its bit is set, b5 to b8 RFU. The
+ * answer must carry the memory size, be exactly as long as its flags say, and name the UID
+ * the frame was addressed to, so an answer from any other tag cannot be read as this one's.
+ * Returns the reason when it is not usable. Exported for the tests.
+ */
+export function parseSystemInfo(data: Uint8Array, uidMsbFirst: Uint8Array): SystemInfo | string {
+  const infoFlags = data[0];
+  if (infoFlags === undefined) return 'an empty answer';
+  if ((infoFlags & 0xf0) !== 0) return `Information_flags 0x${hex2(infoFlags)}, with reserved bits set`;
+  if ((infoFlags & 0x04) === 0) return `Information_flags 0x${hex2(infoFlags)}, with no memory size`;
+  const length = 1 + 8 + (infoFlags & 0x01) + ((infoFlags >> 1) & 0x01) + 2 + ((infoFlags >> 3) & 0x01);
+  if (data.length !== length) return `${data.length} bytes after the response flags, where Information_flags 0x${hex2(infoFlags)} makes it ${length}`;
+  const uid = Uint8Array.from(data.subarray(1, 9)).reverse();
+  if (hex(uid) !== hex(uidMsbFirst)) return `the answer names uid ${hex(uid)}, not the selected ${hex(uidMsbFirst)}`;
+  const at = 9 + (infoFlags & 0x01) + ((infoFlags >> 1) & 0x01);
+  const blocksLess1 = data[at] ?? 0;
+  const sizeByte = data[at + 1] ?? 0;
+  if ((sizeByte & 0xe0) !== 0) return `memory size ${hex2(blocksLess1)} ${hex2(sizeByte)}, with reserved bits set`;
+  return {
+    blockCount: blocksLess1 + 1,
+    blockSizeBytes: (sizeByte & 0x1f) + 1,
+    icRef: (infoFlags & 0x08) !== 0 ? (data[at + 2] ?? 0) : null,
+  };
+}
+
+/**
+ * Reads the pass through's answer to Get System Information. The manual gives the answer
+ * only as "Result Data SW1 SW2" (5.3.4.2), and does not say whether the tag's Response_flags
+ * byte is kept, so both shapes are read, and each is held to the full check in
+ * `parseSystemInfo`: a `00h` first and the rest a valid answer, or a valid answer from
+ * Information_flags on. They cannot be confused, because Information_flags always carries the
+ * memory size bit here and so is never `00h`. Returns the reason when it is not usable, an
+ * error flagged answer included. Exported for the tests.
+ */
+export function parsePassThroughSystemInfo(response: Uint8Array, uidMsbFirst: Uint8Array): SystemInfo | string {
+  if (sw(response) !== SW_OK) return `status word 0x${sw(response).toString(16)}`;
+  const data = body(response);
+  if (data.length === 2 && data[0] === ISO15693_RESPONSE_FLAG_ERROR) return `tag error code 0x${hex2(data[1] ?? 0)}`;
+  if (data[0] === 0x00) return parseSystemInfo(data.subarray(1), uidMsbFirst);
+  return parseSystemInfo(data, uidMsbFirst);
+}
+
+/**
  * Decides whether the Present Password pair of the probe proved the command path. Pure, so
  * every way it can go wrong is tested without a reader. Exported for the tests.
  *
@@ -869,7 +978,48 @@ function heldBy(raw: number): string | null {
 export type ReleaseDisposition = 'unpower' | 'leave';
 
 /** Which TAG_ABSENT this is. Each one is named in the message the operator sees. */
-export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED' | 'TAG_NOT_READY';
+export type TagAbsentCase = 'NO_TAG' | 'READER_GONE' | 'TAG_MUTE' | 'CONNECT_FAILED' | 'UID_REFUSED' | 'TAG_NOT_READY' | 'SIZE_CHECK_LOST' | 'SELECTION_LOST';
+
+/** The two ways the geometry check can ask the tag its size. See `readSystemInfo`. */
+type SizeCheckPath = 'pass-through' | 'transparent';
+
+/**
+ * How many times a reader must drop a tag at Get System Information on one path before that
+ * path is given up, for as long as the reader stays open. Once on the pass through: the
+ * transparent session that replaces it costs three more APDUs and nothing else. Twice on the
+ * transparent session, because giving that up stops the tool, so one tag lifted off and put
+ * straight back at the wrong moment must not do it. A size answered on the transparent
+ * session starts its count again.
+ */
+const SIZE_CHECK_DROPS_TO_GIVE_UP: Readonly<Record<SizeCheckPath, number>> = { 'pass-through': 1, transparent: 2 };
+
+/**
+ * How many times in a row the reader may drop one tag after it answered its UID, at any
+ * command of the selection after the UID read, before the tool stops asking that tag and says
+ * so once, SELECTION_LOST (the design ruling trevean#10, 30 October 2026). Each drop counts
+ * only once the same tag has answered its UID again, within SELECTION_LOSS_CONNECTS connects
+ * after it. Twice, for the same
+ * reason as the transparent session: one tag lifted off and put back at the wrong moment must
+ * not stop the tool. A drop at the pass through is not counted here: it is given up after one,
+ * and asked the other way.
+ */
+const SELECTION_DROPS_TO_STOP = 2;
+
+/**
+ * How many connects after a tag was lost past its UID read the same tag has to answer its UID
+ * again for the loss to count as a drop (review C1, the design ruling trevean#12, 30 October
+ * 2026). Three, not one: a reader that also loses the UID read on the connect straight after
+ * each drop, as Dan's lost the first transmit after a connect on 26 October, would otherwise
+ * never confirm a drop and retry for ever under the GoToTags banner. A tag that misses its UID
+ * read on all three, or is not there (NO_TAG), or another tag answers, was taken off.
+ */
+const SELECTION_LOSS_CONNECTS = 3;
+
+/** One drop counted towards SELECTION_DROPS_TO_STOP: the command that lost the tag, and the PC/SC error. */
+interface SelectionDrop {
+  readonly step: string;
+  readonly pcscError: string;
+}
 
 /** The result of `inspectTag`, which is what doctor prints about the tag on the reader. */
 export interface TagInspection {
@@ -1011,6 +1161,36 @@ export class PcscTransport implements TagTransport {
   /** WritePassword and WriteConfiguration frames handed to the reader since this transport was made. See `irreversibleFramesSent`. */
   private irreversibleSent = 0;
 
+  /** Commands the connected tag has answered since `waitForTag` last started on it. See TAG_NOT_READY. */
+  private answered = 0;
+
+  /**
+   * The PC/SC errors this reader has dropped a tag with at Get System Information since it was
+   * opened, by path, each counted only once the same tag answered its UID again afterwards (see
+   * `selectionLoss`). A path is given up at SIZE_CHECK_DROPS_TO_GIVE_UP. With the pass through
+   * given up the geometry check asks through a transparent session, and with both it stops
+   * asking: see SIZE_CHECK_LOST. Cleared when the reader is opened.
+   */
+  private readonly sizeCheckDrops = new Map<SizeCheckPath, string[]>();
+  /**
+   * A tag lost after it answered its UID, and not yet seen again: its UID, the command that lost
+   * it, the PC/SC error, and the size check path when it was lost at Get System Information.
+   * The next UID read that answers decides it, within SELECTION_LOSS_CONNECTS connects. The same
+   * UID back is the reader dropping a tag that never left, and is counted in `selectionDrops`,
+   * and in `sizeCheckDrops` for a path. No tag, or another one, is a tag taken off, and it is
+   * forgotten. A connect that loses the UID read itself only uses up one of the connects
+   * (`uidReadsLost`): with all of them used up, the loss is forgotten too.
+   */
+  private selectionLoss: { uid: string; step: string; pcscError: string; path: SizeCheckPath | null; uidReadsLost: number } | null = null;
+  /**
+   * The drops counted against one tag since it was last selected, by UID: see
+   * SELECTION_DROPS_TO_STOP. Another UID starts the count again, and so does a selection that
+   * gets through. Cleared when the reader is opened.
+   */
+  private selectionDrops: { uid: string; drops: SelectionDrop[] } | null = null;
+  /** The tags this reader has stopped asking, SELECTION_LOST, with the drops that did it. Cleared when the reader is opened. */
+  private readonly selectionStopped = new Map<string, readonly SelectionDrop[]>();
+
   /** What the last wait for a tag ended on, so a tag arriving between two waits is seen to arrive. Null after open. */
   private lastPresence: TagPresence | null = null;
 
@@ -1055,6 +1235,12 @@ export class PcscTransport implements TagTransport {
   async open(): Promise<void> {
     this.resetProof();
     this.lastPresence = null;
+    // A reader opened again, after it was unplugged or by another run, is given both paths
+    // again, and every tag it stopped asking is asked again.
+    this.sizeCheckDrops.clear();
+    this.selectionLoss = null;
+    this.selectionDrops = null;
+    this.selectionStopped.clear();
     let binding: PcscBinding;
     try {
       binding = await this.loadBinding();
@@ -1151,6 +1337,9 @@ export class PcscTransport implements TagTransport {
     // The reader state saying the card is in use (INUSE) or held exclusively (EXCLUSIVE)
     // before this tool connected to it: another program has it.
     let otherProgram: string | null = null;
+    // The fewest commands the tag answered in any try before it was lost. 0 means it was lost
+    // at the first command, which is what another program reading the tag first looks like.
+    let fewestAnswered = Number.POSITIVE_INFINITY;
     for (let attempt = 1; ; attempt += 1) {
       const seen = await this.awaitTag(reader, timeoutMs);
       if (seen === 'reader-gone') {
@@ -1162,6 +1351,8 @@ export class PcscTransport implements TagTransport {
         );
       }
       if (seen === 'absent') {
+        // A tag lost after its UID read that is not there now was taken off, not dropped.
+        this.selectionLoss = null;
         throw this.tagAbsent(
           reader,
           'NO_TAG',
@@ -1181,6 +1372,7 @@ export class PcscTransport implements TagTransport {
       }
       this.connected = true;
 
+      this.answered = 0;
       try {
         return await this.identify(reader);
       } catch (err) {
@@ -1190,17 +1382,31 @@ export class PcscTransport implements TagTransport {
         // the reader drop it and find it again, and select it from scratch after a pause.
         const pcscCode = isChipError(err) ? err.detail.pcscCode : undefined;
         if (typeof pcscCode !== 'string' || !TAG_NOT_READY_ERRORS.has(pcscCode)) throw err;
+        fewestAnswered = Math.min(fewestAnswered, this.answered);
+        // Lost at the UID read: an earlier loss is not settled by this connection, and has one
+        // connect fewer left to be. The count already made stands. See `selectionLoss`.
+        if (this.answered === 0 && this.selectionLoss !== null) {
+          const uidReadsLost = this.selectionLoss.uidReadsLost + 1;
+          this.selectionLoss = uidReadsLost >= SELECTION_LOSS_CONNECTS ? null : { ...this.selectionLoss, uidReadsLost };
+        }
         await this.releaseTag('leave');
         if (attempt >= NOT_READY_ATTEMPTS) {
           const step = isChipError(err) && typeof err.detail.step === 'string' ? err.detail.step : 'the first command';
           const why = isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode;
           const elsewhere = otherProgram === null ? '' : ` Before the connect the reader reported the tag in use by another program (${otherProgram}).`;
+          // A tag that answered the UID read in every try was there and not held by anything
+          // else: it was lost later, at a command of this tool's. Sending the operator off to
+          // look for GoToTags then is wrong, as it was on Dan's machine on 29 October 2026.
+          const answeredFirst = otherProgram === null && fewestAnswered > 0;
+          const remedy = answeredFirst
+            ? `The tool tries again by itself. The tag answered ${fewestAnswered === 1 ? 'the first command' : `the first ${fewestAnswered} commands`} in every try and was lost after that, so it was on the reader and not held by another program. Keep the tag flat and still in the centre of the reader. If it never clears, unplug the reader, plug it back in, and send this whole message: it names the command the tag was lost at.`
+            : `The tool tries again by itself. Keep the tag flat and still in the centre of the reader, printed face towards it. If it never becomes ready, another program is most likely reading the tag first. ${OTHER_PROGRAM_REMEDY} Then unplug the reader, plug it back in, and send this whole message if it still happens.`;
           throw this.tagAbsent(
             reader,
             'TAG_NOT_READY',
             `The tag was not ready. The reader connected to it, and then ${step} found no tag: ${why}. Tried ${attempt} times.${elsewhere}`,
-            `The tool tries again by itself. Keep the tag flat and still in the centre of the reader, printed face towards it. If it never becomes ready, another program is most likely reading the tag first. ${OTHER_PROGRAM_REMEDY} Then unplug the reader, plug it back in, and send this whole message if it still happens.`,
-            { pcscCode, step, otherProgram },
+            remedy,
+            { pcscCode, step, otherProgram, tagAnswered: fewestAnswered },
           );
         }
         await new Promise((r) => setTimeout(r, this.notReadyRetryMs * attempt));
@@ -1237,47 +1443,230 @@ export class PcscTransport implements TagTransport {
     }
 
     this.currentUid = hex(normalised.uid);
+    this.settleSelectionLoss(reader);
+
+    let blockCount: number;
+    try {
+      blockCount = await this.probeBlockCount();
+    } catch (err) {
+      this.noteSelectionLoss(err);
+      throw err;
+    }
+    // Selected: a drop on a later selection starts the count again.
+    this.selectionDrops = null;
 
     return {
       uid: this.currentUid,
       // PC/SC cannot report a part number. Null is the documented, expected answer here
       // and the UID check above is what stands in for it.
       partNumber: null,
-      blockCount: await this.probeBlockCount(),
+      blockCount,
       blockSizeBytes: PART.blockSizeBytes,
     };
   }
 
   /**
-   * Establishes the block count by reading, rather than asserting it from the datasheet.
+   * Establishes the block count from the tag, rather than asserting it from the datasheet.
    *
    * README section 6.3 step 2 says to confirm the geometry is 80 blocks of 4 bytes
-   * (DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC). A constant cannot
-   * confirm anything, so this reads block 79, the last the part should have, and then
-   * block 80, one past it, and requires the first to succeed and the second to fail.
-   * **A part that answers both is not the part this tool models**, and writing a 312
-   * byte image to it could run off the end of its area.
+   * (DS13304 Rev 7, section 4.2: END_MEM is 4Fh on ST25TV02KC). A constant cannot confirm
+   * anything, so this asks the tag: Get System Information must report exactly 80 blocks of
+   * 4 bytes (see `getSystemInfoFrame`), and then block 79, the last of them, must read.
+   * **A tag that reports any other size is not the part this tool models**, and writing a
+   * 312 byte image to it could run off the end of its area, so it is refused here, before
+   * anything is written.
+   *
+   * Nothing past the end of the memory is ever read. Until Thursday 29 October 2026 this read
+   * block 80 and required it to fail, and on Dan's ACR1552U that read lost the tag every time
+   * (see `getSystemInfoFrame`). The size is asked first for the same reason: block 79 is past
+   * the end of a smaller part.
    */
   private async probeBlockCount(): Promise<number> {
+    const info = await this.readSystemInfo();
+    if (info.blockCount !== PART.blockCount || info.blockSizeBytes !== PART.blockSizeBytes) {
+      const reported = `The tag reports ${info.blockCount} blocks of ${info.blockSizeBytes} bytes in Get System Information, and an ST25TV02KC has ${PART.blockCount} blocks of ${PART.blockSizeBytes} (DS13304 6.4.13, END_MEM 4Fh)`;
+      throw info.blockSizeBytes === PART.blockSizeBytes && info.blockCount > PART.blockCount
+        ? new ChipError(
+            'TAG_NOT_ST25TV02KC',
+            `${reported}, so this tag is larger than ST25TV02KC.`,
+            'This is a bigger ST25 part. It is not what the redirect table and the 312 byte area calculation assume, so it is refused rather than half written. Nothing was written.',
+            { blockCount: info.blockCount, blockSizeBytes: info.blockSizeBytes },
+          )
+        : new ChipError(
+            'TAG_NOT_ST25TV02KC',
+            `${reported}, so this tag ${info.blockSizeBytes === PART.blockSizeBytes ? `has fewer than ${PART.blockCount} blocks` : 'is a different part'}.`,
+            'ST25TV02KC has 80 blocks of 4 bytes (DS13304, END_MEM 4Fh). A smaller part is a different chip, an ST25TV512C has 16, and this tool will not write it. A genuine ST25TV02KC reports 80 unless its TruST25 configuration has reduced END_MEM, which DS13304 section 5.6 says can bring it to 3Dh. Report it with the UID rather than forcing it. Nothing was written.',
+            { blockCount: info.blockCount, blockSizeBytes: info.blockSizeBytes },
+          );
+    }
+
     const last = await this.transmit(readBinaryApdu(PART.blockCount - 1, 1), PART.blockSizeBytes + 2, `the geometry check's read of block ${PART.blockCount - 1}`);
     if (sw(last) !== SW_OK) {
       throw new ChipError(
         'TAG_NOT_ST25TV02KC',
-        `Block ${PART.blockCount - 1} could not be read, so this tag has fewer than ${PART.blockCount} blocks.`,
-        'ST25TV02KC has 80 blocks of 4 bytes (DS13304, END_MEM 4Fh). A smaller part is a different chip, an ST25TV512C has 16, and this tool will not write it. A genuine ST25TV02KC answers here unless its TruST25 configuration has reduced END_MEM, which DS13304 section 5.6 says can bring it to 3Dh. Report it with the UID rather than forcing it.',
-      );
-    }
-
-    const past = await this.transmit(readBinaryApdu(PART.blockCount, 1), PART.blockSizeBytes + 2, `the geometry check's read of block ${PART.blockCount}`);
-    if (sw(past) === SW_OK) {
-      throw new ChipError(
-        'TAG_NOT_ST25TV02KC',
-        `Block ${PART.blockCount} answered a read, so this tag is larger than ST25TV02KC.`,
-        'This is a bigger ST25 part. It is not what the redirect table and the 312 byte area calculation assume, so it is refused rather than half written.',
+        `The tag reports ${PART.blockCount} blocks, and block ${PART.blockCount - 1}, the last of them, could not be read (status 0x${sw(last).toString(16)}).`,
+        'The reader does not reach the whole memory of this tag the way the tool expects, so it is not written. Report this message with the UID. Nothing was written.',
       );
     }
 
     return PART.blockCount;
+  }
+
+  /**
+   * Get System Information from the selected tag, addressed to its UID. Read only.
+   *
+   * First through the ACS pass through (5.3.4.2), one APDU with no session to open or close,
+   * which ACS lists as tested for this command. That needs ACR1552U-M firmware 1.03.00 or
+   * later, so if the reader does not give a usable answer, or the pass through fails with any
+   * error that is not the tag lost (an older firmware's PC/SC layer refusing the APDU, review
+   * C2, the design ruling trevean#12), the same frame is sent through the transparent session
+   * (5.3.5), which the manual gives no firmware condition for. Any other failure on both paths
+   * refuses the tag: a size that cannot be confirmed is not written to.
+   *
+   * **A tag lost on the way** (SCARD_E_NO_SMARTCARD and its kind) is thrown as it is, so the
+   * tag is selected again as one that was not ready, and the path it was lost on is noted
+   * (review C1, 30 October 2026). Dan's reader dropped the tag at the old read past the end,
+   * and its firmware is not known here, so it may drop it at the pass through too. If the same
+   * tag then answers its UID again, the reader dropped a tag that never left, and from then on
+   * this reader is asked through the transparent session only. If it drops the tag there too,
+   * twice, the check stops asking and says so once, SIZE_CHECK_LOST, rather than losing the
+   * tag for ever. See `settleSelectionLoss`. A tag taken off is still NO_TAG, as before.
+   */
+  private async readSystemInfo(): Promise<SystemInfo> {
+    const uid = uidBytes(this.currentUid ?? '');
+    const frame = getSystemInfoFrame(uid);
+    const step = "the geometry check's Get System Information";
+
+    let first: SystemInfo | string;
+    if (this.givenUp('pass-through')) {
+      first = `no answer, because this reader dropped the tag there before (${this.dropsOn('pass-through')}), so it was not asked that way again`;
+    } else {
+      try {
+        const answer = await this.lostAt('pass-through', () => this.transmit(passThroughApdu(frame), 32, `${step} through the reader's pass through`));
+        first = parsePassThroughSystemInfo(answer, uid);
+      } catch (err) {
+        // The tag lost goes on to `noteSelectionLoss`. Anything else is the pass through not
+        // working on this reader, the same as a refusal word: ask the other way.
+        if (isChipError(err) && err.detail.sizeCheckPath === 'pass-through') throw err;
+        first = `the error ${isChipError(err) && typeof err.detail.pcscError === 'string' ? err.detail.pcscError : describePcscError(err)}`;
+      }
+      if (typeof first !== 'string') return first;
+    }
+
+    let second: SystemInfo | string;
+    try {
+      const answer = await this.lostAt('transparent', () => this.transceive(frame, step));
+      second = answer.kind === 'ok' ? parseSystemInfo(answer.data, uid) : describeAnswer(answer);
+      if (typeof second !== 'string') this.sizeCheckDrops.delete('transparent');
+    } catch (err) {
+      if (isChipError(err) && typeof err.detail.pcscCode === 'string') {
+        throw new ChipError(err.code, err.message, err.remedy, { ...err.detail, step: `${step} in a transparent session` });
+      }
+      second = (err instanceof Error ? err.message : String(err)).replace(/\.$/, '');
+    }
+    if (typeof second !== 'string') return second;
+
+    throw new ChipError(
+      'TAG_NOT_ST25TV02KC',
+      `The tag's size could not be confirmed, so it is not written. Get System Information through the reader's pass through got ${first}, and through a transparent session got ${second}.`,
+      'A genuine ST25TV02KC answers Get System Information with its size (DS13304 6.4.13). Nothing was written. Report this whole message with the UID and the reader model, and do not try other tags to make it pass.',
+      { passThrough: first, transparentSession: second },
+    );
+  }
+
+  /** True once this reader has dropped tags on `path` SIZE_CHECK_DROPS_TO_GIVE_UP times. */
+  private givenUp(path: SizeCheckPath): boolean {
+    return (this.sizeCheckDrops.get(path)?.length ?? 0) >= SIZE_CHECK_DROPS_TO_GIVE_UP[path];
+  }
+
+  /** The PC/SC errors of the drops on `path`, for a message. */
+  private dropsOn(path: SizeCheckPath): string {
+    return (this.sizeCheckDrops.get(path) ?? []).join(', then ');
+  }
+
+  /** Runs one way of asking the tag its size, and marks a tag lost on it with the path, for `noteSelectionLoss`. See `readSystemInfo`. */
+  private async lostAt<T>(path: SizeCheckPath, ask: () => Promise<T>): Promise<T> {
+    try {
+      return await ask();
+    } catch (err) {
+      if (isChipError(err) && typeof err.detail.pcscCode === 'string' && TAG_NOT_READY_ERRORS.has(err.detail.pcscCode)) {
+        throw new ChipError(err.code, err.message, err.remedy, { ...err.detail, sizeCheckPath: path });
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Notes a tag lost after it answered its UID, at any command of the selection, so the next UID
+   * read can tell a drop from a removal. See `selectionLoss`.
+   */
+  private noteSelectionLoss(err: unknown): void {
+    if (!isChipError(err) || this.currentUid === null) return;
+    const pcscCode = err.detail.pcscCode;
+    if (typeof pcscCode !== 'string' || !TAG_NOT_READY_ERRORS.has(pcscCode)) return;
+    const path = err.detail.sizeCheckPath;
+    this.selectionLoss = {
+      uid: this.currentUid,
+      step: typeof err.detail.step === 'string' ? err.detail.step : 'a command after the UID read',
+      pcscError: typeof err.detail.pcscError === 'string' ? err.detail.pcscError : pcscCode,
+      path: path === 'pass-through' || path === 'transparent' ? path : null,
+      uidReadsLost: 0,
+    };
+  }
+
+  /**
+   * Called once the tag has answered its UID. Settles a tag lost after its UID read on one of the
+   * last SELECTION_LOSS_CONNECTS tries: the same tag back means the reader dropped a tag that never left. That counts against
+   * the tag (SELECTION_DROPS_TO_STOP), and against the path on this reader when it was lost at
+   * Get System Information (SIZE_CHECK_DROPS_TO_GIVE_UP). Another tag means the first was taken
+   * off, and the loss and the count are forgotten. A tag taken off and not put back never gets
+   * here: it ends as NO_TAG, and the loss is forgotten then.
+   *
+   * With both size check paths given up, it throws SIZE_CHECK_LOST, on this and every later
+   * tag. With this tag dropped SELECTION_DROPS_TO_STOP times in a row, it throws SELECTION_LOST,
+   * on this tag every time it comes back. Either way it is at once, before anything is sent to
+   * the tag past its UID read, until the reader is opened again. One clear message, not a tag
+   * lost and found for ever (the design rulings on review C1 and trevean#10).
+   */
+  private settleSelectionLoss(reader: PcscReaderHandle): void {
+    const uid = this.currentUid ?? '';
+    const loss = this.selectionLoss;
+    this.selectionLoss = null;
+    if (this.selectionDrops !== null && this.selectionDrops.uid !== uid) this.selectionDrops = null;
+    if (loss !== null && loss.uid === uid) {
+      if (loss.path !== null) this.sizeCheckDrops.set(loss.path, [...(this.sizeCheckDrops.get(loss.path) ?? []), loss.pcscError]);
+      if (loss.path !== 'pass-through') {
+        const drops = [...(this.selectionDrops?.drops ?? []), { step: loss.step, pcscError: loss.pcscError }];
+        this.selectionDrops = { uid, drops };
+        if (drops.length >= SELECTION_DROPS_TO_STOP) this.selectionStopped.set(uid, drops);
+      }
+    }
+
+    if (this.givenUp('pass-through') && this.givenUp('transparent')) this.throwSizeCheckLost(reader);
+    const stopped = this.selectionStopped.get(uid);
+    if (stopped === undefined) return;
+    const last = stopped[stopped.length - 1]!;
+    const each = stopped.map((d) => `at ${d.step} (${d.pcscError})`).join(', then ');
+    throw this.tagAbsent(
+      reader,
+      'SELECTION_LOST',
+      `The reader loses the tag at ${last.step}, which comes before anything is written. It lost it ${stopped.length} times in a row, ${each}, and each time the same tag was still on the reader and answered its UID again. So this reader cannot select this tag, and the tool has stopped asking it. Nothing was written.`,
+      'The tag is most likely not the problem: this reader is. Unplug the reader, plug it back in, and put one tag on: the tool then tries again. If this message comes back, stop and send this whole message: it names the reader and the step that loses the tag.',
+      { step: last.step, drops: stopped.length, lostAt: each, uid },
+    );
+  }
+
+  /** SIZE_CHECK_LOST, from `settleSelectionLoss`. */
+  private throwSizeCheckLost(reader: PcscReaderHandle): never {
+    const passThrough = this.dropsOn('pass-through');
+    const transparent = this.dropsOn('transparent');
+    throw this.tagAbsent(
+      reader,
+      'SIZE_CHECK_LOST',
+      `The reader loses the tag at the size check, the geometry check's Get System Information (DS13304 6.4.13), which comes before anything is written. It lost it through the reader's pass through, FF FB (${passThrough}), and through a transparent session, FF C2 (${transparent}), and each time the same tag was still on the reader and answered its UID again. So this reader cannot confirm the tag's size, and the tool has stopped asking. Nothing was written.`,
+      'The tag is not the problem: this reader is. Unplug the reader, plug it back in, and put one tag on: the tool then tries both ways again. If this message comes back, stop and send this whole message: it names the reader and the step.',
+      { step: 'the size check (Get System Information)', passThrough, transparentSession: transparent, uid: this.currentUid },
+    );
   }
 
   /**
@@ -1415,6 +1804,15 @@ export class PcscTransport implements TagTransport {
   }
 
   async readBlocks(firstBlock: number, count: number): Promise<Uint8Array> {
+    if (firstBlock < 0 || firstBlock + count > PART.blockCount) {
+      // Never sent. On the ACR1552U a read past the end of the memory loses the tag rather
+      // than failing with a status word (see `getSystemInfoFrame`).
+      throw new ChipError(
+        'READBACK_FAILED',
+        `Blocks ${firstBlock} to ${firstBlock + count - 1} are not all inside the ${PART.blockCount} block memory, so they were not read.`,
+        'This is a bug in the caller rather than anything to do with the tag. Report it.',
+      );
+    }
     const expected = count * PART.blockSizeBytes;
     const response = await this.transmit(readBinaryApdu(firstBlock, count), expected + 2);
 
@@ -2070,7 +2468,9 @@ export class PcscTransport implements TagTransport {
       throw new ChipError('TRANSPORT_UNAVAILABLE', 'The reader rejected a command: no tag is connected.', 'Reseat the tag. If it repeats, close any other application holding the reader.');
     }
     try {
-      return new Uint8Array(await card.transmit(Uint8Array.from(apdu)));
+      const response = new Uint8Array(await card.transmit(Uint8Array.from(apdu)));
+      this.answered += 1;
+      return response;
     } catch (err) {
       // Whatever happened, the tag that was proven may not be the tag that answers next.
       this.resetProof();

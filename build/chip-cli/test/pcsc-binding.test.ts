@@ -41,7 +41,7 @@ import { PART } from '../src/chip/st25tv02kc.js';
 import { ST_COMMANDS } from '../src/chip/st-custom.js';
 import { readJournal } from '../src/workflow/journal.js';
 import { UnitSession } from '../src/workflow/unit.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, OK, carriesSt, hex, pcscError } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, GET_SYSTEM_INFO_APDU, OK, OTHER_UID_LSB_FIRST, carriesSt, frameOf, hex, pcscError } from './fake-acr1552u.js';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -78,31 +78,106 @@ test('a tag already lying on the reader before the unit starts is found', async 
   await transport.close();
 });
 
-test('selecting a tag sends the UID read and the two geometry reads, in that order and nothing else', async () => {
+test('selecting a tag sends the UID read, Get System Information and the block 79 read, in that order and nothing else', async () => {
   const reader = new FakeReader(ACR1552U);
   const { transport } = await openWith([reader]);
   await transport.waitForTag(200);
-  // Block 4Fh (79), END_MEM, must answer and block 50h (80) must not.
-  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff b0 00 4f 04', 'ff b0 00 50 04']);
+  // Nothing past block 4Fh (79), END_MEM, is ever read: on the ACR1552U that loses the tag.
+  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', ...GEOMETRY_APDUS]);
   await transport.close();
 });
 
-test('the probe accepts an 80 block tag: block 79 readable, block 80 not', async () => {
-  const reader = new FakeReader(ACR1552U, new FakeTag(80));
+test('the probe accepts an 80 block tag on an ACR1552U that drops the tag on a read past the end, as Dan\'s did on 29 October 2026', async () => {
+  const tag = new FakeTag(80);
+  assert.equal(tag.outOfRangeDropsCard, true, 'the fake models the reader as measured');
+  const reader = new FakeReader(ACR1552U, tag);
   const { transport } = await openWith([reader]);
   const identity = await transport.waitForTag(200);
   assert.equal(identity.blockCount, 80);
+  assert.equal(identity.blockSizeBytes, 4);
+  assert.equal(tag.drops, 0, 'the tag was never dropped');
+  assert.equal(reader.connects, 1, 'selected at the first connect, no retry');
+  assert.ok(tag.sent.every((apdu) => !apdu.startsWith('ff b0 00 50')), 'block 80 is never read');
+  // The tag selected is then written and read back on the same connection.
+  await transport.writeBlock(1, Uint8Array.from([1, 2, 3, 4]));
+  assert.equal(hex(await transport.readBlocks(1, 1)), '01 02 03 04');
+  await transport.close();
+});
+
+test('the fake reproduces Dan\'s line: a read of block 80 fails with SCARD_E_NO_SMARTCARD and the reader goes EMPTY with the counter up', async () => {
+  const tag = new FakeTag(80);
+  const reader = new FakeReader(ACR1552U, tag);
+  reader.raw = (0x0006 << 16) | READER_STATE_FLAGS.PRESENT | READER_STATE_FLAGS.CHANGED;
+  const handle = await reader.connect();
+  await assert.rejects(() => handle.transmit(Uint8Array.from([0xff, 0xb0, 0x00, 0x50, 0x04])), (e: unknown) => (e as { code?: string }).code === 'NoSmartCard');
+  assert.equal(describeReaderState(reader.state()), '0x00070012 CHANGED|EMPTY');
+  await assert.rejects(() => handle.transmit(Uint8Array.from([0xff, 0xca, 0x00, 0x00, 0x00])), (e: unknown) => (e as { code?: string }).code === 'NoSmartCard', 'the connection that lost the tag stays dead');
+  await new Promise((r) => setTimeout(r, reader.redetectMs + 20));
+  assert.equal(describeReaderState(reader.state()), '0x00080022 CHANGED|PRESENT', 'and the reader finds the tag again');
+});
+
+test('the probe accepts the pass through answer with or without the tag\'s response flags byte', async () => {
+  for (const keepsFlags of [true, false]) {
+    const tag = new FakeTag(80);
+    tag.passThroughKeepsFlags = keepsFlags;
+    const reader = new FakeReader(ACR1552U, tag);
+    const { transport } = await openWith([reader]);
+    assert.equal((await transport.waitForTag(200)).blockCount, 80);
+    assert.deepEqual(tag.sent, ['ff ca 00 00 00', ...GEOMETRY_APDUS]);
+    await transport.close();
+  }
+});
+
+test('a reader without the pass through (firmware before 1.03.00) is asked through a transparent session instead, and the session is closed', async () => {
+  const tag = new FakeTag(80);
+  tag.passThrough = false;
+  const reader = new FakeReader(ACR1552U, tag);
+  const { transport } = await openWith([reader]);
+  assert.equal((await transport.waitForTag(200)).blockCount, 80);
+  const exchanged = tag.sent.map(frameOf).filter((f): f is number[] => f !== null);
+  assert.deepEqual(exchanged.map((f) => hex(Uint8Array.from(f))), ['22 2b 66 55 44 33 22 11 02 e0'], 'one addressed Get System Information, nothing else');
+  assert.equal(tag.sent.at(-2), 'ff c2 00 00 02 82 00', 'the session is ended before the block 79 read');
+  assert.equal(tag.sent.at(-1), 'ff b0 00 4f 04');
+  await transport.close();
+});
+
+test('a tag whose size cannot be confirmed on either path is refused, and nothing is written', async () => {
+  const tag = new FakeTag(80);
+  tag.passThrough = false;
+  tag.tagOverride = (frame) => (frame[1] === 0x2b ? [0x01, 0x02] : tag.datasheetAnswer(frame));
+  const reader = new FakeReader(ACR1552U, tag);
+  const { transport } = await openWith([reader]);
+  await assert.rejects(
+    () => transport.waitForTag(200),
+    (error: unknown) => {
+      assert.ok(isChipError(error));
+      assert.equal(error.code, 'TAG_NOT_ST25TV02KC');
+      assert.match(error.message, /size could not be confirmed.*status word 0x6d00.*tag error code 0x02/);
+      return true;
+    },
+  );
+  assert.ok(tag.sent.every((apdu) => !apdu.startsWith('ff d6') && !apdu.startsWith('ff b0')), 'no read of block 79 and no write');
+  await transport.close();
+});
+
+test('an answer to Get System Information that names another UID is not taken as this tag\'s size', async () => {
+  const tag = new FakeTag(80);
+  tag.tagOverride = (frame) => (frame[1] === 0x2b ? [0x00, 0x0f, ...OTHER_UID_LSB_FIRST, 0, 0, 0x4f, 0x03, 0x08] : tag.datasheetAnswer(frame));
+  const reader = new FakeReader(ACR1552U, tag);
+  const { transport } = await openWith([reader]);
+  await assert.rejects(() => transport.waitForTag(200), (error: unknown) => isChipError(error) && error.code === 'TAG_NOT_ST25TV02KC' && /not the selected e002112233445566/.test(error.message));
   await transport.close();
 });
 
 for (const [blocks, label, pattern] of [
-  [64, 'a 64 block part, the geometry this tool wrongly assumed until 25 October 2026', /Block 79 could not be read/],
-  [62, 'a TruST25 configured part whose END_MEM DS13304 says may be reduced to 3Dh', /Block 79 could not be read/],
-  [16, 'an ST25TV512C, END_MEM 0Fh', /Block 79 could not be read/],
-  [81, 'a part one block larger', /Block 80 answered a read/],
-  [128, 'a larger ST25 part', /Block 80 answered a read/],
+  [64, 'a 64 block part, the geometry this tool wrongly assumed until 25 October 2026', /reports 64 blocks of 4 bytes.*fewer than 80 blocks/],
+  [62, 'a TruST25 configured part whose END_MEM DS13304 says may be reduced to 3Dh', /reports 62 blocks of 4 bytes.*fewer than 80 blocks/],
+  [16, 'an ST25TV512C, END_MEM 0Fh', /reports 16 blocks of 4 bytes.*fewer than 80 blocks/],
+  [81, 'a part one block larger', /reports 81 blocks of 4 bytes.*larger than ST25TV02KC/],
+  [128, 'a larger ST25 part', /reports 128 blocks of 4 bytes.*larger than ST25TV02KC/],
+  [512, 'a part too large for one END_MEM byte, which reports FFh', /reports 256 blocks of 4 bytes.*larger than ST25TV02KC/],
 ] as const) {
-  test(`the probe refuses ${label} (${blocks} blocks) and writes nothing`, async () => {
+  test(`the probe refuses ${label} (${blocks} blocks) from its reported size, before any block read, and writes nothing`, async () => {
     const reader = new FakeReader(ACR1552U, new FakeTag(blocks));
     const { transport } = await openWith([reader]);
     await assert.rejects(
@@ -114,10 +189,34 @@ for (const [blocks, label, pattern] of [
         return true;
       },
     );
-    assert.ok(reader.tag.sent.every((apdu) => !apdu.startsWith('ff d6')), 'no Update Binary may reach a refused tag');
+    assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', GET_SYSTEM_INFO_APDU], 'refused on the size alone: no block read, no Update Binary');
+    assert.equal(reader.tag.drops, 0, 'and never lost: a smaller part is refused, not retried as not ready');
     await transport.close();
   });
 }
+
+test('a part that answers block 80 but reports 80 blocks is still not read past the end, and a part that reports 81 is refused even though block 80 would answer', async () => {
+  // The size the tag reports is the evidence. Block 80 answering a read is never asked.
+  const big = new FakeTag(81);
+  big.outOfRangeDropsCard = false;
+  const reader = new FakeReader(ACR1552U, big);
+  const { transport } = await openWith([reader]);
+  await assert.rejects(() => transport.waitForTag(200), (error: unknown) => isChipError(error) && error.code === 'TAG_NOT_ST25TV02KC' && /larger than ST25TV02KC/.test(error.message));
+  assert.ok(big.sent.every((apdu) => !apdu.startsWith('ff b0')));
+  await transport.close();
+});
+
+test('the transport never sends a read past block 79, even when asked to', async () => {
+  const reader = new FakeReader(ACR1552U);
+  const { transport } = await openWith([reader]);
+  await transport.waitForTag(200);
+  const before = reader.tag.sent.length;
+  await assert.rejects(() => transport.readBlocks(79, 2), (error: unknown) => isChipError(error) && error.code === 'READBACK_FAILED');
+  await assert.rejects(() => transport.readBlocks(80, 1), (error: unknown) => isChipError(error) && error.code === 'READBACK_FAILED');
+  assert.equal(reader.tag.sent.length, before, 'not one APDU');
+  assert.equal(reader.tag.drops, 0);
+  await transport.close();
+});
 
 /** Every block an Update Binary was sent to, in order. */
 function blocksWritten(tag: FakeTag): number[] {
@@ -276,7 +375,7 @@ test('a tag that stays PRESENT with MUTE is connected to after the grace, and go
   const identity = await transport.waitForTag(5_000);
   assert.equal(identity.uid, 'e002112233445566');
   assert.equal(reader.connects, 1);
-  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', 'ff b0 00 4f 04', 'ff b0 00 50 04'], 'the same UID and geometry checks, nothing written');
+  assert.deepEqual(reader.tag.sent, ['ff ca 00 00 00', ...GEOMETRY_APDUS], 'the same UID and geometry checks, nothing written');
   await transport.close();
 });
 
@@ -718,7 +817,9 @@ for (const [label, call] of [
 
   test(`${label} stays locked when the probe gets the same answer to both passwords`, async () => {
     const reader = new FakeReader(ACR1552U);
-    reader.tag.tagOverride = () => [0x01, 0x0f];
+    // Every ST command gets the wrong password answer. Get System Information, which only the
+    // selection's geometry check sends, is answered as the datasheet says.
+    reader.tag.tagOverride = (f) => (f[1] === 0x2b ? reader.tag.datasheetAnswer(f) : [0x01, 0x0f]);
     const { transport } = await openWith([reader]);
     await transport.waitForTag(200);
     const probe = await transport.verifyOpcodes();

@@ -484,7 +484,10 @@ export class TagToolController {
         if (elsewhere !== null) {
           this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
           this.onBadTag(error, 'Another program is reading the tags');
-        } else if (this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) this.onBadTag(error, 'The reader cannot read the tag');
+        } else if (absentCase === 'SIZE_CHECK_LOST' || absentCase === 'SELECTION_LOST' || this.#unreadableStreak >= (this.#options.removalPolls ?? 2)) {
+          // SIZE_CHECK_LOST and SELECTION_LOST are the transport's last word, after its own retries: shown at once.
+          this.onBadTag(error, 'The reader cannot read the tag');
+        }
         await this.sleep(idleMs);
         return;
       }
@@ -545,9 +548,13 @@ export class TagToolController {
    * missed poll is: after a write the tag has just been powered down, and the reader may
    * still be bringing it back up.
    *
-   * Twice in a row, each after the transport's own three tries, or once with the reader
-   * reporting the tag in use, is another program reading the tags: GoToTags on Dan's
-   * machine, seen typing each tag's UID on his screen recording, 26 October 2026.
+   * Once with the reader reporting the tag in use, or twice in a row with the tag lost at the
+   * very first command, each after the transport's own three tries, is another program
+   * reading the tags: GoToTags on Dan's machine, seen typing each tag's UID on his screen
+   * recording, 26 October 2026. A tag that answered the first command in every try was not
+   * taken by anything else first, so that is not blamed on another program however often it
+   * repeats: on 29 October 2026 the tool's own geometry read was losing the tag, and the
+   * banner sent Dan back to a GoToTags he had already uninstalled.
    */
   private async onNotReady(error: ChipError): Promise<void> {
     this.#notReadyStreak += 1;
@@ -555,9 +562,11 @@ export class TagToolController {
     const pause = Math.min(base * 2 ** (this.#notReadyStreak - 1), base * 8);
     const holding = this.#present !== null && !this.#present.bad;
     const elsewhere = typeof error.detail.otherProgram === 'string' ? error.detail.otherProgram : null;
+    // The transport says how many commands the tag answered before it was lost. One that does not say is taken as the first.
+    const lostAtFirst = typeof error.detail.tagAnswered !== 'number' || error.detail.tagAnswered === 0;
     if (elsewhere !== null) {
       this.suspectAnotherProgram(`The reader reported the tag in use by another program (${elsewhere}).`);
-    } else if (this.#notReadyStreak >= 2) {
+    } else if (this.#notReadyStreak >= 2 && lostAtFirst) {
       this.suspectAnotherProgram(`The tag was not ready ${this.#notReadyStreak} times in a row, each after three tries.`);
     }
     if (!holding || elsewhere !== null || this.#notReadyStreak >= (this.#options.removalPolls ?? 2)) {

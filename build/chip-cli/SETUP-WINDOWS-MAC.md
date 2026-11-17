@@ -18,15 +18,15 @@ For writing tags one after another. You click, you type a product code, you swap
 
 **Once, before the first time:**
 
-- Install Node.js (section 2, step 2 on Windows, or section 3 on a Mac), and plug the reader in.
+- Download the new ZIP (section 2, step 1, the GitHub steps). Install Node.js (section 2, step 2 on Windows, or section 3 on a Mac), and plug the reader in.
 - **Exit GoToTags.** It starts with Windows and keeps running in the background, with its icon near the clock (the system tray: click the small up arrow beside the clock if you cannot see it). **Right click its icon and choose Exit.** If you cannot find the icon, open Task Manager (Ctrl+Shift+Esc), find GoToTags under Processes, right click it and choose End task. On a Mac, quit it from its icon in the menu bar. While it runs, it reads every tag the moment it is put down, before the Tag Tool can, and types the tag's ID into whatever box has the cursor.
 - **Stop it starting with Windows,** if it does (it did on the first run): in Task Manager, open **Startup apps** (on Windows 10, the Startup tab), right click GoToTags and choose **Disable**. GoToTags itself still works when you open it from the Start menu.
 
-1. **Open the tag tool folder**, the one with the `build` folder inside it, and **double click `Start Tag Tool`**. On a Mac it is `start-tag-tool.command`, and the very first time you right click it, choose Open, then Open again.
+1. **Open the `tag-tool` folder** inside `nfc-development-fleet-tag-tool` (if Windows shows the same name twice, go one level deeper), and **double click `Start Tag Tool`**. On a Mac it is `start-tag-tool.command`, and the very first time you right click it, choose Open, then Open again.
 2. **A black window opens.** The first time, it sets itself up: that needs the internet and takes a minute or two. Then your web browser opens on the Tag Tool page by itself. **Keep the black window open while you work.** Closing it stops the Tag Tool.
 3. **Click "Turn on desktop notifications"** at the top of the page and choose Allow. Then a message pops up in the corner of the screen when the reader is ready, when a tag is seen, when a tag is written, and when something goes wrong. If you skip this, the same messages show on the page.
 4. **Wait for "Reader ready"**, then put one tag flat on the reader. The page says **Tag seen** and shows the tag's UID.
-5. **Type the product code** (`ps`, `cs`, `sr` or `nm`), or pick it from the list, which shows each blend's name. Press **Write**. The page says **Writing**, then **Written and verified**, with the web address it read back off the tag. `kg` cannot be written yet, and the page says so.
+5. **Type the product code** (`ps`, `cs`, `sr` or `nm`), or choose the blend from the **Pick a blend** list next to the box, which always shows every blend that can be written, with its name. Press **Write**. The page says **Writing**, then **Written and verified**, with the web address it read back off the tag. `kg` cannot be written yet, and the page says so.
 6. **Take the tag off and put the next one on.** The page says **Tag seen** again. Press Write again.
 7. **To go faster,** tick **Write this code to every new tag automatically**. From then on, each new tag is written the moment it is put down, so all you do is swap tags and watch for the green **Written and verified**. A tag that has just been written is never written again while it sits on the reader. Untick the box to stop.
 8. **If something goes wrong,** the page turns red and shows the error code, what happened, and what to do, in that order. A tag that fails twice: take it off, set it aside, and label it.
@@ -39,7 +39,7 @@ Good to know:
 - **Double clicking it a second time** just brings the page back up. It does not start a second copy, even when both double clicks land together.
 - **If the black window says Node.js is missing,** install it as in section 2, step 2, then double click again. If it stops for any other reason, it stays open and says why: take a photo of it and send it to Serene Labs.
 - **If a red box at the top says "Another program is reading the tags and typing their ID (usually GoToTags)"**, do what it says: right click the GoToTags icon near the clock and choose Exit (or end it in Task Manager), then lift the tag and put it back. The page says it when it sees a tag's ID being typed into it, which no person types, and when the reader loses the tag twice running or reports it in use by another program. It throws the typed ID away, so nothing ends up in the product code box, and it keeps the code you chose.
-- **The product code box takes only the codes** (`ps`, `cs`, `sr`, `nm`). It is not selected for you when the page opens: click it, or pick from the list, when you want to type.
+- **The product code box takes only the codes** (`ps`, `cs`, `sr`, `nm`). It is not selected for you when the page opens: click it when you want to type, or choose from the **Pick a blend** list. Neither can be changed while the automatic box is ticked.
 - **If the page says "Tag not ready, retrying",** the reader sees the tag but lost it before it could be read. Nothing is wrong with the reader, and the Tag Tool keeps trying by itself, waiting a little longer each time (up to four seconds), with the reader left open. Keep the tag flat and still in the centre of the reader. If it has not changed to **Tag seen** within about ten seconds: exit GoToTags (right click its icon near the clock, Exit), lift the tag and put it back. Still not: close the black window, unplug the reader, plug it back in, and double click Start Tag Tool again. If it still says it, send the black window's lines that begin `Tag not ready`: each one names the command the tag was lost at.
 - **If the black window prints `Reader trouble, reconnecting: The reader rejected a command: NoSmartCard (SCARD_E_NO_SMARTCARD)` over and over,** several times a second, that is an old copy, the one from the afternoon of Monday 26 October 2026. Close it and download the current one. That copy treated a tag that was not ready as a reader fault, closed and reopened the reader, and powered the tag down each time, so the tag never had a chance to come up. Rebooting does not help with it.
 - **If the page stays on "Waiting for a tag" with a tag on the reader,** or says **"The reader cannot read the tag"**: exit GoToTags (right click its icon near the clock, Exit), lay the tag flat and centred, printed face towards the reader, and listen for the reader's beep. If that does not help, close the Tag Tool's black window and run `doctor` as in section 4.1 with the tag lying on the reader. Its `tag on the reader` line says present, mute or absent, and that line is what to send.
@@ -58,7 +58,7 @@ Good to know:
 - **The Windows command for the throwaway password in section 4 is untested.** A fallback is given beside it.
 - **The protection commands now come from the ST25TV02KC datasheet** (DS13304 Rev 7, obtained Sunday 25 October 2026), and none of them has run on a chip.
 - **The tag geometry is fixed in this version** (Monday 26 October 2026): the tool expects the 80 blocks the datasheet gives. Earlier versions expected 64 and stopped at section 4.2 with "Block 64 answered a read". If you see that message, you have an old copy: stop and ask for the current one.
-- **`TAG_ABSENT` now says which case it is** (this version): every such message begins `Case NO_TAG.`, `Case TAG_MUTE.`, `Case CONNECT_FAILED.`, `Case UID_REFUSED.`, `Case READER_GONE.` or `Case TAG_NOT_READY.`, and ends with the reader's name and state. A message without `Case` means an old copy. None of this has met the ACR1552U yet.
+- **`TAG_ABSENT` now says which case it is** (this version): every such message begins `Case NO_TAG.`, `Case TAG_MUTE.`, `Case CONNECT_FAILED.`, `Case UID_REFUSED.`, `Case READER_GONE.`, `Case TAG_NOT_READY.`, `Case SIZE_CHECK_LOST.` or `Case SELECTION_LOST.`, and ends with the reader's name and state. A message without `Case` means an old copy. None of this has met the ACR1552U yet.
 
 If a step does not behave as written, that is a finding, not a failure on your part. Write down what it printed.
 
@@ -66,7 +66,7 @@ If a step does not behave as written, that is a finding, not a failure on your p
 
 ## 1. Before the call (two minutes)
 
-1. **The tool folder.** Unzip the `trevean-tag-tool` folder you were sent, into Downloads. Inside it there must be `build\chip-cli` and `build\edge\redirect-table.json`. The tool reads the table from there, so keep the two folders side by side exactly as they are.
+1. **The tool folder.** On GitHub, open the `Trevean-Spice/nfc-development` repository, switch to the branch `fleet/tag-tool`, choose **Code**, then **Download ZIP**, and unzip it into Downloads (on Windows: right click, Extract All). It unzips as `nfc-development-fleet-tag-tool`. Inside it, the `tag-tool` folder holds `Start Tag Tool`, `build\chip-cli` and `build\edge\redirect-table.json`. The tool reads the table from there, so keep the two folders side by side exactly as they are.
 2. **Internet access.** `npm ci` downloads about 25 MB the first time.
 3. **Exit GoToTags**: right click its icon near the clock (the Windows system tray) and choose Exit, or end it in Task Manager; on a Mac, quit it from the menu bar. Only one program can drive the reader at a time. If it starts with Windows, disable it in Task Manager, Startup apps.
 4. **Tags.** Blank ST25TV02KC tags only, plus **one extra blank tag marked SACRIFICIAL** for the protection test. **Never a tag from order SO4731**: those are locked with a password nobody at Trevean holds.
@@ -84,7 +84,7 @@ If a step does not behave as written, that is a finding, not a failure on your p
 3. **Open Command Prompt:** press the Windows key, type `cmd`, press Enter.
 4. **Go to the tool and build it** (adjust the path if you unzipped somewhere else):
    ```
-   cd %USERPROFILE%\Downloads\trevean-tag-tool\build\chip-cli
+   cd %USERPROFILE%\Downloads\nfc-development-fleet-tag-tool\tag-tool\build\chip-cli
    node --version
    npm ci
    npm run build
@@ -106,7 +106,7 @@ If a step does not behave as written, that is a finding, not a failure on your p
 2. **Install Node.js.** Go to `nodejs.org`, download the **LTS** macOS Installer (`.pkg`, version 24; one installer covers both kinds of Mac), run it and accept the defaults.
 3. **Go to the tool and build it**, in Terminal:
    ```
-   cd ~/Downloads/trevean-tag-tool/build/chip-cli
+   cd ~/Downloads/nfc-development-fleet-tag-tool/tag-tool/build/chip-cli
    node --version
    npm ci
    npm run build
@@ -150,7 +150,7 @@ Verified         https://treveanspice.com/t/ps
 OK  ps  Persian Sunrise  https://treveanspice.com/t/ps
 ```
 
-**80 blocks of 4 bytes is the ST25TV02KC user memory** in STMicroelectronics datasheet DS13304 Rev 7, section 4.2 ("Value of END_MEM is ... 4Fh for ... ST25TV02KC"). The tool proves it on each tag by reading block 79 and requiring block 80 to be refused. Only the blocks the URL needs are written: blocks 1 to 8, block 1 twice, and block 0 (the capability container) only when the tag has none, which is the difference between 9 and 10.
+**80 blocks of 4 bytes is the ST25TV02KC user memory** in STMicroelectronics datasheet DS13304 Rev 7, section 4.2 ("Value of END_MEM is ... 4Fh for ... ST25TV02KC"). The tool proves it on each tag by asking the tag its size (Get System Information, DS13304 6.4.13), which must be 80 blocks of 4 bytes, and then reading block 79. It never reads past block 79: on the ACR1552U that loses the tag. Only the blocks the URL needs are written: blocks 1 to 8, block 1 twice, and block 0 (the capability container) only when the tag has none, which is the difference between 9 and 10.
 
 **Then tap the tag with a real phone** (screen on, unlocked) and confirm the Persian Sunrise page opens. On an iPhone, tap the banner that appears. **This tap is the check that matters**, README section 6.3 step 3. Write down the UID and what the phone did.
 
@@ -191,7 +191,7 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 
 | What it prints | What it means | What to do |
 |---|---|---|
-| `TAG_NOT_ST25TV02KC`, "Block 79 could not be read" or "Block 80 answered a read" | The tag is not the 80 block part the tool expects, or the reader reads blocks differently | **STOP.** The tag is unharmed. Report it with the UID |
+| `TAG_NOT_ST25TV02KC`, "The tag reports ... blocks", "size could not be confirmed" or "block 79 ... could not be read" | The tag is not the 80 block part the tool expects, or the reader did not let the tool ask it | **STOP.** The tag is unharmed. Report it with the UID |
 | `PROTECT_FAILED`, "The reader did not complete ...", "GetRandomNumber before ... got no usable answer" or "PresentPassword got no usable answer" | The ACS session or the ST command path failed | **STOP.** The tag is unharmed |
 | `PASSWORD_REJECTED` | The tag refused the factory password 1 | **STOP.** Do not try any other password |
 | Any other code before `Verified` (`TAG_ABSENT`, `WRITE_FAILED`, `READBACK_...`, `TRANSPORT_UNAVAILABLE`) | Section 4.2's path failed | **STOP.** The tag is unharmed |
@@ -252,10 +252,13 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | doctor: `No PC/SC reader appeared within 10 seconds` | Unplug and replug. Then install the ACS driver (section 2 step 1, section 3 step 1) |
 | doctor names a reader ending `SAM` | Pass the contactless one by name: add `--reader-name PICC` to every command |
 | write: `TAG_ABSENT` | Tag flat and centred, one tag only, then run it again. Close GoToTags. The message names the case and the reader state; with the tag on the reader, `doctor --transport reader` says whether the tag is present, mute or absent and reads its UID |
-| `TAG_ABSENT` with `Case TAG_NOT_READY`, or the Tag Tool page says "Tag not ready, retrying" | The reader connected to the tag and then found no tag (`SCARD_E_NO_SMARTCARD` or similar), three times in a row. Not a reader fault. Keep the tag flat and still in the centre; the Tag Tool retries by itself, and a `write` can simply be run again. If it never clears: close GoToTags, unplug and replug the reader, and send the whole message, which names the command the tag was lost at (`the UID read (FF CA 00 00 00)` or one of the geometry check's reads) |
+| `TAG_ABSENT` with `Case TAG_NOT_READY`, or the Tag Tool page says "Tag not ready, retrying" | The reader connected to the tag and then found no tag (`SCARD_E_NO_SMARTCARD` or similar), three times in a row. Not a reader fault. Keep the tag flat and still in the centre; the Tag Tool retries by itself, and a `write` can simply be run again. If it never clears: close GoToTags, unplug and replug the reader, and send the whole message, which names the command the tag was lost at (`the UID read (FF CA 00 00 00)` or one of the geometry check's commands). If the message says the tag answered the first command in every try, it is not another program: do not look for GoToTags, send the message |
+| `TAG_ABSENT` with `Case SIZE_CHECK_LOST`, or the Tag Tool page says "The reader cannot read the tag" and the message names the size check | The reader drops the tag whenever the tool asks the tag its size, through the reader's pass through and through a transparent session, and each time the same tag was still there. The tool has stopped asking, so it does not retry for ever. Nothing was written and the tag is fine. Unplug the reader, plug it back in, and put one tag on. If the message comes back, stop and send the whole message: it names the reader and the step |
+| `TAG_ABSENT` with `Case SELECTION_LOST`, or the Tag Tool page says "The reader cannot read the tag" and the message names another command, such as the read of block 79 | The reader dropped the same tag twice in a row while the tool was checking it, after the tag had answered its ID. The tool has stopped asking that tag, so it does not retry for ever. Nothing was written and the tag is fine. Unplug the reader, plug it back in, and put one tag on. If the message comes back, stop and send the whole message: it names the reader and the step |
+| The Tag Tool page says "Waiting for a tag" right after a tag was on the reader | Lift the tag off and put it back once. If it happens again, send the log: the black window's lines |
 | The tag's ID gets typed into the box, like `35 49 5E 6D 05 08 02 E0` over and over, Caps Lock turns itself on and off, or the Tag Tool page says "Another program is reading the tags" | GoToTags (or another NFC program) is running and reading every tag. Right click its icon near the clock and choose Exit, or end it in Task Manager (Ctrl+Shift+Esc, Processes, right click, End task). Stop it starting with Windows: Task Manager, Startup apps, right click GoToTags, Disable. Then lift the tag and put it back. Turn Caps Lock off if it was left on |
 | Tag Tool black window: `Reader trouble, reconnecting: The reader rejected a command: NoSmartCard (SCARD_E_NO_SMARTCARD)` several times a second, without stopping | An old copy (afternoon of Monday 26 October 2026). Close it and download the current one. Rebooting does not help |
-| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says `Block 79 could not be read` or `Block 80 answered a read` on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
+| write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says the tag reports another size, its size could not be confirmed, or block 79 could not be read, on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
 | write: `WRITE_FAILED` on a tag that should be blank | Report it with the full message. Try one more blank tag |
 | anything else | Every failure prints a code and a line beginning `What to do:`. README section 7 lists them all |
 

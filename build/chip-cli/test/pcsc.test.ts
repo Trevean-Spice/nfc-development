@@ -17,9 +17,13 @@ import assert from 'node:assert/strict';
 
 import {
   PcscTransport,
+  getSystemInfoFrame,
   getUidApdu,
   isStMicroelectronics,
   normaliseUid,
+  parsePassThroughSystemInfo,
+  parseSystemInfo,
+  passThroughApdu,
   readBinaryApdu,
   updateBinaryApdu,
 } from '../src/transport/pcsc.js';
@@ -54,9 +58,81 @@ test('a read longer than a one byte Le is refused rather than wrapped', () => {
   }
 });
 
-test('the geometry probe addresses blocks 79 and 80', () => {
+test('the geometry check reads block 79, the last, and nothing past it', () => {
   assert.equal(hex(readBinaryApdu(PART.blockCount - 1, 1)), 'ff b0 00 4f 04');
-  assert.equal(hex(readBinaryApdu(PART.blockCount, 1)), 'ff b0 00 50 04');
+});
+
+const UID = Uint8Array.from([0xe0, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
+const UID_ON_AIR = [0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x02, 0xe0];
+/** DS13304 Table 133 for an ST25TV02KC: 0Fh, UID, DSFID, AFI, END_MEM 4Fh, 03h, IC_ref 08h. */
+const DATASHEET_ANSWER = [0x0f, ...UID_ON_AIR, 0x00, 0x00, 0x4f, 0x03, 0x08];
+
+test('Get System Information is the addressed 2Bh of DS13304 Table 132, in the ACS pass through of 5.3.4.2', () => {
+  assert.equal(hex(getSystemInfoFrame(UID)), '22 2b 66 55 44 33 22 11 02 e0');
+  // The manual's own shape, Example 1: "FF FB 00 22 09 02 XX XX XX XX XX XX XX XX".
+  assert.equal(hex(passThroughApdu(getSystemInfoFrame(UID))), 'ff fb 00 22 09 2b 66 55 44 33 22 11 02 e0');
+  assert.throws(() => passThroughApdu(Uint8Array.from([0x00, 0x2b])), 'flags 00h would have the reader choose the address');
+  assert.throws(() => passThroughApdu(Uint8Array.from([0x22, 0xb3, 0x02])), 'never an ST custom command');
+});
+
+test('the pass through is an allowlist of Get System Information alone: write, lock and every other code are refused (review C2)', () => {
+  const addressed = (code: number, ...rest: number[]) => Uint8Array.from([0x22, code, ...UID_ON_AIR, ...rest]);
+  // 21h Write Single Block and 22h Lock Block, which ACS 5.3.4.2.2 lists for the pass through.
+  assert.throws(() => passThroughApdu(addressed(0x21, 0x00, 1, 2, 3, 4)), /allowlist \(2Bh\)/, 'Write Single Block');
+  assert.throws(() => passThroughApdu(addressed(0x22, 0x00)), /allowlist/, 'Lock Block');
+  for (const code of [0x20, 0x23, 0x24, 0x27, 0x28, 0x29, 0x2a, 0x2c]) {
+    assert.throws(() => passThroughApdu(addressed(code)), /allowlist/, `0x${code.toString(16)}`);
+  }
+  // The old denylist's edge, A0h, on both sides: neither is on the list.
+  assert.throws(() => passThroughApdu(addressed(0x9f)), /allowlist/, '9Fh, below the old edge');
+  assert.throws(() => passThroughApdu(addressed(0xa0)), /allowlist/, 'A0h, the old edge');
+  assert.equal(hex(passThroughApdu(addressed(0x2b)).subarray(0, 6)), 'ff fb 00 22 09 2b');
+});
+
+test('the pass through refuses an empty command and one longer than its one byte length, and takes 255 bytes exactly (review C3)', () => {
+  assert.throws(() => passThroughApdu(Uint8Array.from([0x22])), /allowlist/, 'flags and no command');
+  assert.throws(() => passThroughApdu(new Uint8Array(0)), /allowlist/, 'nothing at all');
+  const long = (n: number) => Uint8Array.from([0x22, 0x2b, ...new Array<number>(n - 1).fill(0)]);
+  assert.throws(() => passThroughApdu(long(256)), /allowlist/, '256 command bytes do not fit Lc');
+  const apdu = passThroughApdu(long(255));
+  assert.equal(apdu[4], 0xff);
+  assert.equal(apdu.length, 5 + 255);
+});
+
+test('the datasheet\'s answer reads as 80 blocks of 4 bytes, IC_ref 08h, with or without the response flags byte', () => {
+  assert.deepEqual(parseSystemInfo(Uint8Array.from(DATASHEET_ANSWER), UID), { blockCount: 80, blockSizeBytes: 4, icRef: 0x08 });
+  const ok = [0x90, 0x00];
+  assert.deepEqual(parsePassThroughSystemInfo(Uint8Array.from([0x00, ...DATASHEET_ANSWER, ...ok]), UID), { blockCount: 80, blockSizeBytes: 4, icRef: 0x08 });
+  assert.deepEqual(parsePassThroughSystemInfo(Uint8Array.from([...DATASHEET_ANSWER, ...ok]), UID), { blockCount: 80, blockSizeBytes: 4, icRef: 0x08 });
+});
+
+test('a Get System Information answer that is not exactly the datasheet\'s shape for this UID is not used', () => {
+  const variants: [string, number[], RegExp][] = [
+    ['no memory size', [0x0b, ...UID_ON_AIR, 0x00, 0x00, 0x08], /no memory size/],
+    ['reserved information flags', [0x1f, ...UID_ON_AIR, 0x00, 0x00, 0x4f, 0x03, 0x08], /reserved bits/],
+    ['one byte short', DATASHEET_ANSWER.slice(0, -1), /makes it 14/],
+    ['one byte long', [...DATASHEET_ANSWER, 0x00], /makes it 14/],
+    ['another tag\'s UID', [0x0f, 0x99, ...UID_ON_AIR.slice(1), 0x00, 0x00, 0x4f, 0x03, 0x08], /not the selected e002112233445566/],
+    ['reserved memory size bits', [0x0f, ...UID_ON_AIR, 0x00, 0x00, 0x4f, 0x23, 0x08], /reserved bits/],
+    ['empty', [], /empty/],
+  ];
+  for (const [label, data, reason] of variants) {
+    const result = parseSystemInfo(Uint8Array.from(data), UID);
+    assert.equal(typeof result, 'string', label);
+    assert.match(result as string, reason, label);
+  }
+  assert.match(parsePassThroughSystemInfo(Uint8Array.from([0x6d, 0x00]), UID) as string, /status word 0x6d00/);
+  assert.match(parsePassThroughSystemInfo(Uint8Array.from([0x01, 0x02, 0x90, 0x00]), UID) as string, /tag error code 0x02/);
+});
+
+test('the reported size is read, not assumed: END_MEM and the block size come out of the answer', () => {
+  const answer = (endMem: number, size: number) => Uint8Array.from([0x0f, ...UID_ON_AIR, 0x00, 0x00, endMem, size, 0x08]);
+  assert.deepEqual(parseSystemInfo(answer(0x0f, 0x03), UID), { blockCount: 16, blockSizeBytes: 4, icRef: 0x08 });
+  assert.deepEqual(parseSystemInfo(answer(0x50, 0x03), UID), { blockCount: 81, blockSizeBytes: 4, icRef: 0x08 });
+  assert.deepEqual(parseSystemInfo(answer(0xff, 0x03), UID), { blockCount: 256, blockSizeBytes: 4, icRef: 0x08 });
+  assert.deepEqual(parseSystemInfo(answer(0x4f, 0x07), UID), { blockCount: 80, blockSizeBytes: 8, icRef: 0x08 });
+  // A tag that leaves DSFID, AFI and IC_ref out still reports its size.
+  assert.deepEqual(parseSystemInfo(Uint8Array.from([0x04, ...UID_ON_AIR, 0x4f, 0x03]), UID), { blockCount: 80, blockSizeBytes: 4, icRef: null });
 });
 
 test('a block number above 255 goes in the high byte rather than overflowing silently', () => {

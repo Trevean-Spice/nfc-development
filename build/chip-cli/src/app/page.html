@@ -46,6 +46,8 @@
   .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
   #code { font-size: 22px; width: 8em; padding: 8px 10px; border: 2px solid var(--line); border-radius: 8px; text-transform: lowercase; }
   #code:focus { outline: none; border-color: var(--ready); }
+  #code-pick { font: inherit; font-size: 18px; padding: 8px 10px; border: 2px solid var(--line); border-radius: 8px; background: #fff; }
+  #code-pick:focus { outline: none; border-color: var(--ready); }
   #code-note { font-size: 17px; }
   #code-note.bad { color: var(--bad); font-weight: 600; }
   button { font: inherit; font-size: 18px; padding: 10px 22px; border-radius: 8px; border: 0; background: var(--ready); color: #fff; cursor: pointer; }
@@ -101,8 +103,8 @@
   <section class="controls">
     <label for="code">Product code</label>
     <div class="row">
-      <input id="code" list="code-list" autocomplete="off" spellcheck="false">
-      <datalist id="code-list"></datalist>
+      <input id="code" autocomplete="off" spellcheck="false">
+      <select id="code-pick" aria-label="Pick a blend"></select>
       <span id="code-note" class="muted"></span>
     </div>
     <div id="codes-help" class="muted small"></div>

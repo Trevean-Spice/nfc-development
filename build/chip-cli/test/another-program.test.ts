@@ -28,10 +28,10 @@ import { runInNewContext } from 'node:vm';
 
 import { ANOTHER_PROGRAM_ADVICE, TagToolController, type Snapshot } from '../src/app/controller.js';
 import { STATIC_DIR } from '../src/app/server.js';
-import { isChipError } from '../src/chip/errors.js';
+import { ChipError, isChipError } from '../src/chip/errors.js';
 import { RedirectTable } from '../src/table/redirect-table.js';
 import { OTHER_PROGRAM_REMEDY, PcscTransport, READER_STATE_FLAGS, type PcscTransportOptions } from '../src/transport/pcsc.js';
-import { ACR1552U, FakeBinding, FakeReader, FakeTag, pcscError } from './fake-acr1552u.js';
+import { ACR1552U, FakeBinding, FakeReader, FakeTag, GEOMETRY_APDUS, OTHER_UID_LSB_FIRST, pcscError } from './fake-acr1552u.js';
 
 /** The banner, word for word as asked for. */
 const BANNER =
@@ -142,8 +142,7 @@ for (const [code, raw, otherProgram] of [
 /* The Tag Tool                                                                */
 /* -------------------------------------------------------------------------- */
 
-function tagTool(reader: FakeReader) {
-  const transport = new PcscTransport(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 });
+function tagTool(reader: FakeReader, transport = new PcscTransport(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 })) {
   const lines: string[] = [];
   const journalDir = mkdtempSync(join(tmpdir(), 'chip-cli-another-program-'));
   scratchDirs.push(journalDir);
@@ -225,6 +224,116 @@ test('GoToTags holding every tag: not ready twice in a row is "another program",
     const seen = await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
     assert.equal(seen.anotherProgram, null);
     assert.equal(pageWords().anotherProgramShowing(seen as unknown as Record<string, unknown>, null, 0), false);
+  } finally {
+    await controller.stop();
+  }
+});
+
+test('Dan, 29 October 2026: a tag lost every time after it answered the UID read is retried within a bound, never called another program, and ends in one message', async () => {
+  // GoToTags uninstalled, rebooted twice, and the banner still sent him back to it: the tag
+  // answered the UID read in every try and was lost at a later command of this tool's, here
+  // the block 79 read. (A tag lost at Get System Information is asked another way since 30
+  // October 2026: see size-check-drop.test.ts.) Since the design ruling trevean#10 that ends
+  // in SELECTION_LOST, which names the reader and the command, rather than retrying for ever.
+  const reader = new FakeReader(ACR1552U, new FakeTag(), false);
+  reader.tag.noCardOn = (apdu) => apdu === GEOMETRY_APDUS[1];
+  const { controller, lines } = tagTool(reader);
+  const flagged: (string | null)[] = [];
+  const stop = controller.subscribe((x) => flagged.push(x.anotherProgram));
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const s = await waitFor(controller, 'the selection message', (x) => x.phase === 'error' && (x.error?.message ?? '').startsWith('Case SELECTION_LOST.'));
+    assert.equal(s.anotherProgram, null);
+    assert.ok(flagged.every((x) => x === null), 'never flagged on the way');
+    assert.equal(lines.filter((l) => l.startsWith('Another program')).length, 0);
+    assert.equal(pageWords().describe(s as unknown as Record<string, unknown>).title, 'The reader cannot read the tag', 'not "Another program is reading the tags"');
+    assert.ok(s.error?.message.includes("the geometry check's read of block 79 (FF B0 00 4F 04)"));
+    assert.doesNotMatch(s.error?.remedy ?? '', /GoToTags/);
+    const reads = reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length;
+    await sleep(300);
+    assert.equal(reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length, reads, 'block 79 not asked again');
+  } finally {
+    stop();
+    await controller.stop();
+  }
+});
+
+/** UID reads lost where `lostAt` says (counting from 1), and every read of block 79 lost: a tag lost at the first command in some tries and later in others. */
+function mixedTag(lostAt: (uidRead: number) => boolean): FakeTag {
+  const tag = new FakeTag();
+  let uidReads = 0;
+  tag.noCardOn = (apdu) => {
+    if (apdu === 'ff ca 00 00 00') return lostAt((uidReads += 1));
+    return apdu === GEOMETRY_APDUS[1];
+  };
+  return tag;
+}
+
+test('review C3: a mixed run, lost at the first command in one try and later in the others, counts as lost at the first: fewest 0, the GoToTags remedy', async () => {
+  const reader = new FakeReader(ACR1552U, mixedTag((n) => n === 1));
+  const transport = await openWith(reader);
+  const e = await rejection(transport.waitForTag(200));
+  assert.equal(e.detail.case, 'TAG_NOT_READY');
+  assert.equal(e.detail.tagAnswered, 0, 'the fewest in any try');
+  assert.equal(reader.tag.sent.filter((a) => a === GEOMETRY_APDUS[1]).length, 2, 'the other two tries got as far as block 79');
+  namesTheTrayExit(e.remedy);
+  await transport.close();
+});
+
+test('review C3: in the Tag Tool, mixed runs twice in a row raise the banner', async () => {
+  // Lost at the UID read three times in every four, and at block 79 the fourth. Since
+  // the design ruling trevean#12 a block 79 loss counts as a drop when the same tag answers
+  // its UID within three connects, and a tag that lost only the next UID read each time ends
+  // in SELECTION_LOST (size-check-drop.test.ts). Three lost in a row is the tag another program
+  // reads first, so this one is never confirmed, and stays the banner.
+  const reader = new FakeReader(ACR1552U, mixedTag((n) => n % 4 !== 1), false);
+  const { controller } = tagTool(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const s = await waitFor(controller, 'another program', (x) => x.anotherProgram !== null);
+    assert.equal(s.anotherProgram, 'The tag was not ready 2 times in a row, each after three tries.');
+    assert.equal(pageWords().describe(s as unknown as Record<string, unknown>).title, 'Another program is reading the tags');
+  } finally {
+    await controller.stop();
+  }
+});
+
+/** A transport whose TAG_NOT_READY does not say how many commands the tag answered, as one before 29 October 2026 did not. */
+class SaysNothingAnswered extends PcscTransport {
+  override async waitForTag(timeoutMs: number) {
+    try {
+      return await super.waitForTag(timeoutMs);
+    } catch (error) {
+      if (!isChipError(error) || !('tagAnswered' in error.detail)) throw error;
+      const { tagAnswered: _dropped, ...detail } = error.detail;
+      throw new ChipError(error.code, error.message, error.remedy, detail);
+    }
+  }
+}
+
+test('review C3: a not ready error that does not say how many commands the tag answered is taken as lost at the first, and raises the banner', async () => {
+  // Two tags taking turns, each answering the UID read and Get System Information every time
+  // and lost at block 79: with tagAnswered this is never the banner. Two, so no tag is lost
+  // twice in a row and the not ready rounds go on (SELECTION_LOST is per tag).
+  const reader = new FakeReader(ACR1552U, mixedTag(() => false), false);
+  const other = mixedTag(() => false);
+  other.uidLsbFirst = OTHER_UID_LSB_FIRST;
+  const first = reader.tag;
+  reader.onConnect = (count) => {
+    reader.tag = count % 2 === 0 ? other : first;
+  };
+  const transport = new SaysNothingAnswered(undefined, { loadBinding: async () => new FakeBinding([reader]), readerTimeoutMs: 50, notReadyRetryMs: 10 });
+  const { controller } = tagTool(reader, transport);
+  controller.start();
+  try {
+    await waitFor(controller, 'reader ready', (s) => s.phase === 'waiting-for-tag');
+    reader.present = true;
+    const s = await waitFor(controller, 'another program', (x) => x.anotherProgram !== null);
+    assert.equal(s.anotherProgram, 'The tag was not ready 2 times in a row, each after three tries.');
   } finally {
     await controller.stop();
   }
@@ -388,7 +497,7 @@ class FakeElement {
     readonly doc: FakeDocument,
     readonly id: string,
     readonly tag: string,
-    readonly kind: 'text' | 'checkbox' | 'button' | 'other' = 'other',
+    readonly kind: 'text' | 'checkbox' | 'button' | 'select' | 'other' = 'other',
   ) {}
   addEventListener(type: string, fn: Listener): void {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
@@ -418,6 +527,10 @@ class FakeElement {
       fn(event);
     }
   }
+  dispatchEvent(event: FakeEvent): boolean {
+    this.fire(event);
+    return !event.defaultPrevented;
+  }
 }
 
 class FakeDocument {
@@ -431,7 +544,7 @@ class FakeDocument {
     this.activeElement = this.body;
     for (const m of html.matchAll(/<(\w+)[^>]*\sid="([^"]+)"[^>]*>/g)) {
       const [whole, tag = '', id = ''] = m;
-      const kind = tag === 'button' ? 'button' : tag === 'input' ? (/type="checkbox"/.test(whole) ? 'checkbox' : 'text') : 'other';
+      const kind = tag === 'button' ? 'button' : tag === 'select' ? 'select' : tag === 'input' ? (/type="checkbox"/.test(whole) ? 'checkbox' : 'text') : 'other';
       this.elements.set(id, new FakeElement(this, id, tag, kind));
     }
   }
@@ -482,6 +595,11 @@ async function browser() {
       return { ok: true, status: 200, json: async () => reply };
     },
   };
+  sandbox.Event = class extends FakeEvent {
+    constructor(type: string) {
+      super(type, now);
+    }
+  };
   sandbox.window = sandbox;
   runInNewContext(readFileSync(join(STATIC_DIR, 'page.js'), 'utf8'), sandbox);
   const settle = async () => {
@@ -509,6 +627,13 @@ async function browser() {
       target.fire(new FakeEvent('change', at));
     } else if (target.kind === 'button' && (name === ' ' || name === 'Enter') && !target.disabled) {
       target.fire(new FakeEvent('click', at));
+    } else if (target.kind === 'select' && name.length === 1 && name !== ' ' && !target.disabled) {
+      // A select's own type-ahead: a letter picks the first option whose text starts with it.
+      const hit = target.children.find((o) => o.textContent.toLowerCase().startsWith(name.toLowerCase()));
+      if (hit && hit.value !== target.value) {
+        target.value = hit.value;
+        target.fire(new FakeEvent('change', at));
+      }
     }
   }
 
@@ -526,11 +651,20 @@ async function browser() {
       key(name, now + gapMs);
       for (let i = 0; i < repeats; i += 1) key(name, now + gapMs, true);
     },
-    /** A pick from the code list: one input event that is not a typed key. */
+    /** A code put into the box whole: one input event that is not a typed key. */
     pick(code: string): void {
       const box = el('code');
       box.value = code;
       box.fire(new FakeEvent('input', now, { inputType: 'insertReplacementText' }));
+    },
+    /** A blend chosen with the mouse from the "Pick a blend" list: focus, then one change event. */
+    choose(code: string): void {
+      const list = el('code-pick');
+      assert.ok(!list.disabled, 'the list can be opened');
+      assert.ok(list.children.some((o) => o.value === code), `${code} is in the list`);
+      list.focus();
+      list.value = code;
+      list.fire(new FakeEvent('change', now));
     },
     async setState(fields: Record<string, unknown>): Promise<void> {
       state = snapshotOf(fields);
@@ -681,6 +815,69 @@ test('page: a key held down is a person, however fast it repeats', async () => {
   b.hold('p', 3, 20);
   assert.equal(b.el('code').value, 'pppp');
   assert.equal(b.bannerShowing(), false);
+});
+
+test('page: Dan 11-09, after writing sr, ps picked from the list is written', async () => {
+  const b = await browser();
+  await b.settle();
+  await b.setState({ phase: 'tag-seen', uid: 'e002112233445566' });
+  b.choose('sr');
+  b.el('write').fire(new FakeEvent('click', 0));
+  assert.deepEqual(b.posted, [{ path: '/api/write', body: { code: 'sr' } }]);
+  assert.equal(b.el('code').value, 'sr', 'the last code stays in the box');
+  await b.setState({ phase: 'tag-seen', uid: 'e002112233445577' });
+  b.choose('ps');
+  assert.equal(b.el('code').value, 'ps');
+  assert.equal(b.el('code-pick').value, '', 'the list goes back to "Pick a blend"');
+  assert.notEqual(b.doc.activeElement, b.el('code-pick'), 'the list lets go of the focus');
+  assert.equal(b.el('code-note').className, 'muted');
+  assert.equal(b.el('write').disabled, false);
+  b.el('write').fire(new FakeEvent('click', 0));
+  assert.deepEqual(b.posted[1], { path: '/api/write', body: { code: 'ps' } });
+  assert.equal(b.bannerShowing(), false);
+});
+
+test('page: the list shows every writable blend whatever is in the box, and never kg', async () => {
+  const b = await browser();
+  await b.settle();
+  const writable = codeList().filter((c) => c.encodable).map((c) => c.code);
+  assert.deepEqual(writable, ['ps', 'cs', 'sr', 'nm']);
+  const options = () => b.el('code-pick').children.map((o) => o.value);
+  assert.deepEqual(options(), ['', ...writable]);
+  assert.equal(b.el('code-pick').children[0]?.textContent, 'Pick a blend');
+  for (const c of codeList().filter((e) => e.encodable)) {
+    assert.ok(b.el('code-pick').children.some((o) => o.value === c.code && o.textContent === `${c.code} ${c.blendName}`), c.code);
+  }
+  assert.ok(codeList().some((c) => c.code === 'kg' && !c.encodable), 'kg is in the table, reserved');
+  b.pick('sr');
+  assert.deepEqual(options(), ['', ...writable], 'sr in the box does not narrow the list');
+  assert.equal(b.doc.getElementById('code-list'), null, 'the datalist is gone');
+});
+
+test('page: the list is off while writing automatically, and an ID typed into it picks nothing', async () => {
+  const b = await browser();
+  await b.settle();
+  await b.setState({ phase: 'waiting-for-tag', auto: { enabled: true, code: 'sr', blendName: 'x' } });
+  assert.equal(b.el('code-pick').disabled, true);
+  assert.equal(b.el('code').disabled, true);
+  assert.equal(b.el('code').value, 'sr');
+  await b.setState({ phase: 'waiting-for-tag' });
+  assert.equal(b.el('code-pick').disabled, false);
+  b.choose('ps');
+  // A person clicks the list and closes it again, so it keeps the focus. GoToTags types a UID starting C.
+  b.el('code-pick').focus();
+  b.advance(2000);
+  b.type('C4 49 5E 6D 05 08 02 E0\n', WEDGE_MS);
+  assert.equal(b.el('code').value, 'ps', 'the C did not pick cs');
+  assert.equal(b.el('code-pick').value, '');
+  assert.equal(b.bannerShowing(), true);
+  assert.deepEqual(b.posted, []);
+  // The box's own guard still holds after a pick from the list.
+  b.advance(2000);
+  b.el('code').focus();
+  b.type('35 49 5E 6D 05 08 02 E0', WEDGE_MS);
+  assert.equal(b.el('code').value, 'ps');
+  assert.notEqual(b.doc.activeElement, b.el('code'));
 });
 
 test('page: while the banner shows, an error notice does not put a second red banner over it', async () => {
