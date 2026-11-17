@@ -42,7 +42,9 @@
  *   cloudfront-host    dxxxxxxxxxxxxx.cloudfront.net, except the AWS
  *                      documentation example d111111abcdef8.
  *   cloudfront-id      E plus 12 or 13 upper-case letters and digits, except
- *                      ids that contain EXAMPLE.
+ *                      ids that contain EXAMPLE, and an all-hex value starting
+ *                      E0 on a line that names a UID: that is the shape of an
+ *                      ISO 15693 tag UID, and the prototype's tests use them.
  *   export-text        OFAC, EAR99, ITAR, sanctions, export control, embargo.
  *   counsel-text       counsel, lawyer, attorney, legal advice, UNLESS a
  *                      licence or dependency is named within eight lines
@@ -53,6 +55,12 @@
  *                      or Iran, outside licence context. The
  *                      blend's provenance notes ("Isfahan, Iran", "no Iranian
  *                      ingredient") are content and are not findings.
+ *
+ * THE OWNER'S OWN FILES. Trevean's prototype files (from main, before this
+ * import) give the owner's contact address in two places, CODE_OF_CONDUCT.md
+ * and the root package.json. The owner published those himself, so the
+ * personal-email kind, and only that kind, is not reported in those two files
+ * (OWNER_PUBLISHED below). Any other kind in them is still a finding.
  *
  * WHAT IT DOES NOT DO. It reads the files at this commit, not git history and
  * not commit messages; the history is cleaned and checked separately. It is
@@ -70,11 +78,18 @@ const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '
 // The paths this import brings into Trevean's repository. Everything else in
 // the knowledge base this branch was cut from stays private and is dropped
 // before the push. The frozen API contract comes too: the api, shopify,
-// contract-tests and dashboard suites read it from that path.
+// contract-tests and dashboard suites read it from that path. The top-level
+// documents rewritten for the import are scanned too. The prototype's own
+// files are not in this list; --all covers them.
 const PUBLIC = [
   'build/',
   'tools/',
   '.github/',
+  'README.md',
+  'HISTORY.md',
+  'docs/ARCHITECTURE.md',
+  'docs/GUIDE.md',
+  'docs/NFC-SPECS.md',
   'deliverables/m1/01-api-contract.openapi.yaml',
   '.gitattributes',
   '.gitignore',
@@ -86,6 +101,11 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', 'out', '.ter
 // They hold no identifier values; the tests build every sample at run time.
 const SELF = new Set(['tools/check-public-safe.mjs', 'tools/check-public-safe.test.mjs']);
 const MAX_BYTES = 8 * 1024 * 1024;
+// Kinds not reported in a given file. See "THE OWNER'S OWN FILES" above.
+const OWNER_PUBLISHED = new Map([
+  ['CODE_OF_CONDUCT.md', new Set(['personal-email'])],
+  ['package.json', new Set(['personal-email'])],
+]);
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const DUMMY_ACCOUNTS = new Set(['123456789012', '210987654321']);
@@ -150,7 +170,11 @@ const LINE_RULES = [
   {
     kind: 'cloudfront-id',
     re: /(?<![A-Za-z0-9_])E[0-9A-Z]{12,13}(?![A-Za-z0-9_])/g,
-    keep: (m) => /[0-9]/.test(m[0]) && /[A-Z]/.test(m[0].slice(1)) && !m[0].includes('EXAMPLE'),
+    keep: (m, line) =>
+      /[0-9]/.test(m[0]) &&
+      /[A-Z]/.test(m[0].slice(1)) &&
+      !m[0].includes('EXAMPLE') &&
+      !(/^E0[0-9A-F]+$/.test(m[0]) && /uid/i.test(line)),
   },
   { kind: 'export-text', re: /\bOFAC\b|\bEAR99\b|\bITAR\b|\bsanction(?:s|ed)?\b|export[- ]control|\bembargo/gi,
     keep: (m) => !/^(ofac|ear99|itar)$/.test(m[0]) || m[0] === m[0].toUpperCase() },
@@ -220,7 +244,8 @@ export function scanFiles(files, root = ROOT) {
       continue; // listed by git but deleted in the working tree
     }
     if (buf.subarray(0, 8000).includes(0)) continue; // binary
-    for (const f of scanText(buf.toString('utf8'))) results.push({ file, ...f });
+    const allowed = OWNER_PUBLISHED.get(file);
+    for (const f of scanText(buf.toString('utf8'))) if (!allowed?.has(f.kind)) results.push({ file, ...f });
   }
   return results;
 }

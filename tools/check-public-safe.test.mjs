@@ -5,7 +5,10 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scanText } from './check-public-safe.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { scanFiles, scanText } from './check-public-safe.mjs';
 
 const kinds = (text) => scanText(text).map((f) => f.kind);
 const acct = '4'.repeat(6) + '7'.repeat(5) + '1';
@@ -44,6 +47,31 @@ test('the other identifier kinds are found', () => {
   assert.deepEqual(kinds('https://d111111abcdef8.cloudfront.net/t/PS'), []);
   assert.deepEqual(kinds(`distribution E${'2QWRUHAPOMQZL'}`), ['cloudfront-id']);
   assert.deepEqual(kinds('distribution EDFDVBD6EXAMPLE'), []);
+});
+
+test('an ISO 15693 tag UID is not a CloudFront id; the same shape elsewhere is', () => {
+  const uid = 'E0' + '04' + '8' + 'A1B2C3D4E5F'.slice(0, 9);
+  assert.deepEqual(kinds(`    testTagUid = '${uid}';`), []);
+  assert.deepEqual(kinds(`  nfcTagUid: '${uid}',`), []);
+  assert.deepEqual(kinds(`distribution ${uid}`), ['cloudfront-id']);
+  assert.deepEqual(kinds(`chipUid E${'2QWRUHAPOMQZL'}`), ['cloudfront-id']);
+});
+
+test("the owner's contact address is not reported in his own two files, and nothing else is waived", () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cps-'));
+  try {
+    const mail = `"author": "Trevean <${'someone'}@${'pm'}.me>"\n`;
+    writeFileSync(join(dir, 'package.json'), mail);
+    writeFileSync(join(dir, 'CODE_OF_CONDUCT.md'), mail);
+    writeFileSync(join(dir, 'other.md'), mail);
+    writeFileSync(join(dir, 'x.json'), `account ${acct}\n`);
+    const found = (files) => scanFiles(files, dir).map((f) => `${f.file} ${f.kind}`);
+    assert.deepEqual(found(['package.json', 'CODE_OF_CONDUCT.md', 'other.md']), ['other.md personal-email']);
+    writeFileSync(join(dir, 'package.json'), `account ${acct}\n`);
+    assert.deepEqual(found(['package.json']), ['package.json aws-account-id']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('export and sanctions wording is found anywhere', () => {
