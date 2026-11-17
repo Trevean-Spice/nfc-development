@@ -66,11 +66,13 @@ const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '
 
 // The paths this import brings into Trevean's repository. Everything else in
 // the knowledge base this branch was cut from stays private and is dropped
-// before the push.
+// before the push. The frozen API contract comes too: the api, shopify,
+// contract-tests and dashboard suites read it from that path.
 const PUBLIC = [
   'build/',
   'tools/',
   '.github/',
+  'deliverables/m1/01-api-contract.openapi.yaml',
   '.gitattributes',
   '.gitignore',
   'Start Tag Tool.cmd',
