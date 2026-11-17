@@ -218,7 +218,7 @@ through the real path. That is the M2 gate, still unbooked.
 
 **From us. UPDATED Wednesday 30 September 2026:**
 
-1. ~~**Apply the certificate.**~~ **DONE 18 September.** `4a15eeeb`, `ISSUED`, both
+1. ~~**Apply the certificate.**~~ **DONE 18 September.** the site certificate (ID in Trevean's private record), `ISSUED`, both
    names, Terraform owned, valid to 3 April 2027. D54.
 2. ~~**Purge the synthetic rollups.**~~ **DONE 22 September.** 3,750 rows deleted, 0
    remaining, 11 real items untouched. D57.
