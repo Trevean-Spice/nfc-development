@@ -1,431 +1,133 @@
-# Trevean NFC Smart Packaging - Development Guide
+# Guide
 
-Complete guide for developing, deploying, and managing the Trevean Spice NFC smart packaging system.
+How to install, test and run the packages in this repository, change the redirect table, use the Tag Tool and work with the Terraform. For how the pieces fit together, read [ARCHITECTURE.md](ARCHITECTURE.md) first. Each package's README has the full detail.
 
-## Table of Contents
+## 1. What you need
 
-1. [Architecture Overview](#architecture-overview)
-2. [Environment Setup](#environment-setup)
-3. [API Reference](#api-reference)
-4. [Web App Development](#web-app-development)
-5. [Mobile SDK Setup](#mobile-sdk-setup)
-6. [NFC Chip Programming](#nfc-chip-programming)
-7. [Database Schema](#database-schema)
-8. [Deployment Guide](#deployment-guide)
-9. [Troubleshooting](#troubleshooting)
+- **Node.js 20**, version 20.11 or newer, with npm. CI uses Node 20. Some test scripts depend on it: `node --test` with a folder argument finds no files on Node 21 and later.
+- **Terraform 1.15.9** (1.10 or newer works) for `build/infrastructure` only.
+- For the Tag Tool: a PC/SC NFC reader (the ACS ACR1552U is the one it was written for) and its driver.
 
-## Architecture Overview
+No test suite needs an AWS account, credentials, Docker or network access. Installs need the npm registry.
 
-Trevean NFC uses a modern, scalable architecture:
+## 2. Testing each package
 
-- **Frontend**: React Native mobile app + React web dashboard
-- **Backend**: REST API on AWS Lambda
-- **Database**: DynamoDB for storage, Redis for caching
-- **NFC**: NTAG216 chips with NDEF URL encoding
-- **Infrastructure**: AWS (Lambda, S3, CloudFront, DynamoDB)
+Each package installs and tests on its own. From the repository root:
 
-## Environment Setup
-
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-- Docker (for local DynamoDB)
-- AWS CLI (for deployment)
-- Git
-
-### Initial Setup
-
-```bash
-# Clone repository
-git clone <repo-url>
-cd nfc-prototype
-
-# Install dependencies
-npm install
-
-# Copy environment template
-cp config/.env.example config/.env.development
-cp config/.env.example config/.env.staging
-cp config/.env.example config/.env.production
-
-# Edit .env files with your values
+```sh
+cd build/<package>
+npm ci
 ```
 
-### Local Development
+Then run the same commands CI runs:
 
-```bash
-# Start DynamoDB Local
-bash scripts/db-local.sh
+| Package | Typecheck | Tests |
+|---|---|---|
+| admin | `npm run typecheck` | `npm test` |
+| api | `npm run typecheck` | `npm test` (uses an in-process DynamoDB, nothing to install) |
+| chip-cli | `npm run typecheck` | `npm test` (builds first) |
+| content | | `npm test` |
+| contract-tests | `npm run typecheck` | `npm run test:stub` (`npm test` targets a running API) |
+| dashboard | | `npm run test:unit` (`test:live` reads a running stack) |
+| edge | | `npm run ci` (validates the table, checks `dist/` matches it, runs the suite) |
+| publisher | | `npm test` |
+| shopify | `npm run typecheck` | `npm test` |
+| vercel-redirect | | `npm run ci`. Skip `npm ci`: it has no dependencies and, on purpose, no lockfile. |
+| web | | `npm run build && npm run verify` |
 
-# In another terminal, seed database
-npm run seed
+`build/consolidation` and `build/infrastructure` have no npm tests. For the Terraform checks, see section 5.
 
-# Start development server
-npm run dev
+## 3. Running the system locally
+
+Everything below runs on your own machine, with no AWS:
+
+1. **API with a local database:** in `build/api`, `npm run local:up`. It starts an in-process DynamoDB with the five tables, seeds them and serves the API on port 3001. Try `curl localhost:3001/v1/blends`.
+2. **Admin CMS:** in `build/admin`, `npm run dev`, then open `http://127.0.0.1:3002`. The development accounts are listed on the sign-in screen. They are refused in production.
+3. **Publisher:** `build/publisher/README.md`, section 3, "Running the whole thing with no AWS account", starts the publisher on port 3003 and a stand-in for CloudFront on port 3004, so a publish in the CMS goes all the way to a page you can open.
+4. **Blend pages:** in `build/web`, `npm run build`, then `npm run serve` (port 3000). `npm run verify` checks every built page.
+5. **Dashboard:** in `build/dashboard`, `npm run local:up` starts its own local database and API, seeds 90 days of scan counts and serves the dashboard at the address it prints. It borrows its dependencies from `build/api`, so run `npm ci` there first.
+
+## 4. Changing where a code points
+
+`build/edge/redirect-table.json` is the only place the code to blend mapping exists. The CloudFront Function, the Vercel redirects, the Tag Tool's code list and the database seed are all generated from it.
+
+1. Edit `targetPath` and `qrTargetPath` for the code.
+2. Set `"allowRepoint": true` and increase `version`. Without both, the build refuses a change to an existing code.
+3. Run `npm run build` in **both** `build/edge` and `build/vercel-redirect`, and commit the regenerated `dist/` folders. Never edit `dist/` by hand: `npm run build:check` fails if it does not match the table.
+4. Deploy both: the CloudFront Function through the Terraform, and the regenerated `dist/vercel.json` redirects to Trevean's Vercel website.
+
+Keep the Vercel redirects in place. They answer the uppercase paths that CloudFront passes through, and they are the fallback for every jar already in a kitchen.
+
+## 5. Infrastructure
+
+The Terraform is in `build/infrastructure`. Read its README and `BOOTSTRAP.md` before changing anything.
+
+**Checks anyone can run** (no state, no credentials):
+
+```sh
+cd build/infrastructure
+terraform fmt -check -recursive
+export TF_VAR_expected_account_id=000000000000   # a dummy: nothing here touches a real account
+for env in dev staging prod; do
+  terraform -chdir=envs/$env init -backend=false -input=false -lockfile=readonly
+  terraform -chdir=envs/$env validate
+done
 ```
 
-## API Reference
+**A plan or apply** needs the environment's real `terraform.tfvars`, `backend.hcl` and, for dev, `zone-copy.auto.tfvars`. They are in Trevean's private record, not in this repository, and git ignores them. Every apply checks that it is running in the expected AWS account before it changes anything. Changes to DNS, CloudFront or the tables go live for the jars in customers' hands, so review the plan line by line.
 
-### GraphQL Queries
+## 6. The Tag Tool
 
-#### GetBlends
-```graphql
-query GetBlends {
-  blends {
-    id
-    name
-    origin
-    description
-    imageUrl
-    spiceCount
-  }
-}
+The Tag Tool writes a blend code to ST25TV02KC tags and checks each one. It is in `build/chip-cli`.
+
+**Starting it.** Double-click `Start Tag Tool.cmd` (Windows) or `start-tag-tool.command` (Mac; the first time, right-click it and choose Open). The launcher checks for Node.js 20.11 or newer, installs the tool's packages the first time (this needs internet), builds it and opens the page. Close any other NFC program, such as GoToTags, first: only one program can use the reader.
+
+**What it does.**
+
+- Shows the reader and the tag on it, and the codes you can write: `ps`, `cs`, `sr` and `nm`. It refuses `kg` and any code not in the redirect table.
+- Writes the chosen code, reads every block back and checks it before it says the tag is done.
+- Can write the same code to each new tag automatically, with a desktop notification for each.
+- Keeps a record of every tag in `runs/tag-tool/`.
+- Runs on 127.0.0.1 only, on the first free port from 10350 to 10359.
+- `node bin/tag-tool.mjs --simulator` (in `build/chip-cli`) opens the same page with no reader and no tags, for practice.
+
+**What it never does.** It never protects or locks a tag. Protection is only on the command line, below.
+
+**The command line.** In `build/chip-cli`, after `npm ci` and `npm run build`:
+
+```text
+node bin/chip-cli.mjs codes                 list the codes in the redirect table
+node bin/chip-cli.mjs encode --code ps      show exactly what would be written (no tag needed)
+node bin/chip-cli.mjs write --code ps       write, read back and verify one tag
+node bin/chip-cli.mjs verify --expect ps    check one tag carries the right URL
+node bin/chip-cli.mjs batch --code ps --count 125 --journal runs/ps.jsonl
+node bin/chip-cli.mjs status --journal runs/ps.jsonl
+node bin/chip-cli.mjs doctor                preflight checks
 ```
 
-#### GetBlend
-```graphql
-query GetBlend($id: ID!) {
-  blend(id: $id) {
-    id
-    name
-    origin
-    description
-    originStory
-    freshness
-    ingredients
-    imageUrl
-    grower {
-      id
-      name
-      region
-      certifications
-    }
-    recipes {
-      id
-      name
-      servings
-      cookTime
-    }
-  }
-}
-```
+**Protection.** `--protect` on `write` or `batch` sets the tag's 64-bit area password after the tag has been written and verified. The password is read from an environment variable (`--password-env NAME`) or a file (`--password-file PATH`), never typed on the command line, and the tool refuses the factory default and any single repeated character. Keep the password in Trevean's own password store: without it a protected tag cannot be rewritten. Before it sends any password or protection command, the tool runs a probe on that tag that confirms the chip answers exactly as the datasheet says. If the probe fails, it stops and nothing is locked. That probe must not be weakened: a wrong command byte can lock a tag for good.
 
-#### GetRecipes
-```graphql
-query GetRecipes($blendId: ID!) {
-  recipes(blendId: $blendId) {
-    id
-    name
-    description
-    servings
-    cookTime
-    difficulty
-    instructions
-    ingredients {
-      name
-      amount
-      unit
-    }
-  }
-}
-```
+The full detail, including the safety checks and every error message, is in `build/chip-cli/README.md`. The chip itself is in [NFC-SPECS.md](NFC-SPECS.md).
 
-### GraphQL Mutations
+## 7. CI
 
-#### RecordScanEvent
-```graphql
-mutation RecordScan($blendId: ID!, $tagUid: String!) {
-  recordScanEvent(blendId: $blendId, tagUid: $tagUid) {
-    id
-    timestamp
-    success
-  }
-}
-```
+The workflows are in `.github/workflows`:
 
-#### SaveFavorite
-```graphql
-mutation SaveFavorite($blendId: ID!) {
-  saveFavorite(blendId: $blendId) {
-    id
-    isFavorite
-  }
-}
-```
+| Workflow | Runs on | What it does |
+|---|---|---|
+| `ci.yml` | every pull request, or by hand | Each package's install, typecheck and tests on Node 20 (the table in section 2); `terraform fmt` and `validate` for all three environments, with no backend and no credentials; the public-safety scan and its tests. |
+| `edge-and-chip-cli.yml` | pull requests that change `build/edge` or `build/chip-cli`, or by hand | Both packages' full checks, plus the repoint guard: it compares the redirect table with the branch it merges into and fails if an existing code changed without `allowRepoint`. |
+| `contract-tests.yml` | every pull request, or by hand | The contract suite against the in-memory stub. The staging and production jobs run only by hand, once the repository has the tokens they name; production is read only. |
+| `record-integrity.yml` | | Checks Serene Labs' own project records. It runs only in Serene Labs' repository and is skipped here. |
 
-## Web App Development
+No workflow needs a secret to pass on a pull request.
 
-### Project Structure
-```
-src/web/
-├── pages/          # Next.js pages
-├── components/     # React components
-├── services/       # API clients
-├── hooks/          # Custom React hooks
-├── styles/         # CSS/SCSS
-└── public/         # Static assets
-```
+## 8. Before you commit
 
-### Running Locally
-```bash
-cd src/web
-npm install
-npm run dev
-# Accessible at http://localhost:3000
-```
+- Run the package's tests (section 2).
+- Run `node tools/check-public-safe.mjs`. This repository is public. Use placeholders such as `<TREVEAN_DEV_ACCOUNT_ID>` for anything that identifies an AWS account or resource; the real values belong in Trevean's private record.
+- Never commit a password, key, token, `.env` file or real Terraform variable file.
 
-### Building for Production
-```bash
-npm run build
-npm start
-```
+## 9. The prototype
 
-## Mobile SDK Setup
-
-### Project Structure
-```
-src/mobile/
-├── src/
-│   ├── screens/    # Screen components
-│   ├── services/   # NFC and API services
-│   ├── hooks/      # Custom hooks
-│   └── components/ # Reusable components
-├── android/        # Native Android code
-├── ios/            # Native iOS code
-└── App.tsx         # Root component
-```
-
-### iOS Setup
-```bash
-cd src/mobile
-npm install
-
-# Install pods
-cd ios
-pod install
-cd ..
-
-# Run on iOS simulator
-npm run ios
-```
-
-### Android Setup
-```bash
-cd src/mobile
-npm install
-
-# Build and run on Android
-npm run android
-```
-
-### NFC Permissions
-
-#### iOS (ios/TreveanNFC/Info.plist)
-```xml
-<key>NFCReaderUsageDescription</key>
-<string>We use NFC to read blend information from spice packages</string>
-```
-
-#### Android (android/app/src/main/AndroidManifest.xml)
-```xml
-<uses-permission android:name="android.permission.NFC" />
-```
-
-## NFC Chip Programming
-
-### Using the Programmer CLI
-
-```bash
-# Program a single chip
-npx ts-node src/nfc/programmer.ts program \
-  --blend-id blend-001 \
-  --chip-type NTAG216 \
-  --base-url https://trevean.com/blend
-
-# Validate chip configuration
-npx ts-node src/nfc/programmer.ts validate \
-  --blend-id blend-001 \
-  --chip-type NTAG216
-
-# Estimate memory usage
-npx ts-node src/nfc/programmer.ts estimate \
-  --blend-id blend-001 \
-  --base-url https://trevean.com/blend
-```
-
-### NTAG Specifications
-
-- **NTAG216**: 888 bytes total, 729 bytes user memory
-- **NTAG213**: 180 bytes total, 64 bytes user memory
-- **NDEF Format**: Standard NFC Forum Type 2
-- **Max URL Length**: 300 characters
-
-## Database Schema
-
-### SpiceBlends Table
-```
-blendId (PK): String
-name: String
-origin: String
-description: String
-originStory: String
-freshness: Number (0-100)
-ingredients: StringSet
-growerId: String (FK)
-createdAt: String (ISO 8601)
-updatedAt: String (ISO 8601)
-```
-
-### ScanEvents Table
-```
-chipUid (PK): String
-timestamp (SK): String (ISO 8601)
-blendId: String
-userId: String (optional)
-metadata: Map
-```
-
-### Recipes Table
-```
-blendId (PK): String
-recipeId (SK): String
-name: String
-description: String
-servings: Number
-cookTime: Number
-difficulty: String (easy|medium|hard)
-instructions: List
-ingredients: List<Map>
-```
-
-### Growers Table
-```
-growerId (PK): String
-name: String
-region: String
-country: String
-certifications: StringSet
-description: String
-contactEmail: String
-```
-
-### NFCTags Table
-```
-chipUid (PK): String
-blendId: String
-programmingDate: String
-programmingStatus: String (success|pending|failed)
-memoryUsage: Number
-```
-
-## Deployment Guide
-
-### Prerequisites
-- AWS account with appropriate permissions
-- AWS CLI configured
-- Docker credentials (if using ECR)
-
-### Staging Deployment
-```bash
-bash scripts/deploy.sh staging
-```
-
-### Production Deployment
-```bash
-bash scripts/deploy.sh production
-# Will require confirmation
-```
-
-### Environment Configuration
-
-Edit `config/.env.production`:
-```
-NODE_ENV=production
-AWS_REGION=us-east-1
-DYNAMODB_TABLE_PREFIX=trevean-prod-
-# Add other production values
-```
-
-### Manual Lambda Deployment
-```bash
-# Build and package
-npm run build
-cd dist/api
-zip -r ../api-lambda.zip .
-cd ../..
-
-# Deploy
-aws lambda update-function-code \
-  --function-name trevean-nfc-api-production \
-  --zip-file fileb://dist/api-lambda.zip
-```
-
-### CloudFront Cache Invalidation
-```bash
-aws cloudfront create-invalidation \
-  --distribution-id YOUR_DISTRIBUTION_ID \
-  --paths "/*"
-```
-
-## Troubleshooting
-
-### NFC Tag Not Detected
-1. Ensure NFC is enabled on device
-2. Check permissions are granted
-3. Verify chip has power
-4. Try tag with different phone
-
-### DynamoDB Connection Issues
-```bash
-# Check DynamoDB Local is running
-docker ps | grep dynamodb
-
-# Restart DynamoDB Local
-bash scripts/db-local.sh
-```
-
-### Deployment Failures
-```bash
-# Check Lambda logs
-aws logs tail /aws/lambda/trevean-nfc-api-production --follow
-
-# Verify environment variables
-aws lambda get-function-configuration --function-name trevean-nfc-api-production
-```
-
-### Mobile App Issues
-
-**iOS Build Errors**
-```bash
-cd ios
-pod repo update
-pod install
-cd ..
-npm run ios
-```
-
-**Android Build Errors**
-```bash
-cd android
-./gradlew clean
-./gradlew build
-cd ..
-npm run android
-```
-
-### Redis Connection Problems
-```bash
-# Check Redis is running
-redis-cli ping
-
-# Check connection string
-echo $REDIS_URL
-```
-
-## Support
-
-For issues and questions:
-- GitHub Issues: [repo]/issues
-- Documentation: /docs
-- Email: dev@trevean.com
+`src/`, `tests/`, `scripts/` and `config/` are Trevean's prototype from June 2026. Nothing above uses them, and CI does not run them. This guide described how to set up and run that prototype until it was rewritten for the import. That text is in this file's history (commit c1d7b38).
