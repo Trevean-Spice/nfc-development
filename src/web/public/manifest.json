@@ -1,0 +1,96 @@
+{
+  "name": "Trevean Spice - Premium Artisan Spice Blends",
+  "short_name": "Trevean Spice",
+  "description": "Traceable, fresh, and sustainably sourced spice blends from around the world. Tap your spice jar with an NFC tag to explore origin stories and recipes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#8B6F47",
+  "background_color": "#FAFAF8",
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-1.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/screenshot-2.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["food", "shopping"],
+  "shortcuts": [
+    {
+      "name": "Browse Blends",
+      "short_name": "Blends",
+      "description": "Browse our collection of spice blends",
+      "url": "/?shortcut=browse",
+      "icons": [
+        {
+          "src": "/icons/shortcut-browse.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "short_name": "Health",
+      "description": "Check service status",
+      "url": "/api/health",
+      "icons": [
+        {
+          "src": "/icons/shortcut-health.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/jpeg", "image/png", "image/webp"]
+        }
+      ]
+    }
+  }
+}

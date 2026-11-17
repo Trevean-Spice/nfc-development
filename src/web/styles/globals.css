@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand Color Variables */
+:root {
+  --color-amber-primary: #8B6F47;
+  --color-amber-dark: #6B5435;
+  --color-amber-light: #D4A574;
+  --color-amber-50: #FAFAF8;
+  --color-accent-warm: #C97644;
+  --color-accent-gold: #D4AF37;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #fafaf8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4a574;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b6f47;
+}
+
+/* Global Typography */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-white text-amber-900 font-sans;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Links */
+a {
+  @apply text-amber-700 hover:text-amber-900 transition-colors;
+}
+
+a:focus-visible {
+  @apply outline-2 outline-offset-2 outline-amber-700 rounded;
+}
+
+/* Headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  @apply font-bold text-amber-900;
+}
+
+/* Prose Styling */
+.prose a {
+  @apply text-amber-700 hover:text-amber-900;
+}
+
+.prose strong {
+  @apply text-amber-900;
+}
+
+.prose code {
+  @apply bg-amber-50 text-amber-900 rounded px-2 py-1;
+}
+
+/* Button Reset */
+button {
+  @apply font-medium cursor-pointer transition-colors;
+}
+
+button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Input Styling */
+input,
+textarea,
+select {
+  @apply border border-amber-200 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-700 focus:border-transparent;
+}
+
+/* Focus States */
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-amber-700 rounded;
+}
+
+/* Animation for fade-in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Animation for slide-up */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Utility Classes for Brand */
+.text-brand-primary {
+  color: var(--color-amber-primary);
+}
+
+.bg-brand-primary {
+  background-color: var(--color-amber-primary);
+}
+
+.border-brand-primary {
+  border-color: var(--color-amber-primary);
+}
+
+/* Gradient Backgrounds */
+.gradient-brand {
+  background: linear-gradient(135deg, #8B6F47 0%, #C97644 100%);
+}
+
+.gradient-brand-light {
+  background: linear-gradient(135deg, #D4A574 0%, #D4AF37 100%);
+}
+
+/* Spice Theme Patterns */
+.pattern-spice {
+  background-image: 
+    radial-gradient(circle at 20% 50%, rgba(139, 111, 71, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(201, 118, 68, 0.1) 0%, transparent 50%);
+}
+
+/* Print Styles */
+@media print {
+  body {
+    @apply bg-white;
+  }
+
+  a {
+    @apply underline;
+  }
+}
+
+/* Responsive Utilities */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}

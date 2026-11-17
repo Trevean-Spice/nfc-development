@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"],
+      "@api/*": ["src/api/*"],
+      "@web/*": ["src/web/*"],
+      "@mobile/*": ["src/mobile/*"],
+      "@nfc/*": ["src/nfc/*"],
+      "@config/*": ["config/*"]
+    },
+    "typeRoots": ["./node_modules/@types", "./src/shared/types"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "config/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".next",
+    "coverage",
+    "src/web/.next"
+  ]
+}
