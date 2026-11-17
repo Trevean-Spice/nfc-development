@@ -28,6 +28,10 @@
  *      in a row, so a reader that blinks does not make one tag look like two.
  *   5. Automatic mode never writes the same UID twice in a row. A written tag left
  *      on the reader, or put back on it, waits for the Write button.
+ *   6. Automatic mode never writes a tag that already holds a Trevean product URL.
+ *      A new tag is read when it is seen, read only (src/workflow/existing.ts), and the
+ *      page says which product code it holds. Writing over it takes the Write button.
+ *      A write such a tag refuses is TAG_LOCKED, and is not tried a second time.
  */
 
 import { mkdirSync, existsSync } from 'node:fs';
@@ -43,6 +47,7 @@ import type { RedirectTable, TagCodeEntry } from '../table/redirect-table.js';
 import type { TagIdentity, TagTransport } from '../transport/transport.js';
 import { Journal, JOURNAL_FORMAT, type EndRecord, type RunHeaderRecord, type UnitRecord } from '../workflow/journal.js';
 import { UnitSession, planEncoding } from '../workflow/unit.js';
+import { explainRefusedWrite, readExisting, type ExistingContent } from '../workflow/existing.js';
 import { WriteOnlyTransport } from './write-only.js';
 
 export type Phase = 'starting' | 'reader-not-found' | 'waiting-for-tag' | 'tag-not-ready' | 'tag-seen' | 'writing' | 'written' | 'error';
@@ -61,6 +66,14 @@ export interface PlainError {
   readonly code: string;
   readonly message: string;
   readonly remedy: string;
+}
+
+/** What a tag held when it was put on the reader, read before anything was written to it. */
+export interface HeldContent {
+  /** The product code, or null when the URL is not one of the table's. */
+  readonly code: string | null;
+  readonly blendName: string | null;
+  readonly url: string;
 }
 
 export interface RecentUnit {
@@ -98,6 +111,11 @@ export interface Snapshot {
   readonly anotherProgram: string | null;
   /** True when the tag on the reader is the one most recently attempted. */
   readonly tagAlreadyAttempted: boolean;
+  /**
+   * What the tag on the reader already held when it was seen, while it waits to be written
+   * ("tag-seen"), or null: a blank tag, one that could not be read, or any other phase.
+   */
+  readonly held: HeldContent | null;
   readonly auto: { readonly enabled: boolean; readonly code: string | null; readonly blendName: string | null };
   /**
    * Tags written and verified this session: distinct UIDs, so a tag written twice
@@ -179,6 +197,11 @@ function plain(error: ChipError): PlainError {
   return { code: error.code, message: error.message, remedy: error.remedy };
 }
 
+function heldFrom(existing: ExistingContent | null): HeldContent | null {
+  if (existing === null || existing.uri === null) return null;
+  return { code: existing.entry?.code ?? null, blendName: existing.entry?.blendName ?? null, url: existing.uri };
+}
+
 function safeUser(): string {
   try {
     return userInfo().username;
@@ -233,6 +256,8 @@ export class TagToolController {
   /** Reader trouble in a row, each one reopened. The second and later wait before polling again. */
   #troubleStreak = 0;
   #lastAttemptUid: string | null = null;
+  /** What the tag on the reader held when it was seen. Cleared when a write starts. */
+  #held: HeldContent | null = null;
   #pending: PendingWrite | null = null;
   #stopping = false;
   #loop: Promise<void> | null = null;
@@ -317,6 +342,7 @@ export class TagToolController {
       error: this.#error,
       anotherProgram: this.#anotherProgram,
       tagAlreadyAttempted: this.#present !== null && this.#present.uid !== null && this.#present.uid === this.#lastAttemptUid,
+      held: this.#phase === 'tag-seen' ? this.#held : null,
       auto: { ...this.#auto },
       writtenCount: this.writtenCount(),
       failedAttempts: this.#failedAttempts,
@@ -392,7 +418,7 @@ export class TagToolController {
     this.#auto = { enabled: true, code: entry.code, blendName: entry.blendName };
     this.#log(`Automatic writing on: ${entry.code} (${entry.blendName}) to every new tag.`);
     // A fresh tag already sitting on the reader is "a new tag" too.
-    if (this.#phase === 'tag-seen' && this.#present !== null && !this.#present.bad && !this.alreadyAttempted(this.#present.uid)) {
+    if (this.#phase === 'tag-seen' && this.#present !== null && !this.#present.bad && this.writesAutomatically(this.#present.uid)) {
       if (this.#pending === null) this.#pending = { code: entry.code, automatic: true };
       this.#wake?.();
     }
@@ -498,7 +524,10 @@ export class TagToolController {
       await this.sleep(idleMs);
       return;
     }
-    // Detection only. The tag is selected again, from scratch, when it is written.
+    // Detection only. The tag is selected again, from scratch, when it is written. A tag not
+    // seen before is read first, read only, so the page can say what it already holds.
+    const fresh = identity.blockCount * identity.blockSizeBytes === PART.totalBytes && this.isNewTag(identity.uid);
+    const existing = fresh ? await readExisting(this.#transport, this.#table) : null;
     await this.release('leave');
     this.clearAnotherProgram();
     this.#unreadableStreak = 0;
@@ -519,22 +548,28 @@ export class TagToolController {
       await this.sleep(idleMs);
       return;
     }
-    this.onPresent(identity);
+    this.onPresent(identity, existing);
     await this.sleep(idleMs);
   }
 
-  private onPresent(identity: TagIdentity): void {
+  private onPresent(identity: TagIdentity, existing: ExistingContent | null): void {
     this.#absentStreak = 0;
     const uid = identity.uid;
-    const present = this.#present;
-    if (present !== null && !present.bad && present.uid === uid) return;
+    if (!this.isNewTag(uid)) return;
 
     this.#present = { uid, bad: false };
-    this.#log(`Tag seen: ${uid ?? 'UID not reported'}`);
+    this.#held = heldFrom(existing);
+    const held = this.#held;
+    const holds = held === null ? '' : held.code !== null ? `, already written: ${held.code} (${held.blendName})` : `, holds ${held.url}`;
+    this.#log(`Tag seen: ${uid ?? 'UID not reported'}${holds}`);
     this.update({ phase: 'tag-seen', uid, error: null, url: null, code: null, blendName: null });
-    this.notice('tag-seen', 'Tag seen', `UID ${uid ?? 'not reported'}`);
+    if (held !== null && held.code !== null) {
+      this.notice('tag-seen', 'Already written', `${held.code} ${held.blendName}, UID ${uid ?? 'not reported'}.${this.#auto.enabled ? ' Not written again automatically.' : ''}`);
+    } else {
+      this.notice('tag-seen', 'Tag seen', `UID ${uid ?? 'not reported'}`);
+    }
 
-    if (this.#auto.enabled && this.#auto.code !== null && !this.alreadyAttempted(uid) && this.#pending === null) {
+    if (this.#auto.enabled && this.#auto.code !== null && this.writesAutomatically(uid) && this.#pending === null) {
       this.#pending = { code: this.#auto.code, automatic: true };
     }
   }
@@ -674,6 +709,7 @@ export class TagToolController {
     const { entry, uri } = resolved;
 
     this.#log(`Writing ${entry.code} (${entry.blendName}) to tag ${this.#present.uid ?? 'with no UID'}${request.automatic ? ', automatically' : ''}.`);
+    this.#held = null;
     this.update({ phase: 'writing', code: entry.code, blendName: entry.blendName, url: null, error: null });
 
     let journal: CodeJournal;
@@ -702,6 +738,8 @@ export class TagToolController {
       }
       this.remember(record, entry);
       if (record.outcome !== 'failed') break;
+      // A locked tag refuses every write the same way. Trying it again only repeats the error.
+      if (record.error?.code === 'TAG_LOCKED') break;
       if (tryIndex < attempts - 1) {
         this.#log(`Attempt ${record.attempt} failed (${record.error?.code ?? 'unknown'}), trying the same tag once more.`);
         await this.release();
@@ -759,7 +797,14 @@ export class TagToolController {
     try {
       const identity = await session.selectTag();
       if (identity.uid !== null) this.update({ uid: identity.uid });
-      const plan = await session.write();
+      // Read only, so a write this tag refuses can be told apart as the tag being locked.
+      const before = await readExisting(this.#transport, this.#table);
+      let plan;
+      try {
+        plan = await session.write();
+      } catch (cause) {
+        throw await explainRefusedWrite(cause, before, this.#transport, this.#table, entry.code);
+      }
       const receipt = await session.verify();
       return {
         ...base,
@@ -871,6 +916,17 @@ export class TagToolController {
 
   private alreadyAttempted(uid: string | null): boolean {
     return uid !== null && uid === this.#lastAttemptUid;
+  }
+
+  /** True unless the loop already holds this tag as the one on the reader. */
+  private isNewTag(uid: string | null): boolean {
+    const present = this.#present;
+    return present === null || present.bad || present.uid !== uid;
+  }
+
+  /** Automatic mode writes a tag once, and never one that already holds a Trevean product URL (rule 6). */
+  private writesAutomatically(uid: string | null): boolean {
+    return !this.alreadyAttempted(uid) && (this.#held === null || this.#held.code === null);
   }
 
   /**

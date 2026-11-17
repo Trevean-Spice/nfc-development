@@ -16,6 +16,7 @@
     TAG_ABSENT: 'No tag found on the reader',
     TAG_NOT_ST25TV02KC: 'This is not the right kind of tag',
     TAG_CHANGED: 'The tag changed during the write',
+    TAG_LOCKED: 'This tag is locked: it was written already',
     WRITE_FAILED: 'The write did not finish',
     READBACK_FAILED: 'The tag could not be read back',
     READBACK_MISMATCH: 'The tag does not hold what was written',
@@ -315,8 +316,21 @@
 
   /* --------------------------------------------------------------- render */
 
+  /** A locked tag refuses every write the same way, so the Write button is not offered for it again. */
+  function lockedTag(s) {
+    return s.phase === 'error' && !!s.error && s.error.code === 'TAG_LOCKED';
+  }
+
   function canWrite(s) {
-    return s && (s.phase === 'tag-seen' || s.phase === 'written' || (s.phase === 'error' && s.uid !== null));
+    return s && (s.phase === 'tag-seen' || s.phase === 'written' || (s.phase === 'error' && s.uid !== null && !lockedTag(s)));
+  }
+
+  /** What the status card says about a tag that already holds a web address, before anything is written to it. */
+  function heldWords(s) {
+    var h = s.held;
+    if (!h) return '';
+    if (h.code === null) return 'It holds ' + h.url + ', which is not a Trevean product address. ';
+    return 'It already holds ' + h.code + ' (' + h.blendName + ') and opens ' + h.url + '. ';
   }
 
   /**
@@ -364,10 +378,14 @@
         showError = true;
         break;
       case 'tag-seen':
-        title = 'Tag seen';
+        title = s.held && s.held.code !== null && !s.tagAlreadyAttempted ? 'Already written' : 'Tag seen';
         if (s.tagAlreadyAttempted) detail = again;
-        else if (s.auto.enabled) detail = 'Writing ' + s.auto.code + ' automatically.';
-        else detail = 'Choose the product code and press Write.';
+        else if (s.held && s.held.code !== null) {
+          detail = heldWords(s) + (s.auto.enabled
+            ? 'Automatic writing leaves it alone. Take it off and put the next tag on.'
+            : 'Take it off and put the next tag on, or press Write to write it again.');
+        } else if (s.auto.enabled) detail = heldWords(s) + 'Writing ' + s.auto.code + ' automatically.';
+        else detail = heldWords(s) + 'Choose the product code and press Write.';
         break;
       case 'writing':
         title = 'Writing ' + blend;
@@ -380,7 +398,8 @@
       case 'error':
         // TAG_ABSENT with no UID is a tag the reader sees but cannot read, not a missing one.
         title = s.error && s.error.code === 'TAG_ABSENT' && !s.uid ? 'The reader cannot read the tag' : plainTitle(s.error && s.error.code);
-        detail = s.uid ? 'Press Write to try this tag again, or take it off and set it aside.' : 'Take it off the reader.';
+        if (lockedTag(s)) detail = 'Do not write it again. Take it off the reader.';
+        else detail = s.uid ? 'Press Write to try this tag again, or take it off and set it aside.' : 'Take it off the reader.';
         showError = true;
         break;
     }
@@ -392,6 +411,7 @@
     if (s.phase === 'writing') return 'Writing...';
     if (s.phase === 'starting' || s.phase === 'reader-not-found') return 'Waiting for the reader.';
     if (s.phase === 'tag-not-ready') return 'Waiting for the tag to be ready.';
+    if (lockedTag(s)) return 'This tag is locked. Take it off.';
     if (!canWrite(s)) return 'Put a tag on the reader first.';
     return writable ? '' : 'Choose a product code.';
   }
@@ -489,6 +509,7 @@
       plainTitle: plainTitle,
       writeHint: writeHint,
       tagsNoun: tagsNoun,
+      canWrite: canWrite,
       autoRefusal: autoRefusal,
       looksLikeTagId: looksLikeTagId,
       keyRhythm: keyRhythm,

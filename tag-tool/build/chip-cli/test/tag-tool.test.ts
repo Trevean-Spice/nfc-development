@@ -36,6 +36,7 @@ import { RecordingTransport, type AreaProtectionState, type OpcodeProbeResult, t
 import { PcscTransport } from '../src/transport/pcsc.js';
 import { SimulatorTransport } from '../src/transport/simulator.js';
 import { readJournal, verifyRecordDigest } from '../src/workflow/journal.js';
+import { planEncoding } from '../src/workflow/unit.js';
 
 const table = RedirectTable.load();
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -117,6 +118,12 @@ class ScriptedReader implements TagTransport {
   readerPresent = false;
   tag: string | null = null;
   readonly failWrites = new Set<string>();
+  /**
+   * Tags whose writes land one block and then fail: an interrupted write, which leaves the tag
+   * reading differently. Unlike `failWrites` on a tag that already holds a URL, that is never
+   * taken for a locked tag (src/workflow/existing.ts).
+   */
+  readonly failWritesPartway = new Set<string>();
   readonly memory = new Map<string, Uint8Array>();
   readonly calls: string[] = [];
   /** One shot results for the next waitForTag calls, ahead of the steady state. */
@@ -173,8 +180,14 @@ class ScriptedReader implements TagTransport {
     }
     return { uid: this.tag, partNumber: null, blockCount: PART.blockCount, blockSizeBytes: PART.blockSizeBytes };
   }
+  /** How many of the next block reads fail, as a reader that loses the tag on a read would. */
+  failReads = 0;
   async readBlocks(firstBlock: number, count: number): Promise<Uint8Array> {
     this.calls.push('readBlocks');
+    if (this.failReads > 0) {
+      this.failReads -= 1;
+      throw new ChipError('TRANSPORT_UNAVAILABLE', 'The reader rejected a command: the card was removed.', 'Reseat the tag.', {});
+    }
     const start = firstBlock * PART.blockSizeBytes;
     return this.current().slice(start, start + count * PART.blockSizeBytes);
   }
@@ -185,6 +198,9 @@ class ScriptedReader implements TagTransport {
       throw new ChipError('WRITE_FAILED', 'The tag refused the write.', 'Retry this unit. If it fails twice, set the tag aside.', {});
     }
     memory.set(data, block * PART.blockSizeBytes);
+    if (this.tag !== null && this.failWritesPartway.has(this.tag)) {
+      throw new ChipError('WRITE_FAILED', 'The write stopped partway.', 'Retry this unit. If it fails twice, set the tag aside.', {});
+    }
   }
   async presentPassword(_n: number, _p: Uint8Array): Promise<void> {
     this.calls.push('presentPassword');
@@ -474,12 +490,14 @@ test('the count is of distinct tags written and verified, and the table has a ro
     assert.equal(s.writtenCount, 2);
     assert.match(lastWritten(s), /\. 2 tags written and verified this session\. /);
 
-    // A write to tag 2 that fails, both attempts: what was verified on it may not be there now.
-    reader.failWrites.add('E002000000000D02');
+    // A write to tag 2 that fails partway, both attempts: what was verified on it may not be
+    // there now. (A tag that refuses the write and still reads as before is locked, and is
+    // tried once: see the TAG_LOCKED tests.)
+    reader.failWritesPartway.add('E002000000000D02');
     s = await writeAndWait('ps', 5, 'error');
     assert.equal(s.writtenCount, 1);
     assert.equal(s.failedAttempts, 2);
-    reader.failWrites.clear();
+    reader.failWritesPartway.clear();
     s = await writeAndWait('ps', 6, 'written');
     assert.equal(s.writtenCount, 2);
 
@@ -498,6 +516,124 @@ test('the count is of distinct tags written and verified, and the table has a ro
         ['E002000000000D01', 'ps', 'verified'],
       ],
     );
+  } finally {
+    await controller.stop();
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* A tag that was written already, and one that is locked                      */
+/* -------------------------------------------------------------------------- */
+
+/** A tag's memory holding `uri`, formatted the way this tool writes it. */
+function imageOf(uri: string): Uint8Array {
+  const memory = new Uint8Array(PART.totalBytes);
+  memory.set([0xe1, 0x40, 0x27, 0x01], 0);
+  memory.set(planEncoding(uri).tlv, CC_BYTES);
+  return memory;
+}
+
+const writesTo = (reader: ScriptedReader) => reader.calls.filter((c) => c === 'writeBlock').length;
+
+test('scripted: a tag that already holds a Trevean URL is named when seen, and automatic mode leaves it alone', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  reader.memory.set('E002000000000E01', imageOf('https://treveanspice.com/t/ps'));
+  reader.memory.set('E002000000000E03', imageOf('https://example.com/a'));
+  const { controller } = controllerFor(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'ready', (x) => x.phase === 'waiting-for-tag');
+    controller.setAuto(true, 'cs');
+
+    reader.tag = 'E002000000000E01';
+    const seen = await waitFor(controller, 'written tag seen', (x) => x.phase === 'tag-seen' && x.uid === 'E002000000000E01');
+    assert.deepEqual(seen.held, { code: 'ps', blendName: 'Persian Sunrise', url: 'https://treveanspice.com/t/ps' });
+    const notice = seen.notices[seen.notices.length - 1];
+    assert.equal(notice?.title, 'Already written');
+    assert.equal(notice?.body, 'ps Persian Sunrise, UID E002000000000E01. Not written again automatically.');
+    await sleep(80);
+    assert.equal(writesTo(reader), 0, 'automatic mode must not write a tag that already holds a product URL');
+    assert.equal(controller.snapshot().phase, 'tag-seen');
+    assert.equal(controller.snapshot().recent.length, 0);
+
+    // A blank tag after it is written automatically, as before.
+    reader.tag = 'E002000000000E02';
+    let s = await waitFor(controller, 'blank tag written', (x) => x.phase === 'written' && x.uid === 'E002000000000E02');
+    assert.equal(s.held, null);
+    assert.equal(urlOn(reader.memory.get('E002000000000E02')!), 'https://treveanspice.com/t/cs');
+
+    // A tag holding some other URL is not one of ours: shown, and written automatically, as before.
+    reader.tag = 'E002000000000E03';
+    s = await waitFor(controller, 'other tag written', (x) => x.phase === 'written' && x.uid === 'E002000000000E03');
+    assert.equal(urlOn(reader.memory.get('E002000000000E03')!), 'https://treveanspice.com/t/cs');
+
+    // The written one, pressed by hand, is written: the button is the operator's choice.
+    reader.tag = 'E002000000000E01';
+    await waitFor(controller, 'written tag seen again', (x) => x.phase === 'tag-seen' && x.uid === 'E002000000000E01');
+    controller.setAuto(false, null);
+    controller.requestWrite('cs');
+    await waitFor(controller, 'rewritten', (x) => x.phase === 'written' && x.uid === 'E002000000000E01');
+    assert.equal(urlOn(reader.memory.get('E002000000000E01')!), 'https://treveanspice.com/t/cs');
+  } finally {
+    await controller.stop();
+  }
+  assert.ok(!reader.calls.some((c) => (PROTECTION_METHODS as readonly string[]).includes(c)), 'no protection command reached the reader');
+});
+
+test('scripted: a locked tag is TAG_LOCKED after one attempt, in plain words, and the page does not offer Write again', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  reader.memory.set('E002000000000F01', imageOf('https://treveanspice.com/t/ps'));
+  reader.failWrites.add('E002000000000F01');
+  const { controller } = controllerFor(reader);
+  controller.start();
+  let s: Snapshot;
+  try {
+    await waitFor(controller, 'ready', (x) => x.phase === 'waiting-for-tag');
+    reader.tag = 'E002000000000F01';
+    await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen' && x.held?.code === 'ps');
+    controller.requestWrite('ps');
+    s = await waitFor(controller, 'locked', (x) => x.phase === 'error');
+  } finally {
+    await controller.stop();
+  }
+  assert.equal(s.error?.code, 'TAG_LOCKED');
+  assert.match(s.error?.message ?? '', /^This tag is locked, and it was written already: it holds ps \(Persian Sunrise\), the code being written\./);
+  assert.match(s.error?.message ?? '', /The reader said: The tag refused the write\.$/);
+  assert.equal(s.error?.remedy, 'Nothing to do: this tag is finished. Do not write it again. Take it off and put the next tag on.');
+  assert.equal(s.failedAttempts, 1, 'a locked tag is tried once');
+  assert.equal(s.recent.length, 1);
+  assert.equal(writesTo(reader), 1);
+  assert.equal(urlOn(reader.memory.get('E002000000000F01')!), 'https://treveanspice.com/t/ps');
+
+  const sandbox: Record<string, unknown> = {};
+  runInNewContext(readFileSync(join(STATIC_DIR, 'page.js'), 'utf8'), sandbox);
+  const page = sandbox.TagToolPage as { describe: Describe; canWrite: (s: unknown) => boolean; writeHint: (s: unknown, w: boolean) => string; plainTitle: (c: string) => string };
+  const said = page.describe(s as unknown as Record<string, unknown>);
+  assert.equal(said.title, 'This tag is locked: it was written already');
+  assert.equal(said.detail, 'Do not write it again. Take it off the reader.');
+  assert.equal(said.error?.code, 'TAG_LOCKED');
+  assert.equal(page.canWrite(s), false);
+  assert.equal(page.writeHint(s, true), 'This tag is locked. Take it off.');
+});
+
+test('scripted: a tag whose content cannot be read when seen is shown as a tag, with nothing claimed, and written as before', async () => {
+  const reader = new ScriptedReader();
+  reader.readerPresent = true;
+  reader.memory.set('E002000000000F02', imageOf('https://treveanspice.com/t/ps'));
+  const { controller } = controllerFor(reader);
+  controller.start();
+  try {
+    await waitFor(controller, 'ready', (x) => x.phase === 'waiting-for-tag');
+    reader.failReads = 1;
+    reader.tag = 'E002000000000F02';
+    const seen = await waitFor(controller, 'tag seen', (x) => x.phase === 'tag-seen');
+    assert.equal(seen.held, null, 'a read that failed says nothing about the tag');
+    assert.equal(seen.error, null);
+    controller.requestWrite('cs');
+    await waitFor(controller, 'written', (x) => x.phase === 'written');
+    assert.equal(urlOn(reader.memory.get('E002000000000F02')!), 'https://treveanspice.com/t/cs');
   } finally {
     await controller.stop();
   }
@@ -1279,6 +1415,24 @@ test('the page says each state in plain words', () => {
   assert.equal(failed.error?.code, 'WRITE_FAILED');
   const again = describe({ ...base, phase: 'tag-seen', uid: 'E002000000000003', tagAlreadyAttempted: true, recent: [{ outcome: 'failed' }] });
   assert.match(again.detail, /just failed/);
+});
+
+test('the page names what a tag already holds, before anything is written', () => {
+  const describe = pageDescribe();
+  const base = { readerName: 'ACS ACR1552 1S CL Reader PICC 0', uid: 'E002000000000001', code: null, blendName: null, url: null, error: null, tagAlreadyAttempted: false, auto: { enabled: false, code: null }, recent: [], phase: 'tag-seen' };
+  const held = { code: 'ps', blendName: 'Persian Sunrise', url: 'https://treveanspice.com/t/ps' };
+
+  const manual = describe({ ...base, held });
+  assert.equal(manual.title, 'Already written');
+  assert.equal(manual.detail, 'It already holds ps (Persian Sunrise) and opens https://treveanspice.com/t/ps. Take it off and put the next tag on, or press Write to write it again.');
+  const auto = describe({ ...base, held, auto: { enabled: true, code: 'cs' } });
+  assert.equal(auto.title, 'Already written');
+  assert.equal(auto.detail, 'It already holds ps (Persian Sunrise) and opens https://treveanspice.com/t/ps. Automatic writing leaves it alone. Take it off and put the next tag on.');
+  const other = describe({ ...base, held: { code: null, blendName: null, url: 'https://example.com/a' } });
+  assert.equal(other.title, 'Tag seen');
+  assert.equal(other.detail, 'It holds https://example.com/a, which is not a Trevean product address. Choose the product code and press Write.');
+  // Just written by this session: that wording wins, as before.
+  assert.equal(describe({ ...base, held, tagAlreadyAttempted: true, recent: [{ outcome: 'verified' }] }).title, 'Tag seen');
 });
 
 test('page fixes from the browser run: the count, the reserved code under auto, and the hint with no reader', () => {
