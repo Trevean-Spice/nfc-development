@@ -1,152 +1,69 @@
-# Trevean Spice — NFC Smart Packaging Prototype
+# Trevean Spice: NFC tap-to-story
 
-**The Spice Intelligence Platform**
+Each Trevean Spice jar carries an NFC tag and a QR code. A tap or a scan opens that blend's page: its story, grower, recipes and a reorder link to the Shopify store. Every tap and scan is counted for the analytics dashboard, and Trevean's team edits the blend content in an admin CMS.
 
-An NFC-enabled smart packaging system that connects consumers with the authentic stories behind premium spices. Tap a spice jar lid with your phone to instantly discover origin stories, grower profiles, harvest details, freshness tracking, and curated recipes.
+This repository holds the code that does this, built by Serene Labs for Trevean Spice in 2026, and Trevean's earlier prototype.
 
----
+## What is in this repository
 
-## Overview
+**The build, under build/.** Each package has its own README with the detail.
 
-Trevean Spice is building a premium spice subscription service differentiated through NFC-enabled smart packaging. This repository houses the prototype codebase for the full platform — from chip-level integration through cloud APIs to consumer-facing web and mobile experiences.
+| Package | What it is |
+|---|---|
+| [build/edge](build/edge/README.md) | The `/t/{code}` and `/q/{code}` redirect, as a CloudFront Function. Holds `redirect-table.json`, the one file that says which code opens which blend. |
+| [build/vercel-redirect](build/vercel-redirect/README.md) | The same redirect for Trevean's Vercel website, generated from the same table. |
+| [build/web](build/web/README.md) | The consumer blend pages, built as static HTML. |
+| [build/api](build/api/README.md) | The REST API: blend content, scan events and the admin routes. Runs on AWS Lambda with DynamoDB. |
+| [build/admin](build/admin/README.md) | The admin CMS: blend, recipe and grower editors, roles, preview and publish. |
+| [build/publisher](build/publisher/README.md) | The publish pipeline: rebuilds exactly the pages a change affects and puts them live. |
+| [build/dashboard](build/dashboard/README.md) | The scan analytics dashboard. |
+| [build/shopify](build/shopify/README.md) | The Shopify integration: reorder cart links, catalog sync and the order webhook. |
+| [build/content](build/content/README.md) | Content fixtures, the placeholder convention and the database seeder. |
+| [build/contract-tests](build/contract-tests/README.md) | Tests that check the API against its contract. |
+| [build/chip-cli](build/chip-cli/README.md) | The Tag Tool and the tag programming command line, for the ST25TV02KC tags. |
+| [build/infrastructure](build/infrastructure/README.md) | Terraform for everything on AWS. |
+| [build/consolidation](build/consolidation/README.md) | Twelve planned pull requests against the old prototype. Never opened, and superseded by this import. Kept for the record. |
 
-This project is a collaboration between **Trevean Spice** (product vision, content, and brand) and **Microgroove** (NFC technology, platform development, and technical architecture).
+**Beside the build:**
 
-### Key Features
+- `deliverables/m1/01-api-contract.openapi.yaml`: the frozen API contract (OpenAPI 3.1, version 1.0.0). The api, shopify, contract-tests and admin packages read it.
+- `tools/`: repository checks. `check-public-safe.mjs` is the one CI runs (see "Public repository" below).
+- `.github/workflows/`: CI. See [docs/GUIDE.md](docs/GUIDE.md), section 7.
+- `Start Tag Tool.cmd` (Windows) and `start-tag-tool.command` (Mac): double-click launchers for the Tag Tool.
 
-| Feature | Description | Priority |
-|---------|-------------|----------|
-| **NFC Tap-to-Discover** | Tap phone on jar lid to view origin story, grower info, GPS coordinates, harvest date | P0 — Must Have |
-| **Dynamic Content** | Cloud-hosted content updated without reprogramming chips (recipes, tips, seasonal) | P0 — Must Have |
-| **QR Code Fallback** | Printed QR on label for devices without NFC; identical content experience | P0 — Must Have |
-| **Freshness Timeline** | Visual spice-age indicator with alerts near optimal use window | P1 — Should Have |
-| **Recipe Library** | 5–10 curated recipes per spice blend, accessible via tap | P1 — Should Have |
-| **Scan Analytics** | Backend dashboard for scan rates, engagement, and geographic distribution | P1 — Should Have |
-| **Mobile App SDK** | React Native module for native NFC reads with inventory sync | P2 — Nice to Have |
+**Trevean's prototype.** `src/`, `tests/`, `scripts/`, `config/`, the root `package.json`, `jest.config.ts`, `tsconfig.json` and `docs/DIRECTORY-GUIDE.md` are the prototype uploaded in June 2026 (GraphQL, Redis, a React Native app, NTAG chips). They are kept exactly as they were. None of it is part of what was built or deployed, and CI does not run it.
 
-## Tech Stack
+## Documents
 
-| Layer | Technology | Notes |
-|-------|-----------|-------|
-| NFC Hardware | NTAG 216 (888 bytes) | Adhesive mount on bamboo lid underside |
-| Cloud Backend | Node.js / TypeScript | GraphQL API, DynamoDB, Redis cache |
-| Web Experience | Next.js (PWA) | Brand-matched, mobile-first landing pages |
-| Mobile SDK | React Native | iOS CoreNFC + Android NFC API bridges |
-| E-Commerce | Shopify Plus | Subscription management and order tracking |
-| Analytics | Mixpanel / Custom | Real-time scan tracking and engagement |
-| Infrastructure | AWS / GCP with CDN | Multi-region, 99.9% uptime SLA target |
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the pieces fit together, from a tap to a counted scan, and from an edit in the CMS to a live page.
+- [docs/GUIDE.md](docs/GUIDE.md): how to install, test and run each package, change the redirect table, use the Tag Tool, and work with the Terraform.
+- [docs/NFC-SPECS.md](docs/NFC-SPECS.md): the ST25TV02KC chip, the NDEF message and what the Tag Tool writes. The chip has 320 bytes in 80 blocks of 4, and 312 of them are usable for the message.
+- [HISTORY.md](HISTORY.md): why this repository's build history starts on 13 October 2026.
 
-## Repository Structure
+## Quick start
 
-```
-nfc-prototype/
-├── src/
-│   ├── api/            # GraphQL API server (Node.js / TypeScript)
-│   ├── web/            # PWA landing pages (Next.js)
-│   ├── mobile/         # React Native NFC SDK and app modules
-│   ├── nfc/            # NFC chip programming tools and utilities
-│   └── shared/         # Shared types, constants, and utilities
-├── docs/               # Project documentation and guides
-├── tests/
-│   ├── unit/           # Unit tests
-│   ├── integration/    # Integration tests
-│   └── e2e/            # End-to-end tests
-├── scripts/            # Build, deploy, and utility scripts
-├── config/             # Environment and service configuration
-└── .github/            # GitHub Actions workflows and issue templates
-```
+You need Node.js 20 (20.11 or newer). Every package installs and tests on its own:
 
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** >= 18.x — [download](https://nodejs.org/)
-- **npm** >= 9.x or **yarn** >= 1.22.x
-- **AWS CLI** >= 2.x — [install guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) (required for DynamoDB access)
-- **DynamoDB Local** >= 3.0.0 — optional for offline dev; run via Docker (`docker run -p 8000:8000 amazon/dynamodb-local`) or [download the JAR](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.DownloadingAndRunning.html) (requires JRE 11+)
-- **Redis** >= 7.x — local install or managed instance
-- **React Native CLI** — for mobile development only
-- **Xcode** >= 15 — iOS builds, macOS only
-- **Android Studio** >= Flamingo — Android builds
-
-### Installation
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Trevean-Spice/nfc-prototype.git
-cd nfc-prototype
-
-# 2. Install dependencies
-npm install
-
-# 3. Set up environment variables
-cp config/.env.example config/.env
-# Edit config/.env with your local settings (see docs/GUIDE.md)
-
-# 4. Configure AWS credentials (for DynamoDB)
-aws configure
-# Enter your AWS Access Key ID, Secret Access Key, and region (us-east-1)
-# Or set AWS_PROFILE in config/.env to use a named profile
-
-# 5. (Optional) Start DynamoDB Local for offline development
-npm run db:local
-
-# 6. Seed the database with initial spice blend data
-npm run db:seed
-
-# 7. Start the API server
-npm run dev:api
-
-# 8. In a separate terminal, start the web app
-npm run dev:web
-
-# 9. Run the test suite
+```sh
+cd build/api
+npm ci
 npm test
 ```
 
-### Mobile Development
+No AWS account, credentials or network access is needed for any test suite. The exact commands per package are in [docs/GUIDE.md](docs/GUIDE.md), section 2.
 
-See the full [Mobile SDK Guide](docs/GUIDE.md#mobile-sdk-setup) for detailed instructions.
+To encode tags, double-click `Start Tag Tool.cmd` (Windows) or `start-tag-tool.command` (Mac). See [docs/GUIDE.md](docs/GUIDE.md), section 6.
 
-```bash
-# iOS
-cd src/mobile && npx pod-install && npx react-native run-ios
+## Public repository
 
-# Android
-cd src/mobile && npx react-native run-android
+This repository is public. Values that identify Trevean's AWS accounts and resources appear as placeholders such as `<TREVEAN_DEV_ACCOUNT_ID>`. The real values, the one-shot deploy records and the real Terraform variable files are in Trevean's private record, not here. Before committing, run:
+
+```sh
+node tools/check-public-safe.mjs
 ```
 
-## MVP Spice Blends
+It reports the file, line and kind of anything that looks like an AWS identifier, never the value. CI runs it on every pull request.
 
-The prototype supports five signature blends, each with a unique origin story and content experience:
+## Licence
 
-| Blend | Origin | Key Ingredients |
-|-------|--------|----------------|
-| Persian Sunrise | Isfahan, Iran | Saffron, cardamom, rose petals, lime |
-| North African Night Market | Fez, Morocco | Aleppo pepper, cumin, preserved lemon |
-| Caribbean Sunset | Trinidad & Tobago | Scotch bonnet, allspice, thyme |
-| The Silk Road | Central Asia (multi-origin) | Cumin, coriander, fenugreek, turmeric |
-| Kyoto Garden | Kyoto, Japan | Sesame, nori, yuzu, green tea |
-
-## Development Phases
-
-| Phase | Timeline | Focus |
-|-------|----------|-------|
-| 1. Discovery & Prototyping | Weeks 1–4 | Physical feasibility, chip selection, architecture design, content schema |
-| 2. Core Development | Weeks 5–12 | Cloud infrastructure, API, web templates, admin CMS |
-| 3. Integration & Testing | Weeks 13–16 | Mobile SDK, device matrix testing, security audit |
-| 4. Pilot Production | Weeks 17–20 | 500-unit batch, beta testing, iteration, handoff |
-
-## Contributing
-
-We welcome contributions from all team members. Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before getting started.
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
-## Contact
-
-- **Project Sponsor:** Dan Blizinski — [dblizinski@pm.me](mailto:dblizinski@pm.me)
-- **Organization:** [Trevean Spice](https://github.com/Trevean-Spice)
-- **Technical Partner:** [Microgroove](https://microgroove.com)
+The prototype is under the MIT licence in [LICENSE](LICENSE). Each package under build/ states its licence in its `package.json`. Packages that ship third-party code list those licences with `npm run licences` (`npm run licenses` in build/web).
