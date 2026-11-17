@@ -13,7 +13,7 @@ symptoms are quoted rather than paraphrased.
 
 ## 1. What exists, and where
 
-Everything is in AWS account **888348806392**, `us-east-1`, name prefix
+Everything is in Trevean's development AWS account (ID in Trevean's private record), `us-east-1`, name prefix
 `trevean-dev-tsn888348`.
 
 | Piece | What it is | Where |
@@ -26,7 +26,7 @@ Everything is in AWS account **888348806392**, `us-east-1`, name prefix
 | Admin API | Lambda behind its own HTTP API | `admin-api` |
 | Admin CMS | Lambda behind its own HTTP API, fronted at `/admin` | `admin-ui` |
 | Publish pipeline | Fargate, always on, its own distribution | `publisher` |
-| Identity | Cognito user pool | `us-east-1_WIyAUOvrg` |
+| Identity | Cognito user pool | ID in Trevean's private record |
 | Content | DynamoDB, five tables | `…-SpiceBlends` and siblings |
 
 **The tap path touches none of the compute.** A tap is answered by a CloudFront
@@ -121,7 +121,7 @@ compiled from it.** Never hand edit the deployed function.
 
 ```
 cd build/publisher
-./scripts/push-image.sh 888348806392 us-east-1 trevean-dev-tsn888348-publisher <tag>
+./scripts/push-image.sh <TREVEAN_ACCOUNT_ID> us-east-1 trevean-dev-tsn888348-publisher <tag>   # account ID in Trevean's private record
 ```
 
 Then set `publisher_image_uri` in `tfvars` to the digest it prints and apply. The
@@ -135,16 +135,16 @@ silently changing what a restart would pick up.
 **Accounts live in Cognito, not in the application.** The admin reads the role
 from the group on the token.
 
-Add somebody:
+Add somebody (the user pool ID is in Trevean's private record):
 
 ```
-aws cognito-idp admin-create-user --user-pool-id us-east-1_WIyAUOvrg \
+aws cognito-idp admin-create-user --user-pool-id <TREVEAN_USER_POOL_ID> \
   --username person@example.com \
   --user-attributes Name=email,Value=person@example.com Name=email_verified,Value=true \
   --message-action SUPPRESS
-aws cognito-idp admin-set-user-password --user-pool-id us-east-1_WIyAUOvrg \
+aws cognito-idp admin-set-user-password --user-pool-id <TREVEAN_USER_POOL_ID> \
   --username person@example.com --password '<password>' --permanent
-aws cognito-idp admin-add-user-to-group --user-pool-id us-east-1_WIyAUOvrg \
+aws cognito-idp admin-add-user-to-group --user-pool-id <TREVEAN_USER_POOL_ID> \
   --username person@example.com --group-name Editor
 ```
 
@@ -323,7 +323,7 @@ through the CDN, and that pair has never been set. See "Open questions", Q31.
 **The domain, and the certificate is worse than "waiting on the client".**
 Everything above is on the CloudFront hostname.
 
-**The apex certificate `b496d0b3-8dd9-4ffd-8636-dfca88415faf` is FAILED with
+**The apex certificate (ID in Trevean's private record) is FAILED with
 `VALIDATION_TIMED_OUT`**, and the validation CNAME returns NXDOMAIN, so it was
 never added. **That certificate was created outside Terraform**, which is why
 `terraform plan` reported "No changes" against it and would have gone on doing so
@@ -341,7 +341,7 @@ then delete the manual certificate. See "Decision log", D49.
 ## 9. The apex cutover, and the one flag that does two things
 
 **The certificate is `ISSUED` as of 11:49 AM on Friday 18 September 2026**,
-`4a15eeeb-b752-4228-9481-3b5a6503e517`, covering `treveanspice.com` and
+the site certificate (ID in Trevean's private record), covering `treveanspice.com` and
 `www.treveanspice.com`, valid to 3 April 2027. **`InUseBy` is empty and
 `attach_apex_aliases` is `false`, so it is issued and idle.**
 

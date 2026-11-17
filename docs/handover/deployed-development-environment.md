@@ -2,9 +2,9 @@
 
 **Deployed Thursday 27 August 2026.** First real deployment of this engagement.
 
-**Account:** `888348806392`, `Trevean-NFC-Development`, in Trevean's organisation `o-q36zht9ztn`.
+**Account:** `Trevean-NFC-Development` (ID in Trevean's private record), in Trevean's organisation (ID in Trevean's private record).
 **Distribution:** `d1uyspgs0bmg3a.cloudfront.net`, id `E26QZ5319JL742`.
-**State:** `s3://trevean-tfstate-888348806392/trevean-spice-nfc/dev/terraform.tfstate`, versioned and encrypted.
+**State:** `s3://trevean-tfstate-<TREVEAN_ACCOUNT_ID>/trevean-spice-nfc/dev/terraform.tfstate`, versioned and encrypted.
 **Resources:** 169 in state.
 
 ---
@@ -15,10 +15,10 @@
 
 | Account | What it actually is |
 |---|---|
-| `[account id withheld]` | `Trevean Spice`. The organisation management account, `aws-root@treveanspice.com` |
-| `888348806392` | `Trevean-NFC-Development`. The development account, `aws-dev@treveanspice.com` |
+| `[account id withheld]` | `Trevean Spice`. The organisation management account, root sign-in email in Trevean's private record |
+| ID in Trevean's private record | `Trevean-NFC-Development`. The development account, root sign-in email in Trevean's private record |
 
-The record had these reversed from Monday 24 August to Thursday 27 August. The client described his estate as having only a management account with an empty Development OU, credentials arrived for `888348806392`, and the two were assumed to match. They did not.
+The record had these reversed from Monday 24 August to Thursday 27 August. The client described his estate as having only a management account with an empty Development OU, credentials arrived for the development account, and the two were assumed to match. They did not.
 
 **What it cost:** a week of not deploying into an account that was correct all along, advice to the client to create an account that already existed, and a commitment in a draft message to move work off "your main account" when it was already in the right place.
 
@@ -106,7 +106,7 @@ and `readiness` in the deployed environment still reads
 `application_code_deployed = false`. Those two flags are correct. The gap they
 describe is closed in code and open in the account.
 
-**Why it stopped where it did.** The credentials for account `888348806392`
+**Why it stopped where it did.** The credentials for the development account (ID in Trevean's private record)
 expired between `terraform validate` and `terraform plan`. `aws sts
 get-caller-identity` returned `ExpiredToken`, and no apply, no code deploy, no
 seed and no live test were attempted after that point. What is written below as

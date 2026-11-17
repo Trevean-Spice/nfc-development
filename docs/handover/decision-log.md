@@ -139,7 +139,7 @@ All four encoded codes and both QR routes reach the correct blend page. **R1, op
 
 ## D54 · 18 Sep · The certificate issued, and the flag that completes the cutover quietly does a second thing
 
-**`ISSUED` at 11:49 AM on Friday 18 September 2026.** `4a15eeeb-b752-4228-9481-3b5a6503e517`, both `treveanspice.com` and `www.treveanspice.com` at `SUCCESS`, valid to 3 April 2027. **Verified two ways**, `describe-certificate` and `terraform output`, before anything was said to the client. **`InUseBy` is empty: issued and idle.**
+**`ISSUED` at 11:49 AM on Friday 18 September 2026.** The site certificate (ID in Trevean's private record), both `treveanspice.com` and `www.treveanspice.com` at `SUCCESS`, valid to 3 April 2027. **Verified two ways**, `describe-certificate` and `terraform output`, before anything was said to the client. **`InUseBy` is empty: issued and idle.**
 
 **R1 has been open since 19 August. This is the first piece of it that is finished.**
 
@@ -198,9 +198,9 @@ publisher_public_base_url = attach_apex_aliases && apex_domain != null
 
 ## D49 · 17 Sep · The apex certificate is dead, the DNS record never existed, and NO terraform plan will ever tell anybody
 
-**Three facts established by direct query against account `888348806392` on Thursday 17 September 2026, in this order, each one worse than the last.**
+**Three facts established by direct query against the development account (ID in Trevean's private record) on Thursday 17 September 2026, in this order, each one worse than the last.**
 
-**1. The certificate has FAILED with `VALIDATION_TIMED_OUT`.** `arn:aws:acm:us-east-1:888348806392:certificate/b496d0b3-8dd9-4ffd-8636-dfca88415faf`, for `treveanspice.com`. It was reissued on 11 September with a fresh 72 hour clock and that clock ran out on 14 September.
+**1. The certificate has FAILED with `VALIDATION_TIMED_OUT`.** The site certificate (ID in Trevean's private record), for `treveanspice.com`. It was reissued on 11 September with a fresh 72 hour clock and that clock ran out on 14 September.
 
 **2. The validation record was never added.** `_c7232199b8fbe71a232eee44995e05ac.treveanspice.com` returns **NXDOMAIN** on a live lookup. **So the question asked of Dan twice is answered, and the answer is no.** It is not late, it is absent.
 
@@ -214,7 +214,7 @@ publisher_public_base_url = attach_apex_aliases && apex_domain != null
 
 **APPLIED Thursday 17 September 2026, on an explicit instruction, and the plan was exactly what it claimed: 1 to add, 0 to change, 0 to destroy.**
 
-**The new certificate is `4a15eeeb-b752-4228-9481-3b5a6503e517`, `PENDING_VALIDATION`, and Terraform owns it.** The manual certificate `b496d0b3` was deleted afterwards, so the account holds one apex certificate and a plan can now see it die.
+**The new certificate is the site certificate (ID in Trevean's private record), `PENDING_VALIDATION`, and Terraform owns it.** The manual certificate (ID in Trevean's private record) was deleted afterwards, so the account holds one apex certificate and a plan can now see it die.
 
 **The apex validation record is byte identical to the one sent on 11 September**, because ACM reuses the validation record per domain per account. **The certificate died, the record did not**, and the value he already has is still exactly right.
 
@@ -340,31 +340,31 @@ publisher_public_base_url = attach_apex_aliases && apex_domain != null
 
 ---
 
-## D32 · 27 Aug · The two AWS accounts were the wrong way round for a week. `888348806392` is the Development account, not the management account, and it is the correct deployment target
+## D32 · 27 Aug · The two AWS accounts were the wrong way round for a week. The account this project holds credentials for is the Development account, not the management account, and it is the correct deployment target
 
 **What triggered it.** The development environment was about to be applied, and the account it was about to be applied into was checked by name for the first time. `aws organizations list-accounts` and `aws organizations describe-organization` on Thursday 27 August 2026 returned the opposite of what the record had said since Monday 24 August 2026.
 
 | Account | Name | Email | What it is |
 |---|---|---|---|
-| `[account id withheld]` | `Trevean Spice` | `aws-root@treveanspice.com` | **The Organization management account.** Org `o-q36zht9ztn` |
-| `888348806392` | `Trevean-NFC-Development` | `aws-dev@treveanspice.com` | **The development account** |
+| `[account id withheld]` | `Trevean Spice` | root sign-in email in Trevean's private record | **The Organization management account.** Org ID in Trevean's private record |
+| ID in Trevean's private record | `Trevean-NFC-Development` | root sign-in email in Trevean's private record | **The development account** |
 
-**Decision: `888348806392` is the development account and the correct target for `envs/dev`. Everything the record derived from the reverse is withdrawn.**
+**Decision: the account this project holds credentials for (ID in Trevean's private record) is the development account and the correct target for `envs/dev`. Everything the record derived from the reverse is withdrawn.**
 
-**How the error was made, and it is worth being exact rather than generous about it.** Dan described his estate on Monday 24 August 2026 as a management account with an empty Development OU beneath it. Credentials for `888348806392` were already in hand, had been since Wednesday 19 August, and were the only credentials on the project. **The description and the credentials were assumed to match.** They did not, and nothing was run that could have told the difference, because the check that was run was the wrong check: per D20 the account was queried for hosted zones, distributions, tables, buckets, certificates and functions, found empty, and that emptiness was then silently read as identity. **An empty account and a management account look identical to `aws sts get-caller-identity`, which returns an id and no name.**
+**How the error was made, and it is worth being exact rather than generous about it.** Dan described his estate on Monday 24 August 2026 as a management account with an empty Development OU beneath it. Credentials for the development account (ID in Trevean's private record) were already in hand, had been since Wednesday 19 August, and were the only credentials on the project. **The description and the credentials were assumed to match.** They did not, and nothing was run that could have told the difference, because the check that was run was the wrong check: per D20 the account was queried for hosted zones, distributions, tables, buckets, certificates and functions, found empty, and that emptiness was then silently read as identity. **An empty account and a management account look identical to `aws sts get-caller-identity`, which returns an id and no name.**
 
 **What it cost, listed rather than summarised, because the list is the argument for the check.**
 
 - **A week of not deploying into an account that was correct the whole time.** The environment applied on Thursday 27 August 2026 could have applied on Wednesday 19 August, subject only to the IAM permission that was genuinely outstanding.
 - **Advice to the client to create an account that already existed.** D24's supervised screen share was scoped on Tuesday 25 August 2026 around creating a Development account together. The account had existed since before we held credentials for it.
-- **A commitment in writing to a cleanup that was never needed.** The 25 August message told Dan the state bucket sat on his main account and would be moved off it and the remainder deleted. **`trevean-tfstate-888348806392` was in the right account, holding the right state, the whole time.** Moving it would have been work done to satisfy a mistaken premise, on a client's estate, with a message explaining why.
-- **A guard whose documentation pointed the wrong way.** `envs/dev/terraform.tfvars.example` told the reader that `888348806392` must never be used. Followed literally, that instruction stops someone deploying into the only correct place.
+- **A commitment in writing to a cleanup that was never needed.** The 25 August message told Dan the state bucket sat on his main account and would be moved off it and the remainder deleted. **`trevean-tfstate-<TREVEAN_ACCOUNT_ID>` was in the right account, holding the right state, the whole time.** Moving it would have been work done to satisfy a mistaken premise, on a client's estate, with a message explaining why.
+- **A guard whose documentation pointed the wrong way.** `envs/dev/terraform.tfvars.example` told the reader that the development account's ID must never be used. Followed literally, that instruction stops someone deploying into the only correct place.
 
 **What would have caught it, and it is one command.** `aws organizations describe-organization`, or `aws iam list-account-aliases`, at the moment the credentials were first exercised. Either one names the account. **A resource inventory is not an identity check**, and the two were conflated because emptiness was the thing being looked for and the account happened to be empty.
 
 **Why this is in the decision log rather than only corrected in place.** The correction itself is a fact and needs no reasoning. **The failure mode does.** This is the third time on this engagement that a confident description has stood in for a verified one, after the NTAG21x chip family assumption and the 4 mm lid, and all three had the same shape: a plausible statement was adopted without the cheap check that would have tested it. **The standing rule this entry sets is that an account is identified by name before anything is created in it, and the identity check goes in the record next to the inventory check.**
 
-**What does not change, stated because a correction is an easy place to over-reach.** The `expected_account_id` guard stays, stays required, and keeps having no default. **It was never the guard that was wrong, only the id the examples told you to fear.** Staging still belongs in a Serene Labs account and production still belongs in Trevean's production account, and neither of those is `888348806392`. D25 still stands on its own reasoning: the five tag routes are served from Vercel because the thousand encoded jars are the part that cannot be changed later, not because AWS was unavailable.
+**What does not change, stated because a correction is an easy place to over-reach.** The `expected_account_id` guard stays, stays required, and keeps having no default. **It was never the guard that was wrong, only the id the examples told you to fear.** Staging still belongs in a Serene Labs account and production still belongs in Trevean's production account, and neither of those is the development account. D25 still stands on its own reasoning: the five tag routes are served from Vercel because the thousand encoded jars are the part that cannot be changed later, not because AWS was unavailable.
 
 **Where the correction lands.** "The deployed development environment", section 1, is the record of the account fact and the deployment that followed it. R3 and D24 are corrected in place.
 
@@ -396,7 +396,7 @@ publisher_public_base_url = attach_apex_aliases && apex_domain != null
 
 ## D25 · 25 Aug · The five tag routes are served from Vercel now, and AWS leaves the critical path for anything a customer touches
 
-> **CORRECTED on Thursday 27 August 2026 by D32, on one of its three triggering facts. The decision stands and is not reopened.** The second fact below, that no AWS Development account exists, was wrong: `888348806392` is `Trevean-NFC-Development` and it existed throughout. **The decision does not depend on it.** Serving the tag routes from Vercel was and is the fastest route to working jars on the real domain, because it needs no certificate and no nameserver change, and the encoded jars remain the part that cannot be changed later. **What the correction removes is an argument that made the decision look more forced than it was**, not the decision.
+> **CORRECTED on Thursday 27 August 2026 by D32, on one of its three triggering facts. The decision stands and is not reopened.** The second fact below, that no AWS Development account exists, was wrong: the account this project holds credentials for (ID in Trevean's private record) is `Trevean-NFC-Development` and it existed throughout. **The decision does not depend on it.** Serving the tag routes from Vercel was and is the fastest route to working jars on the real domain, because it needs no certificate and no nameserver change, and the encoded jars remain the part that cannot be changed later. **What the correction removes is an argument that made the decision look more forced than it was**, not the decision.
 
 **What triggered it.** Three facts sitting next to each other on Tuesday 25 August 2026. The marketing site is live and working on Vercel, **verified by direct query rather than taken on report**, healthy at `https://trevean-spice-website.vercel.app/`. ~~The AWS Development account does not exist yet and its creation is now scheduled rather than done (D24).~~ **That second fact was wrong: see the note above and D32.** And **the thousand encoded jars already in the field are the only part of this engagement that cannot be changed later.** Holding inventory behind an account that has not been created is the wrong trade in that ordering.
 

@@ -58,7 +58,7 @@ criterion and M2's outstanding item close together.**
 
 ## 3. Criterion 2: deployed on Trevean AWS. Met.
 
-AWS account **`888348806392`**, `us-east-1`, name prefix
+Trevean's development AWS account (ID in Trevean's private record), `us-east-1`, name prefix
 `trevean-dev-tsn888348`. Content API, scan beacon, admin API, admin CMS,
 publisher on Fargate, five DynamoDB tables, CloudFront, Cognito. **Verified
 healthy on 22 September**: publisher `ACTIVE` 1 of 1, admin sign in 200, content

@@ -51,7 +51,7 @@
 
 ---
 
-## 2. The answer a lawyer needs, first
+## 2. The answer a legal reviewer needs, first
 
 **Nothing in this build restricts Trevean Spice from running, modifying, or engaging any third party to modify this software indefinitely.**
 
@@ -173,7 +173,7 @@ Every distinct licence string that appears anywhere in any installed tree, named
 
 ---
 
-## 5. Copyleft, which is the class a client's counsel will actually ask about
+## 5. Copyleft, which is the class a client's legal reviewer will actually ask about
 
 <!-- BEGIN GENERATED copyleft. Do not edit by hand: deliverables/m5-handoff/scripts/licences.mjs rewrites it. -->
 
@@ -275,9 +275,9 @@ Terraform moved from MPL-2.0 to BUSL-1.1 at version 1.6, in August 2023. Version
 
 **What it prohibits:** offering Terraform itself, or a derivative of it, as a commercial service competing with the vendor. Nothing here comes near that, and nothing a spice company would plausibly do with its own infrastructure comes near it either.
 
-**Why it is raised anyway:** it is a licence change on a tool being handed over under an IP clause. Raising it costs a paragraph. Having Trevean's counsel find it later costs a conversation nobody has prepared for.
+**Why it is raised anyway:** it is a licence change on a tool being handed over under an IP clause. Raising it costs a paragraph. Having Trevean's legal reviewer find it later costs a conversation nobody has prepared for.
 
-**If Trevean's counsel objects to BUSL on principle, the answer is OpenTofu**, an MPL-2.0 fork under Linux Foundation governance. It is drop in compatible with this configuration and the migration is changing the binary name in the commands. **That option was kept available on purpose:** this configuration uses no vendor cloud features, no BUSL only functionality, and no proprietary providers.
+**If Trevean's legal reviewer objects to BUSL on principle, the answer is OpenTofu**, an MPL-2.0 fork under Linux Foundation governance. It is drop in compatible with this configuration and the migration is changing the binary name in the commands. **That option was kept available on purpose:** this configuration uses no vendor cloud features, no BUSL only functionality, and no proprietary providers.
 
 **Recommendation: stay on Terraform, note the licence, record OpenTofu as the available alternative. It is Trevean's call, and it costs nothing to make now and quite a lot to make later.**
 

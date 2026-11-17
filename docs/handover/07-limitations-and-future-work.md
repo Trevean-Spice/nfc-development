@@ -98,7 +98,7 @@ Where they are, and what each one costs to use:
 
 **The largest single gap, and it is partly a client dependency and partly ours.** The infrastructure is written, formatted, validated and was planned against the real account: 140 resources, 24 of them IAM. **Nothing has been applied**, because the available permission cannot create IAM roles and a partial apply would leave a half built environment and a partial state file in a client account.
 
-> **CORRECTED Thursday 27 August 2026. The paragraph below was wrong and is kept struck so the error stays visible.** `888348806392` is `Trevean-NFC-Development`, the development account; the Organization management account is `[account id withheld]`, `Trevean Spice`, org `o-q36zht9ztn`. **The debt in 5.1 is smaller than it says: the development environment was applied into `888348806392` on Thursday 27 August 2026, 169 resources, distribution `d1uyspgs0bmg3a.cloudfront.net`, all five tag codes verified end to end.** The packages listed below are still proven against models rather than against reality, and that half of the debt is unchanged. See the document titled "The deployed development environment", and "Decision log", D32.
+> **CORRECTED Thursday 27 August 2026. The paragraph below was wrong and is kept struck so the error stays visible.** The account this project holds credentials for (ID in Trevean's private record) is `Trevean-NFC-Development`, the development account; the Organization management account is `[account id withheld]`, `Trevean Spice`, org ID in Trevean's private record. **The debt in 5.1 is smaller than it says: the development environment was applied into the development account on Thursday 27 August 2026, 169 resources, distribution `d1uyspgs0bmg3a.cloudfront.net`, all five tag codes verified end to end.** The packages listed below are still proven against models rather than against reality, and that half of the debt is unchanged. See the document titled "The deployed development environment", and "Decision log", D32.
 
 ~~**Two things about the account were not known when this section was written on 22 August 2026, and both make the gap larger rather than smaller.** The account is the **management account of an Organization with no member account beneath it**, so there is currently nowhere for a non production environment to live and nothing above the account to enforce a guardrail.~~ **Withdrawn: there was always somewhere for a non production environment to live, and it is the account we already held credentials for.** **The saved 140 resource plan should still be deleted rather than trusted**, because the 169 resource apply supersedes it. See the document titled "Runbooks", section 2.2.
 
@@ -132,7 +132,7 @@ Everything that follows from the deployment gap is also owed: no measured cache 
 
 **One thing got harder rather than easier, and it is the item to carry forward.** The zone carries live company email. A few hours earlier there was nothing in it to break. **The infrastructure package has gained a precondition refusing to create a hosted zone with no MX records unless an acknowledgement flag is set explicitly**, which puts that in a gate that fails the apply rather than in a sentence somebody skims.
 
-**And the older debt is narrower than it was: there is still nowhere to point the apex that this package describes**, because there is no production distribution and no certificate for `treveanspice.com`. ~~and no AWS account other than the Organization management account.~~ **Corrected Thursday 27 August 2026: the account was never the reason. `888348806392` is the development account, and a development distribution, `d1uyspgs0bmg3a.cloudfront.net`, exists in it.** "Decision log", D32.
+**And the older debt is narrower than it was: there is still nowhere to point the apex that this package describes**, because there is no production distribution and no certificate for `treveanspice.com`. ~~and no AWS account other than the Organization management account.~~ **Corrected Thursday 27 August 2026: the account was never the reason. The account this project holds credentials for is the development account, and a development distribution, `d1uyspgs0bmg3a.cloudfront.net`, exists in it.** "Decision log", D32.
 
 ### 5.2 The printed QR codes do not point where the tags do
 
@@ -187,11 +187,11 @@ Real content for the two launch blends has not been delivered. Every page in the
 
 **The composition is not pending, and the difference is the source.** A production specification is a manufacturing document. **A label may be a proof.** Different sources, different confidence, different gates. Section 5.10.
 
-**One further fact from the same label, recorded because it is not ours to act on.** The label prints an origin, a set of coordinates resolving to the Kashan area, and a named grower. **Persian Sunrise's origin content is subject to a United States export controls question that the client raised with its counsel**, which now touches printed inventory and a named individual rather than only a web page. **No view is offered on that question anywhere in this package and none should be added.** Its build consequence is the one already stated, and it is sharper than it was: **the grower record is not written, nothing is copied from the live marketing site or off the label into the fixtures, and section 5.10 explains why the page cannot simply be made to match the jar.**
+**One further fact from the same label, recorded because it is not ours to act on.** The label prints an origin, a set of coordinates resolving to the Kashan area, and a named grower. Legal and export notes for this blend are kept in a private record held by Trevean. Its build consequence is the one already stated, and it is sharper than it was: **the grower record is not written, nothing is copied from the live marketing site or off the label into the fixtures, and section 5.10 explains why the page cannot simply be made to match the jar.**
 
 ### 5.7 Debts inside the build, small but real
 
-- **The API package's licence manifest lists counts and direct dependencies but not every transitive package by name**, while the pages package's manifest does. Regenerate it before the package goes to counsel.
+- **The API package's licence manifest lists counts and direct dependencies but not every transitive package by name**, while the pages package's manifest does. Regenerate it before the package goes to legal review.
 - **The media key namespace is implemented in the API and still described as a proposal in the content package.** The two agree in behaviour and disagree in writing. Reconcile in one place.
 - **Some earlier project documents state that the registrar stays put**, which was true on 12 August 2026 and was superseded on 19 August. The reasoning in them about what a transfer costs still governs the cutover discipline.
 - **The tag records were corrected to write protected on 11 September 2026 and no document was corrected with them**, which left this document set contradicting its own data for seven days. Prose has no failing test, so a data fix lands silently and leaves every sentence about that data stale. **Documents were reconciled on 17 September. The class of error is the thing to watch, not this instance.** See "Decision log", D45.
@@ -251,23 +251,15 @@ Real content for the two launch blends has not been delivered. Every page in the
 
 #### 5.10.2 The provenance finding, and why the page cannot match the label
 
-**The blend contains no Iranian ingredients, and has not since June 2026.** The specification records every Iranian origin item substituted out, citing the OFAC prohibition on Iranian origin imports at 31 CFR Part 560:
-
-| Was | Is now |
-|---|---|
-| Iranian cinnamon | **Ceylon cinnamon** |
-| Persian lime | **Omani dried lime** |
-| Iranian saffron | **Spanish preferred, Afghan acceptable. Never Iranian** |
+**The blend contains no Iranian ingredients, and has not since June 2026.** Legal and export notes for this blend are kept in a private record held by Trevean.
 
 **The printed label names a grower at coordinates in the Kashan area of Iran, on a jar whose saffron is Spanish, whose cinnamon is Ceylonese and whose lime is Omani.** The client keeps the printed stock for this run and has said it will be addressed with a specific mention on the website.
-
-**No view is offered here on the label, on the sanctions position, or on what the website should say. None of the three is an engineering question, none is this package's to answer, and nothing here is legal advice.**
 
 **What is binding on a developer, stated as an instruction because that is what it is.**
 
 - **Do not write a named grower, a farm coordinate or an origin story for Persian Sunrise into the fixtures, the CMS defaults, the seed data or any page**, from the printed label, from the live marketing site, or from any older project document. **All three carry the pre-substitution provenance.**
 - **Do not "make the page match the jar" on origin.** That instinct is correct for composition and wrong here. **The composition on the label is true of the jar. The provenance on the label is not.** Section 5.9 names the same instinct failing on instruction copy, and this is the second place it fails.
-- **Do not treat this as a copywriting task waiting on a writer.** **What the Persian Sunrise page says about origin is a client decision that had not been made as at Thursday 27 August 2026**, and it is the client's and its counsel's to make.
+- **Do not treat this as a copywriting task waiting on a writer.** **What the Persian Sunrise page says about origin is a client decision that had not been made as at Thursday 27 August 2026**, and it is the client's to make.
 
 **Why this is in a handoff document rather than only in a project message.** This product exists to answer one question for a customer holding a jar: where did this come from. The tap opens a page headed by origin and grower. **A future developer will find the grower fields empty, find a named farmer and a set of coordinates on the label and on the live site, and fill them in, believing they are completing an obvious gap.** **That would put a false provenance claim on the exact surface whose purpose is provenance, which is a different and worse thing than an out of date label, because the page is the product.** **It is cheap to prevent by reading this section and expensive to find.**
 
