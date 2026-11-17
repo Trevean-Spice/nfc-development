@@ -32,9 +32,14 @@ concurrency:
 permissions:
   contents: read
 
+# KNOWLEDGE BASE ONLY. Both jobs check the project record (correspondence/ and the dated
+# prose around it), which lives in Serene Labs' private knowledge base and is not part
+# of Trevean's repository. They run only there; anywhere else they are skipped, rather
+# than run over files they were not written for. CI for the code is ci.yml.
 jobs:
   weekdays:
     name: Every weekday matches its date
+    if: github.repository == 'serenelabs/trevean-spice-nfc'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +55,7 @@ jobs:
 
   house-style:
     name: Client facing drafts carry no dashes
+    if: github.repository == 'serenelabs/trevean-spice-nfc'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

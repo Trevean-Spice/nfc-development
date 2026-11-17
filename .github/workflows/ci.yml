@@ -1,0 +1,159 @@
+name: CI
+
+# What this gates
+#
+# Every package under build/ that has tests, the Terraform under build/infrastructure,
+# and the public-safety scan. It needs no secrets, no AWS account and no network beyond
+# the npm and Terraform registries, so it runs the same on a fork, on this repository and
+# on a laptop.
+#
+#   packages     one job per package: npm ci, the typecheck where the package has one,
+#                then its tests. Node 20, the version every package's engines field and
+#                the deployed Lambdas use. (node --test with a directory argument finds
+#                no files on Node 21 and later; on Node 20 it runs the whole folder.)
+#   terraform    terraform fmt -check, then terraform validate in each environment with
+#                -backend=false, so no state is read and no credentials are needed.
+#   public-safe  tools/check-public-safe.mjs: no AWS account ids, Organization ids, root
+#                mailboxes, pool or certificate ids, and no legal or export text, in the
+#                files this repository publishes. The real values live in Trevean's
+#                private record.
+#
+# The live checks stay out of this file on purpose: contract-tests.yml runs against
+# staging or production only by hand, and only once the repository has the tokens it
+# names.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: admin
+            typecheck: npm run typecheck
+            test: npm test
+          - package: api
+            typecheck: npm run typecheck
+            test: npm test
+          # npm test builds first, then runs the suite (scripts/run-tests.mjs).
+          - package: chip-cli
+            typecheck: npm run typecheck
+            test: npm test
+          # selftest only. npm run validate is a tool that needs a submission file.
+          - package: content
+            test: npm test
+          # test:stub runs the suite against an in-memory implementation of the frozen
+          # contract. npm test targets a live API and is not run here.
+          - package: contract-tests
+            typecheck: npm run typecheck
+            test: npm run test:stub
+          # test:unit only. test:live reads a running stack.
+          - package: dashboard
+            test: npm run test:unit
+          # validate the redirect table, prove dist/ matches it, run the suite. The strict
+          # repoint guard, which compares against the base branch, is in
+          # edge-and-chip-cli.yml.
+          - package: edge
+            test: npm run ci
+          - package: publisher
+            test: npm test
+          - package: shopify
+            typecheck: npm run typecheck
+            test: npm test
+          # Zero dependencies and deliberately no package-lock.json (its own suite asserts
+          # there is none), so there is nothing to install and npm ci would refuse to run.
+          - package: vercel-redirect
+            install: none
+            test: npm run ci
+          # No unit tests. next build (which typechecks) and then verify, which checks
+          # every built page. Placeholder content is a warning here; TREVEAN_RELEASE=1
+          # makes it a failure.
+          - package: web
+            test: npm run build && npm run verify
+    defaults:
+      run:
+        working-directory: build/${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        if: matrix.install != 'none'
+        run: npm ci
+
+      - name: Typecheck
+        if: matrix.typecheck
+        run: ${{ matrix.typecheck }}
+
+      - name: Test
+        run: ${{ matrix.test }}
+
+  terraform:
+    name: terraform fmt and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: build/infrastructure
+    env:
+      # validate needs no variable values, but the account guard has no default, so a
+      # dummy is set to make it plain that nothing here is aimed at a real account.
+      TF_VAR_expected_account_id: '000000000000'
+      TF_IN_AUTOMATION: '1'
+      CHECKPOINT_DISABLE: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive -diff
+
+      # -backend=false: no state bucket, no lock table, no credentials. The providers come
+      # from the registry and are checked against each .terraform.lock.hcl.
+      - name: terraform validate (dev, staging, prod)
+        run: |
+          set -euo pipefail
+          for env in dev staging prod; do
+            echo "::group::envs/$env"
+            terraform -chdir="envs/$env" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="envs/$env" validate
+            echo "::endgroup::"
+          done
+
+  public-safe:
+    name: Public-safety scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Prints file:line and the kind of finding, never the value.
+      - name: Scan the published files
+        run: node tools/check-public-safe.mjs
+
+      - name: The scanner's own tests
+        run: node --test tools/check-public-safe.test.mjs

@@ -17,6 +17,10 @@ name: API contract tests
 #
 # To adopt this into the client nfc-development repository, see the README beside this
 # suite, section "Adopting this into nfc-development".
+#
+# The two live jobs run only when the repository variable CONTRACT_TESTS_LIVE is 'true'
+# and the three CONTRACT_TEST_TOKEN_* secrets are set. Without them they are skipped,
+# not failed. The stub job needs nothing and also runs in ci.yml.
 
 on:
   # pull_request and workflow_dispatch only: the shared Actions minutes run out on push and
@@ -71,7 +75,10 @@ jobs:
   contract-tests-staging:
     name: Contract tests against staging
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+    # Needs the three CONTRACT_TEST_TOKEN_* secrets and a staging stack. Skipped unless the
+    # repository variable CONTRACT_TESTS_LIVE is 'true', which is set only once the secrets
+    # are, so a repository without them never shows this job red.
+    if: vars.CONTRACT_TESTS_LIVE == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging'))
     environment: staging
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +108,8 @@ jobs:
   contract-tests-production:
     name: Contract tests against production, read only
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    # Same gate as staging: the three tokens, and CONTRACT_TESTS_LIVE set to 'true'.
+    if: vars.CONTRACT_TESTS_LIVE == 'true' && github.event_name == 'workflow_dispatch' && inputs.target == 'production'
     environment: production
     steps:
       - uses: actions/checkout@v4
