@@ -27,6 +27,12 @@ name: Edge redirect and chip tooling
 # turns "the guard did not run" and "the guard ran vacuously" into failures rather than into
 # a sentence above "All checks pass".
 #
+# THE FIRST PULL REQUEST. When the branch being merged into has no build/edge at all, there
+# is no table to compare with: this pull request is the one that first brings the table
+# into that branch. Only then do the steps below set REDIRECT_TABLE_FIRST_COMMIT=1, the
+# guard's own escape for that one case, and say so as a warning on the run. It does not
+# excuse a vacuous comparison, and once the table is on the base branch it never applies.
+#
 # Neither package has any dependency that is not devDependencies, and neither reaches the
 # network, so every job here runs without credentials.
 
@@ -79,6 +85,10 @@ jobs:
             BASE="HEAD"
           fi
           echo "REDIRECT_TABLE_BASE_REF=$BASE" >> "$GITHUB_ENV"
+          if [ "$BASE" != "HEAD" ] && ! git cat-file -e "$BASE:build/edge" 2>/dev/null; then
+            echo "REDIRECT_TABLE_FIRST_COMMIT=1" >> "$GITHUB_ENV"
+            echo "::warning::$BASE has no build/edge, so this run first brings the redirect table into it and the repoint guard has nothing to compare with."
+          fi
           echo "Comparing the redirect table against $BASE"
 
       # validate, build:check and test. build:check regenerates every derived artifact and
@@ -135,6 +145,10 @@ jobs:
             BASE="HEAD"
           fi
           echo "REDIRECT_TABLE_BASE_REF=$BASE" >> "$GITHUB_ENV"
+          if [ "$BASE" != "HEAD" ] && ! git cat-file -e "$BASE:build/edge" 2>/dev/null; then
+            echo "REDIRECT_TABLE_FIRST_COMMIT=1" >> "$GITHUB_ENV"
+            echo "::warning::$BASE has no build/edge, so this run first brings the redirect table into it and the repoint guard has nothing to compare with."
+          fi
 
       # A repointed code is refused unless allowRepoint is set and the version is bumped,
       # and a guard that could not compare anything is refused outright. Make this a
