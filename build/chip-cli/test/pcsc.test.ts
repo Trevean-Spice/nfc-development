@@ -37,13 +37,30 @@ test('a single block read asks for exactly one block of bytes', () => {
 });
 
 test('a multi block read asks for the whole span in one command', () => {
-  // 62 blocks is the NDEF area. Asking for it in one read rather than 62 is the
-  // difference between a tag that encodes in a second and one that takes a minute.
+  // Asking for a span in one read rather than block by block is the difference
+  // between a tag that encodes in a second and one that takes a minute.
   assert.equal(hex(readBinaryApdu(1, 62)), 'ff b0 00 01 f8');
+  assert.equal(hex(readBinaryApdu(0, 63)), 'ff b0 00 00 fc');
+});
+
+test('a read longer than a one byte Le is refused rather than wrapped', () => {
+  // The 80 block part makes these spans possible. 64 blocks would have gone out as
+  // Le 00 and 79 blocks (block 0 and the whole area) as Le 3C, sixty bytes.
+  for (const count of [64, 78, 79, 80]) {
+    assert.throws(
+      () => readBinaryApdu(0, count),
+      (error: unknown) => isChipError(error) && error.code === 'READBACK_FAILED',
+    );
+  }
+});
+
+test('the geometry probe addresses blocks 79 and 80', () => {
+  assert.equal(hex(readBinaryApdu(PART.blockCount - 1, 1)), 'ff b0 00 4f 04');
+  assert.equal(hex(readBinaryApdu(PART.blockCount, 1)), 'ff b0 00 50 04');
 });
 
 test('a block number above 255 goes in the high byte rather than overflowing silently', () => {
-  // ST25TV02KC has 64 blocks so this cannot arise on this part. It is asserted because
+  // ST25TV02KC has 80 blocks so this cannot arise on this part. It is asserted because
   // the next ST25 part up has more, and an off by one that only appears on a bigger
   // chip is the kind that ships.
   assert.equal(hex(readBinaryApdu(300, 1)), 'ff b0 01 2c 04');

@@ -43,7 +43,7 @@ test('encode shows the prefix abbreviation and the capacity headroom without a t
   const result = await run(['encode', '--code', 'ps']);
   assert.equal(result.code, 0);
   assert.match(result.out, /0x04 for "https:\/\/"/);
-  assert.match(result.out, /29 of 248 bytes used/);
+  assert.match(result.out, /29 of 312 bytes used, 283 free \(320 byte part\)/);
 });
 
 test('encode as JSON is machine readable', async () => {
@@ -95,6 +95,7 @@ test('a simulated protected write proves the refusal', async () => {
     const result = await run(['write', '--code', 'ps', '--protect', '--password-env', 'TEST_CLI_PASSWORD']);
     assert.equal(result.code, 0);
     assert.match(result.out, /refusal proven: yes/);
+    assert.match(result.out, /unlock proven: yes/);
     assert.ok(!result.out.includes('a1b2c3d4e5f60718'), 'the password must never be printed');
   } finally {
     if (previous === undefined) delete process.env['TEST_CLI_PASSWORD'];
@@ -186,7 +187,7 @@ test('doctor reports the table, the codes and the transport', async () => {
   const result = await run(['doctor']);
   assert.equal(result.code, 0);
   assert.match(result.out, /ok\s+redirect table/);
-  assert.match(result.out, /ok\s+every code fits the chip/);
+  assert.match(result.out, /ok\s+every code fits the chip\s+312 byte area on a 320 byte ST25TV02KC/);
   assert.match(result.out, /simulator, no physical tags are written/);
   assert.match(result.out, /Ready\./);
 });
@@ -333,4 +334,17 @@ test('a journal with a forged line prints a refusal instead of a resume command'
   const resumed = await run(['batch', '--code', 'ps', '--count', '6', '--journal', path]);
   assert.equal(resumed.code, 2);
   assert.match(resumed.err, /JOURNAL_CORRUPT/);
+});
+
+test('write says the capability container was written or preserved, in plain English', async () => {
+  // A blank tag has no container, so the tool writes one, and the line used to read
+  // "writed". It is on screen in front of the client on the first real run.
+  const blank = await run(['write', '--code', 'ps', '--sim-preload-blank']);
+  assert.equal(blank.code, 0);
+  assert.match(blank.out, /capability container written$/m);
+  assert.doesNotMatch(blank.out, /writed/);
+
+  const encoded = await run(['write', '--code', 'ps', '--sim-preload-uri', 'https://treveanspice.com/t/cs']);
+  assert.equal(encoded.code, 0);
+  assert.match(encoded.out, /capability container preserved$/m);
 });

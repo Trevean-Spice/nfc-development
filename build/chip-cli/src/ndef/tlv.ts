@@ -39,9 +39,9 @@ function lengthFieldSize(messageLength: number): number {
  * Wraps an NDEF message in its TLV and checks it against the area size.
  *
  * The capacity check is the reason this function takes the area size rather than
- * assuming it. The ST25TV02KC has 256 bytes of memory, of which the capability
- * container takes four and the T5T area is what the container declares. A tool that
- * assumed a different part's memory would happily overrun it.
+ * assuming it. The ST25TV02KC has 320 bytes of user memory, of which the capability
+ * container takes four and the T5T area is the 312 bytes this tool uses after it. A
+ * tool that assumed a different part's memory would happily overrun it.
  */
 export function wrapNdefTlv(message: Uint8Array, areaBytes: number): TlvPlan {
   const lengthSize = lengthFieldSize(message.length);

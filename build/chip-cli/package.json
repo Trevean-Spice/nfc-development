@@ -14,19 +14,19 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/test/",
-    "test:only": "node --test dist/test/",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "test:only": "node scripts/run-tests.mjs",
     "ci": "npm run typecheck && npm run test",
     "chip-cli": "node bin/chip-cli.mjs",
+    "tag-tool": "node bin/tag-tool.mjs",
     "licences": "node scripts/licenses.mjs",
     "licences:check": "node scripts/licenses.mjs --check"
   },
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.16.10",
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
-    "@pokusew/pcsclite": "^1.0.1"
+    "pcsc-mini": "0.1.3"
   }
 }

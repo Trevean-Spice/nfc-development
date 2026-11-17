@@ -88,6 +88,8 @@ export interface UnitRecord {
     readonly passwordFingerprint: string;
     readonly passwordChanged: boolean;
     readonly refusalProven: boolean;
+    /** Since Monday 26 October 2026: the recorded password opened the tag after protection. Absent in older journals. */
+    readonly unlockProven?: boolean;
   } | null;
   readonly error: { readonly code: string; readonly message: string; readonly remedy: string } | null;
   readonly durationMs: number;

@@ -6,7 +6,8 @@
  * physically breaking a write is a tool whose failure paths are never exercised.
  *
  * What it models faithfully:
- *   - 256 bytes in 64 blocks of 4, and writes that land one block at a time
+ *   - 320 bytes in 80 blocks of 4 (DS13304 Rev 7, END_MEM 4Fh), and writes that
+ *     land one block at a time
  *   - area based password protection, including refusing a write when the password
  *     for that area has not been presented in the current session
  *   - a session that ends when the tag leaves the field, so a presented password
@@ -24,7 +25,7 @@
  * See README section 6. This is a model of the memory, not a model of the radio.
  */
 
-import { ChipError } from '../chip/errors.js';
+import { ChipError, isChipError } from '../chip/errors.js';
 import {
   DEFAULT_AREA,
   DEFAULT_AREA_PASSWORD_NUMBER,
@@ -397,6 +398,49 @@ export class SimulatorTransport implements TagTransport {
   async readAreaProtection(area: number): Promise<AreaProtectionState> {
     const tag = this.requireTag();
     return tag.areas.get(area) ?? { protection: 'none', passwordNumber: DEFAULT_AREA_PASSWORD_NUMBER };
+  }
+
+  /**
+   * The model's own refusal is the AREA_PROTECTED it throws for a protected block with
+   * no password presented, so that, and only that, is reported as refused. An injected
+   * write fault is rethrown, exactly as a write fault on a real reader must not be read
+   * as protection. A tag other than the unit's own is refused before anything is written.
+   */
+  async proveWriteRefused(block: number, data: Uint8Array, expectedUid: string | null): Promise<'refused' | 'accepted'> {
+    const tag = this.requireTag();
+    if (expectedUid !== null && tag.uid !== expectedUid) {
+      throw new ChipError(
+        'TAG_CHANGED',
+        `The proof write was not sent: this unit's tag is uid ${expectedUid} and the tag in the field is uid ${tag.uid}.`,
+        'Set every tag in reach aside and label them. Do not record any of them as protected.',
+        { expectedUid, fieldUid: tag.uid },
+      );
+    }
+    try {
+      await this.writeBlock(block, data);
+      return 'accepted';
+    } catch (cause) {
+      if (isChipError(cause) && cause.code === 'AREA_PROTECTED') return 'refused';
+      throw cause;
+    }
+  }
+
+  /**
+   * Presents the password through the model's own check, then rewrites the block. A wrong
+   * password or a refused write rejects. The same UID rule as the refusal proof.
+   */
+  async proveWriteUnlocked(block: number, data: Uint8Array, passwordNumber: number, password: Uint8Array, expectedUid: string | null): Promise<void> {
+    const tag = this.requireTag();
+    if (expectedUid !== null && tag.uid !== expectedUid) {
+      throw new ChipError(
+        'TAG_CHANGED',
+        `The unlock proof write was not sent: this unit's tag is uid ${expectedUid} and the tag in the field is uid ${tag.uid}.`,
+        'Set every tag in reach aside and label them. Do not record any of them as protected.',
+        { expectedUid, fieldUid: tag.uid },
+      );
+    }
+    await this.presentPassword(passwordNumber, password);
+    await this.writeBlock(block, data);
   }
 
   async releaseTag(): Promise<void> {
