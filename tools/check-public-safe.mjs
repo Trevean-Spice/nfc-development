@@ -77,6 +77,9 @@ const PUBLIC = [
   'start-tag-tool.command',
 ];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', 'out', '.terraform', '.lambda-build']);
+// This scanner and its tests describe the patterns, so they would match themselves.
+// They hold no identifier values; the tests build every sample at run time.
+const SELF = new Set(['tools/check-public-safe.mjs', 'tools/check-public-safe.test.mjs']);
 const MAX_BYTES = 8 * 1024 * 1024;
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
@@ -221,7 +224,7 @@ function main(argv) {
   }
   const tracked = trackedFiles();
   const scopes = paths.length ? paths.map((p) => relative(ROOT, join(process.cwd(), p)).split(sep).join('/')) : PUBLIC;
-  const files = all ? tracked : tracked.filter((f) => inScope(f, scopes));
+  const files = (all ? tracked : tracked.filter((f) => inScope(f, scopes))).filter((f) => !SELF.has(f));
   const findings = scanFiles(files);
 
   const seen = new Set();
