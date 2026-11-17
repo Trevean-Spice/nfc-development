@@ -13,3 +13,12 @@ node_modules/
 build/admin/.tmp/
 build/admin/.lambda-build/
 build/api/.lambda-build/
+
+# Kept in Trevean's private location, never in this public repository: the
+# one-shot deploy records (they name real account and resource ids) and the
+# real Terraform variable and backend files. Only the README note is public.
+build/infrastructure/deploy-items/*
+!build/infrastructure/deploy-items/README.md
+build/infrastructure/envs/*/terraform.tfvars
+build/infrastructure/envs/*/*.auto.tfvars
+build/infrastructure/envs/*/backend.hcl
