@@ -79,10 +79,26 @@ Everything on AWS is Terraform, in `build/infrastructure`:
 
 `build/chip-cli` encodes, verifies and (on the command line only) write-protects ST25TV02KC tags through a PC/SC reader such as the ACS ACR1552U. Its Tag Tool is a page on 127.0.0.1 for whoever encodes tags at the bench: it writes and reads back, and never protects. It reads the code list from the same `build/edge/redirect-table.json`, so a tag can only carry a code the redirect knows. See [GUIDE.md](GUIDE.md), section 6, and [NFC-SPECS.md](NFC-SPECS.md).
 
+From Dan's 12 November edit, in his wording, all true of the Tag Tool:
+
+- **Chip type:** ST25TV02KC; NFC Forum Type 5 / ISO/IEC 15693, 13.56 MHz.
+- **Storage:** NFC Forum Type 5 NDEF URI record within the ST25TV02KC's 2.5-Kbit (320-byte) EEPROM; account for Capability Container (CC), TLV overhead, and reserved/configuration memory. Data is written in 4-byte ISO 15693 blocks.
+- **Before writing**, the tool confirms ST25TV02KC chip type and NFC-V / ISO 15693 compatibility: it asks the tag for its size and refuses one that does not report 80 blocks of 4 bytes.
+- **Capacity:** it checks ST25TV02KC available NDEF capacity (320-byte EEPROM, 4-byte ISO 15693 blocks, CC/TLV overhead). The encoded NDEF URI record and Type 5 TLV must fit within the tag's writable NDEF area (not a fixed URL character limit), and the payload must fit in the ST25TV02KC's 320-byte EEPROM after Type 5 CC, TLV, and other reserved-memory overhead. That area is 312 bytes, blocks 1 to 78.
+- **Size:** minimize NDEF URI size using the NFC Forum URI prefix code (for example, 0x04 for https://) and short canonical URLs; validate the full Type 5 CC/TLV footprint against ST25TV02KC memory. Each tag uses 29 of the 312 bytes.
+
 ## 9. CI
 
 `.github/workflows/ci.yml` runs on every pull request: each package's install, typecheck and tests on Node 20, `terraform fmt` and `validate` with no backend and no credentials, and the public-safety scan. `edge-and-chip-cli.yml` adds the redirect table's repoint guard when those packages change. `contract-tests.yml` runs the stub suite, and its live jobs run only by hand. `record-integrity.yml` belongs to Serene Labs' own records and is skipped in this repository. Details in [GUIDE.md](GUIDE.md), section 7.
 
 ## 10. The prototype
 
-`src/`, `tests/`, `scripts/` and `config/` are Trevean's prototype from June 2026: a GraphQL API with Redis, a Next.js dashboard, a React Native app and an NTAG chip programmer. The build above replaced it rather than extending it, and none of it is deployed. This file described that prototype until it was rewritten for the import, including Trevean's ST25TV02KC update of 12 November 2026. That text is in this file's history (commit c1d7b38).
+`src/`, `tests/`, `scripts/` and `config/` are Trevean's prototype from June 2026: a GraphQL API with Redis, a Next.js dashboard, a React Native app and an NTAG chip programmer. The build above replaced it rather than extending it, and none of it is deployed. This file described that prototype until it was rewritten for the import. Dan's ST25TV02KC update of 12 November 2026 is kept in section 8 and in section 11 below. The full earlier text is in this file's history (commit c1d7b38).
+
+## 11. Notes from Dan's 12 November edit
+
+Dan's edit of 12 November 2026 changed the chip from NTAG216/NTAG213 to the ST25TV02KC and added a blank line after every heading. The blank lines are kept throughout this file, and the chip lines that match the build are in section 8. These are the lines that differ from what was built:
+
+- **"Input: Blend ID, chip type (ST25TV02KC; NFC Forum Type 5 / ISO/IEC 15693, 13.56 MHz)."** The chip type is as built (section 8). The input is a two-letter blend code from `build/edge/redirect-table.json`, not a blend ID, and the tag carries `https://treveanspice.com/t/<code>`, not a `/blend/{blendId}` URL.
+- **"Validate against the actual formatted tag capacity."** The build checks that the tag reports 80 blocks of 4 bytes, then checks the message against a fixed 312-byte area. It does not read the capacity from the tag's capability container.
+- **"Decodes NFC Forum URI identifier code (prefix byte) from the Type 5 NDEF URI record"** (the app's step in the scan flow). There is no Trevean app in the build: the phone's own NFC reader decodes the record and opens the URL. The Tag Tool decodes the same prefix byte when it reads a tag back.
