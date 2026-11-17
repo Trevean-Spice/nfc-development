@@ -1,310 +1,88 @@
-# Trevean NFC System Architecture
+# Architecture
 
-High-level system design and data flow documentation for the Trevean Spice smart packaging NFC solution.
+How the Trevean Spice tap-to-story system fits together. Each package's README has the detail behind each section here. Values that identify AWS accounts and resources are placeholders; the real ones are in Trevean's private record.
 
-## System Overview
+## 1. The whole system on one page
 
-The Trevean NFC system connects physical spice packaging to digital experiences through NFC technology:
+```text
+ Jar: NFC tag  https://treveanspice.com/t/<code>
+      QR code  https://treveanspice.com/q/<code>
+        |
+        v
+ Route 53 (the domain's DNS since 4 November 2026)
+        |
+        v
+ CloudFront, the apex distribution (build/infrastructure, module cdn)
+   /t/* and /q/*   -> CloudFront Function (build/edge): 307 to /blend.html?blend=<slug>&via=nfc|qr
+   /v1/scan-events -> scan ingest Lambda (build/api) -> DynamoDB ScanEvents
+   /v1/*           -> content API Lambda (build/api)
+   /admin*         -> admin CMS and admin API (build/admin, build/api), Cognito sign-in
+   everything else -> Trevean's website on Vercel (the default origin)
 
-```
-User scans NFC tag on package
-         |
-         v
-Mobile app detects NDEF URL record
-         |
-         v
-Extracts blend ID from URL
-         |
-         v
-Queries GraphQL API
-         |
-         v
-Retrieves blend details from DynamoDB
-         |
-         v
-Displays rich content (story, recipes, grower info)
-         |
-         v
-Records scan event for analytics
-```
+ ScanEvents stream -> rollup consumer Lambda -> ROLLUP# counters -> dashboard (build/dashboard)
 
-## Component Architecture
+ Admin CMS "publish" -> API -> publisher (build/publisher, Fargate)
+                     -> builds the blend pages (build/web) -> S3, then invalidates exactly those paths
 
-### Frontend Layer
-
-#### Mobile App (React Native)
-
-- **Responsibility**: NFC tag reading, user interface, offline support
-- **Key Components**:
-  - `NFCService`: Handles iOS CoreNFC and Android NFC API abstraction
-  - `APIService`: GraphQL client wrapper with caching
-  - Navigation: Bottom tab navigator + stack navigators
-  - Screens: Home (blend list), Scanner (NFC), BlendDetail (full content)
-- **Data Flow**: User interactions → NFC reading → URL extraction → API queries
-
-#### Web Dashboard (React/Next.js)
-
-- **Responsibility**: Admin panel, blend management, analytics
-- **Key Features**:
-  - Blend CRUD operations
-  - Scan analytics and reporting
-  - Grower management
-  - Recipe publishing
-- **Data Flow**: Admin actions → GraphQL mutations → DynamoDB updates
-
-### API Layer
-
-#### GraphQL API (Apollo Server on Lambda)
-
-- **Responsibility**: Data querying, mutation handling, business logic
-- **Key Features**:
-  - Blend and recipe queries
-  - Scan event recording
-  - Favorite management
-  - User profiles
-- **Architecture**: Serverless Lambda functions behind API Gateway
-
-### Data Layer
-
-#### DynamoDB
-
-Provides scalable, NoSQL storage with the following tables:
-
-**SpiceBlends**
-
-- Partition Key: `blendId`
-- Contains: name, origin, story, ingredients, grower reference
-- GSI: createdAt for listing recent blends
-
-**ScanEvents**
-
-- Partition Key: `chipUid`
-- Sort Key: `timestamp`
-- Tracks: blend ID, user, metadata
-- Purpose: Analytics and engagement tracking
-
-**Recipes**
-
-- Partition Key: `blendId`
-- Sort Key: `recipeId`
-- Contains: full recipe data with ingredients
-- Purpose: Serve recipes linked to blends
-
-**Growers**
-
-- Partition Key: `growerId`
-- Contains: farmer details, certifications, locations
-- Purpose: Transparency and brand storytelling
-
-**NFCTags**
-
-- Partition Key: `chipUid`
-- Tracks: programming status, blend reference
-- Purpose: Chip inventory and programming history
-
-#### Redis
-
-- **Purpose**: Caching and session management
-- **Data**: Frequently accessed blends, user sessions
-- **TTL Strategy**: Blends cached for 24 hours, sessions for 7 days
-
-### NFC Programming Layer
-
-#### Chip Programmer
-
-- **Input**: Blend ID, chip type (ST25TV02KC; NFC Forum Type 5 / ISO/IEC 15693, 13.56 MHz)
-- **Process**:
-  1. Generate target URL: `https://trevean.com/blend/{blendId}`
-  2. Create NDEF URL record
-  3. Validate payload fits in chip memory
-  4. Generate programming report
-- **Output**: Ready-to-program chip configuration
-- **Storage**: NFC Forum Type 5 NDEF URI record within the ST25TV02KC's 2.5-Kbit (320-byte) EEPROM; account for Capability Container (CC), TLV overhead, and reserved/configuration memory. Data is written in 4-byte ISO 15693 blocks.
-
-#### Chip Validator
-
-- **Validates**: Memory constraints, URL format, payload size
-- **Checks**:
-  - Encoded NDEF URI record and Type 5 TLV fit within the tag's actual writable NDEF area (not a fixed URL character limit)
-  - Payload fits in ST25TV02KC's 320-byte EEPROM after Type 5 CC, TLV, and other reserved-memory overhead; validate against the actual formatted tag capacity
-  - Protocol is http/https
-- **Reports**: Detailed validation results with memory breakdown
-
-## Data Flow Patterns
-
-### Scan and Display Flow
-
-```
-1. User holds phone to package
-   ├─ iOS: Triggers NFC reader UI
-   └─ Android: Automatic detection if NFC enabled
-
-2. App reads NDEF message
-   ├─ Decodes NFC Forum URI identifier code (prefix byte) from the Type 5 NDEF URI record
-   ├─ Extracts full URL
-   └─ Parses blend ID from path
-
-3. App queries API
-   ├─ Apollo client sends GraphQL query
-   ├─ Checks Redis cache first
-   └─ Falls back to DynamoDB on miss
-
-4. API returns data
-   ├─ Blend details, grower info, recipes
-   └─ Records scan event asynchronously
-
-5. App displays content
-   ├─ Shows blend story and origin
-   ├─ Lists recipes
-   └─ Displays grower certifications
+ Shopify: cart links in the blend pages; catalog sync and order webhook (build/shopify, build/api)
 ```
 
-### Programming Flow
+## 2. A tap, step by step
 
-```
-1. Programmer tool receives blend ID
-   ├─ Validates blend exists
-   └─ Confirms ST25TV02KC chip type and NFC-V / ISO 15693 compatibility
+1. **The tag.** Each tag holds one NDEF URI record: `https://treveanspice.com/t/<code>`, where the code is two letters, one per blend (`ps`, `cs`, `sr`, `nm`; `kg` is reserved). The QR code on the label carries `https://treveanspice.com/q/<code>`. The 1,000 tags of the first production order were encoded this way by the supplier and are write protected, so these URLs must keep working for the life of those jars. The chip and the bytes are in [NFC-SPECS.md](NFC-SPECS.md).
+2. **The redirect.** CloudFront sends `/t/*` and `/q/*` to a CloudFront Function compiled from `build/edge/redirect-table.json`. It answers `307` with `Location: /blend.html?blend=<slug>&via=nfc` (or `via=qr`) and `Cache-Control: no-store`. An unknown code gets a branded 404. The paths are case sensitive, so an uppercase path such as `/T/PS/` does not match and falls through to Vercel.
+3. **The Vercel fallback.** Trevean's Vercel website carries the same redirects, generated from the same table by `build/vercel-redirect`. It served every tag on its own before the nameserver change, and it still answers the uppercase paths. Both copies come from one file, so changing a code means editing that file and rebuilding both (see [GUIDE.md](GUIDE.md), section 4).
+4. **The blend page.** Since 12 November 2026, `/blend.html` is served by Trevean's website on Vercel, from the Trevean-Spice/website repository. `build/web` builds the AWS version of the same pages, one static HTML file per blend, which the publisher puts in S3.
+5. **The scan count.** After the page has painted, a small beacon posts one scan event to `/v1/scan-events` on the same domain. It cannot delay or break the page. The scan ingest function writes it to the `ScanEvents` table with one conditional write. Repeat scans of the same blend from the same browser in one 30-minute window count once. There is no per-jar identifier: the tags were encoded per blend, so counts are per blend, and the browser's own token is what removes repeats. A stream consumer adds each new event to hourly and daily `ROLLUP#` counters, and the dashboard reads only those counters.
 
-2. Generates NDEF record
-   ├─ Creates URL record
-   ├─ Encodes to binary
-   └─ Calculates payload size
+## 3. Editing and publishing content
 
-3. Validates against chip specs
-   ├─ Checks ST25TV02KC available NDEF capacity (320-byte EEPROM, 4-byte ISO 15693 blocks, CC/TLV overhead)
-   ├─ Confirms URL format
-   └─ Generates report
+1. An editor signs in to the admin CMS (`build/admin`) with Cognito. Roles are Admin, Editor and Viewer.
+2. Blends, recipes and growers are edited and previewed there and saved through the API (`build/api`) to DynamoDB.
+3. **Publish** calls `POST /v1/admin/blends/{slug}/publish`. The API sends a signed request to the publisher (`build/publisher`), a single Fargate task.
+4. The publisher builds the blend pages with `build/web`, compares each file with what is live by SHA-256, uploads only the files that changed, invalidates exactly those paths in CloudFront, and reads each page back. The CMS shows whether it worked.
 
-4. Output ready for NFC writer
-   ├─ Binary NDEF data
-   ├─ Memory layout info
-   └─ Verification data
-```
+`build/content` holds the fixtures, the placeholder convention (content that is not final is marked, and a release build refuses it) and the database seeder.
 
-### Analytics Flow
+## 4. Reorder and Shopify
 
-```
-1. App records scan event
-   ├─ Captures chipUid, blendId, timestamp
-   ├─ Includes device/location metadata (optional)
-   └─ Sends async mutation
+`build/shopify` builds cart permalinks for each blend, so a reorder link opens the Shopify cart with the right product. It also has a catalog sync and an order webhook (the webhook routes are in `build/api`, under `/internal/webhooks/shopify/`). The catalog sync and order webhook are deployed but inert until they are switched on.
 
-2. API receives event
-   ├─ Validates data
-   ├─ Writes to ScanEvents table
-   └─ Updates blend engagement metrics
+## 5. The API and its contract
 
-3. Dashboard queries analytics
-   ├─ Aggregates scan count by blend
-   ├─ Tracks unique users
-   └─ Shows temporal trends
-```
+`build/api` implements the frozen API contract in `deliverables/m1/01-api-contract.openapi.yaml` (OpenAPI 3.1, version 1.0.0). It validates every request against that document. `build/api` and `build/shopify` carry byte-identical copies of it, and their tests fail if a copy drifts. `build/contract-tests` runs the contract's operations against an in-memory stub in CI, and against staging or production only when started by hand with tokens.
 
-## Caching Strategy
+## 6. Data
 
-### Redis Cache Hierarchy
+DynamoDB tables, defined in `build/infrastructure/modules/data`:
 
-```
-Level 1: In-App Cache
-└─ AsyncStorage (mobile)
-└─ LocalStorage (web)
-└─ TTL: Session duration
+| Table | Holds |
+|---|---|
+| SpiceBlends | Blend content, plus media and Shopify catalog records |
+| ScanEvents | One item per scan event, and the hourly and daily rollup counters |
+| Recipes | Recipes, by blend |
+| Growers | Growers |
+| NFCTags | One item per blend code, seeded from the redirect table |
 
-Level 2: Redis Server Cache
-└─ Hot data (popular blends)
-└─ User sessions
-└─ TTL: 24 hours for blends, 7 days for sessions
+S3 holds the built site, media originals and derivatives, and the render cache. Secrets (such as the publisher's revalidation secret) are in AWS Secrets Manager, never in this repository.
 
-Level 3: DynamoDB
-└─ Authoritative data source
-└─ Searched on cache misses
-└─ Write-through cache updates
-```
+## 7. Infrastructure
 
-### Cache Invalidation
+Everything on AWS is Terraform, in `build/infrastructure`:
 
-- **Manual**: Admin invalidates blend cache after edits
-- **Automatic**: TTL expiration for time-based data
-- **Cascade**: Invalidate related caches (blend → recipes)
+- **Modules:** `cdn` (the apex distribution and its functions), `compute` (the Lambda functions, Cognito and the admin API Gateway), `data` (the tables), `media`, `render_cache`, `publisher` (Fargate, its load balancer and image registry), `secrets`, `observability`, `certificate`, `dns` (the Route 53 zone) and `stack`, which composes them.
+- **Environments:** `envs/dev`, `envs/staging` and `envs/prod`. `dev` is the environment that has been applied, in Trevean's development account, and it serves the domain. `staging` and `prod` are defined but have never been planned or applied.
+- **State:** an S3 bucket with native locking. The real variable and backend files for each environment are in Trevean's private record, so a plan or apply needs them (see `build/infrastructure/BOOTSTRAP.md`).
+- **Lambda runtime:** Node.js 22 on arm64, set in the `compute` module. CI and local tests run on Node 20.
 
-## Security Model
+## 8. Programming tags
 
-### Authentication
+`build/chip-cli` encodes, verifies and (on the command line only) write-protects ST25TV02KC tags through a PC/SC reader such as the ACS ACR1552U. Its Tag Tool is a page on 127.0.0.1 for whoever encodes tags at the bench: it writes and reads back, and never protects. It reads the code list from the same `build/edge/redirect-table.json`, so a tag can only carry a code the redirect knows. See [GUIDE.md](GUIDE.md), section 6, and [NFC-SPECS.md](NFC-SPECS.md).
 
-- JWT tokens issued on login
-- Stored securely in AsyncStorage (mobile) or localStorage (web)
-- Included in Authorization header for API requests
-- Validate on each request with secret key
+## 9. CI
 
-### Authorization
+`.github/workflows/ci.yml` runs on every pull request: each package's install, typecheck and tests on Node 20, `terraform fmt` and `validate` with no backend and no credentials, and the public-safety scan. `edge-and-chip-cli.yml` adds the redirect table's repoint guard when those packages change. `contract-tests.yml` runs the stub suite, and its live jobs run only by hand. `record-integrity.yml` belongs to Serene Labs' own records and is skipped in this repository. Details in [GUIDE.md](GUIDE.md), section 7.
 
-- Public: Blend browsing, recipe viewing
-- Authenticated: Favorites, user preferences
-- Admin: Blend management, analytics
+## 10. The prototype
 
-### Data Protection
-
-- HTTPS/TLS for all API communications
-- AWS KMS encryption for sensitive data at rest
-- No PII in NFC tags (only blend ID and URL)
-- Scan event user IDs encrypted when stored
-
-### NFC-Specific Security
-
-- URLs are publicly guessable (no tokens in URL)
-- QR code fallback for offline scenarios
-- Chip UID not sensitive (widely available on physical tag)
-- Rate limiting on API endpoints prevents abuse
-
-## Scalability Considerations
-
-### Horizontal Scaling
-
-- **Lambda**: Auto-scales on demand, pay per invocation
-- **DynamoDB**: On-demand billing, scales automatically
-- **Redis**: Cluster mode for sharding across nodes
-- **CloudFront**: Automatic global distribution
-
-### Performance Optimization
-
-- Lazy load images in blend list
-- Cache API responses client-side
-- Minimize NDEF URI size using the NFC Forum URI prefix code (for example, 0x04 for https://) and short canonical URLs; validate the full Type 5 CC/TLV footprint against ST25TV02KC memory
-- Use connection pooling for database queries
-
-### Monitoring & Observability
-
-- CloudWatch logs for Lambda errors
-- DynamoDB capacity monitoring
-- Redis command latency metrics
-- Application Performance Monitoring (APM) for mobile
-
-## Disaster Recovery
-
-### Backup Strategy
-
-- Daily DynamoDB snapshots to S3
-- Redis persistence enabled
-- Source code in Git with multiple remotes
-- Configuration backed up to AWS Secrets Manager
-
-### Recovery Procedures
-
-- RTO (Recovery Time Objective): < 1 hour
-- RPO (Recovery Point Objective): < 24 hours
-- Test restore procedures quarterly
-- Documented runbooks for each component
-
-## Infrastructure as Code
-
-Deployment uses CloudFormation/Terraform:
-
-- Lambda function definitions
-- API Gateway configuration
-- DynamoDB table creation
-- S3 buckets and policies
-- CloudFront distributions
-- VPC and networking setup
-
-All infrastructure is version controlled and reproducible.
+`src/`, `tests/`, `scripts/` and `config/` are Trevean's prototype from June 2026: a GraphQL API with Redis, a Next.js dashboard, a React Native app and an NTAG chip programmer. The build above replaced it rather than extending it, and none of it is deployed. This file described that prototype until it was rewritten for the import, including Trevean's ST25TV02KC update of 12 November 2026. That text is in this file's history (commit c1d7b38).
