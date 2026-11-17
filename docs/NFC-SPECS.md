@@ -3,6 +3,7 @@
 **Project:** Trevean Spice Connected Pantry  
 **Production chip:** STMicroelectronics **ST25TV02KC**  
 **Document revision:** 2.0 • November 12, 2026  
+**Revision 2.1:** 17 November 2026, Serene Labs. Memory layout corrected (80 blocks of 4 bytes, 312 usable bytes), section 14 added with the values the Tag Tool actually writes, and section 15 added as a history note.  
 **Purpose:** NFC tag selection, URI/NDEF encoding, programming, validation, mobile compatibility, packaging, security, and QR fallback.
 
 > **Design change:** This specification supersedes the earlier NTAG213/NTAG216 implementation. The ST25TV02KC communicates using **ISO/IEC 15693 / NFC Forum Type 5**, not ISO/IEC 14443-A / NFC Forum Type 2. NTAG page offsets, command sequences, memory capacities, and timing assumptions must not be reused.
@@ -16,7 +17,8 @@
 | NFC tag class               | NFC Forum Type 5                                             |
 | RF protocol                 | ISO/IEC 15693                                                |
 | Operating frequency         | 13.56 MHz                                                    |
-| EEPROM                      | 2,560 bits (320 bytes)                                       |
+| EEPROM                      | 2,560 bits (320 bytes), in 80 blocks of 4 bytes (blocks 0 to 79; END_MEM is 4Fh) |
+| Usable NDEF area            | 312 bytes, blocks 1 to 78, with the 4-byte capability container in block 0 (see the memory note below) |
 | RF access granularity       | 4-byte blocks                                                |
 | RF commands                 | Single-block read/write; multiple-block read; ISO 15693 inventory/selection and supported ST commands |
 | Supported RF data rate      | Up to 26 kbit/s                                              |
@@ -30,6 +32,14 @@
 | Optional tamper detection   | Supported by **ST25TV02KC-T**, not **ST25TV02KC-A**          |
 
 **Memory distinction:** The 320-byte figure describes the device EEPROM. It is **not** equivalent to 320 bytes of NDEF payload. Actual writable NDEF space depends on the Type 5 capability container, memory mapping, configuration and TLV overhead. The firmware or provisioning tool must obtain the usable capacity from the configured tag, rather than hardcoding it from the datasheet headline.
+
+**The numbers, per datasheet DS13304 Rev 7 (February 2025):** the ST25TV02KC has 320 bytes of EEPROM in 80 blocks of 4 bytes (page 1; section 4.1, figure 5, note 3; section 4.2, END_MEM is 4Fh). In the factory single-area layout, area 1 is blocks 0 to 79. Of the 320 bytes, **312 are usable for the NDEF message**:
+
+- Block 0 holds the NFC Forum Type 5 capability container, 4 bytes.
+- The container's size field counts in units of 8 bytes. The 316 bytes after block 0 round down to 39 units (0x27), which is 312 bytes: blocks 1 to 78.
+- Block 79 (4 bytes) is left over by that rounding and is not used.
+
+The 320 and the 80 blocks are datasheet values. The 312 follows from them and the Type 5 mapping; the datasheet does not state a capability container value for a factory tag. Before it writes, the Tag Tool asks the tag for its size and refuses a tag that does not report 80 blocks of 4 bytes. An earlier handover document gave this chip as 256 bytes. That was an error: 320 bytes in total, 312 usable.
 
 **Read-range distinction:** No fixed 5–10 cm production range is guaranteed. Read performance depends on the tag antenna, tuning, lid geometry, spice jar contents, nearby metal, phone orientation and reader sensitivity. Characterize the fully assembled packaging.
 
@@ -330,6 +340,28 @@ Use bounded retry/backoff (for example, at most three read retries with short de
 - STMicroelectronics, [ST25TV02KC/ST25TV512C datasheet, DS13304 Rev. 7 (February 2025)](https://www.st.com/resource/en/datasheet/st25tv02kc.pdf).
 - STMicroelectronics, [ST25TV series documentation](https://www.st.com/en/nfc/st25tv-series-nfc-tags/documentation.html), including AN5091, *NDEF management with ST25TVxxx products*.
 - NFC Forum, applicable *NFC Forum Type 5 Tag Operation Specification* and *NFC Data Exchange Format (NDEF)* specifications.
+
+## 14. As built: what the Tag Tool writes (Serene Labs, November 2026)
+
+The sections above are the general specification. This section gives the values the system actually uses. The source for each is the Tag Tool's README (build/chip-cli/README.md) and the redirect README (build/edge/README.md).
+
+**The URL on each tag.** `https://treveanspice.com/t/<code>`, where the code is two lowercase letters, one per blend: `ps`, `cs`, `sr` and `nm`. The code `kg` is reserved and the tool refuses it. The QR code on the label carries `https://treveanspice.com/q/<code>`, a different path that reaches the same page. The redirect table that maps codes to pages is build/edge/redirect-table.json. The `https://trevean.com/blend/{blendId}` scheme in sections 2.4, 4 and 7 is not what the tags or the QR codes carry.
+
+**The bytes, for `ps`.** Identifier code 0x04 (`https://`), then `treveanspice.com/t/ps`, 21 bytes. Using the formula in section 3.1 with R = 21: URI payload 22 bytes (0x16), record 26 bytes, header `D1 01 16 55 04`, NDEF TLV with terminator 29 bytes. Every blend code is the same length, so every tag uses 29 of the 312 usable bytes.
+
+**The capability container.** If a tag already carries a valid container (`E1 40` followed by a size byte of up to `28`), the tool keeps it. Only a tag with no valid container gets one from the tool, `E1 40 27 01`, written last. This value is the tool's own figure from the Type 5 layout, not a datasheet value, so a tag that receives it should be checked on a phone first.
+
+**Write order.** The tool writes only the blocks the message needs, in an order that means an interrupted write cannot leave a tag that opens a wrong page, then reads every block back and decodes it before it reports success.
+
+**Protection.** The tool uses one protection: the 64-bit area password on area 1, set to protect writes. It can be removed with that password, and there is no way to remove it without the password. The tool never sends Kill, LockBlock or the discreet and silent mode command, and it does not lock the configuration. Write Password and Write Configuration are sent only after a probe on that tag, in that session, has confirmed the command bytes behave as the datasheet says. If the probe fails, the tool stops and nothing is locked. Passwords are read from an environment variable or a file, never from the command line.
+
+**The first production order.** The 1,000 tags of order SO4731 were encoded by the supplier with these `/t/` URLs before this build, and on 11 September 2026 Trevean confirmed they were shipped write protected (decision log, D45). Nobody at Trevean holds that password, so those tags cannot be re-encoded. This is why the `/t/` and `/q/` redirects must keep working for the life of those jars.
+
+## 15. History note: the prototype's chips
+
+*Kept for the record only. None of this applies to the ST25TV02KC.*
+
+Before revision 2.0, this document described the June 2026 prototype's NTAG chips, NFC Forum Type 2 over ISO/IEC 14443-A: NTAG216 with 888 bytes in total and 729 user bytes, and NTAG213 with 180 bytes in total and 64 user bytes, with page-based reads and writes. The prototype code in src/ still targets those chips. The full earlier text is in this file's history.
 
 ---
 
