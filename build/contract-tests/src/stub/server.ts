@@ -310,7 +310,7 @@ const handlers: Record<string, Handler> = {
       shopify: {},
       recipeCount: 0,
       publishedAt: null,
-      updatedBy: 'editor@treveanspice.com',
+      updatedBy: 'editor@example.com',
       ...ctx.body,
       status: 'draft',
       version: 1,
@@ -602,7 +602,7 @@ const handlers: Record<string, Handler> = {
       height: null,
       cdnUrl: null,
       derivatives: [],
-      uploadedBy: 'editor@treveanspice.com',
+      uploadedBy: 'editor@example.com',
       createdAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     });
     send(

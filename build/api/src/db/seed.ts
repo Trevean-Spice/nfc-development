@@ -236,7 +236,7 @@ export async function seed(options: SeedOptions = {}): Promise<void> {
           publishedAt: blend.status === 'published' ? stamp : null,
           createdAt: stamp,
           updatedAt: stamp,
-          updatedBy: 'seed@treveanspice.com',
+          updatedBy: 'seed@example.com',
           ...blend,
         },
       }),

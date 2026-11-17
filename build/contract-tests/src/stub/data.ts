@@ -67,7 +67,7 @@ function blend(input: Record<string, any>): Record<string, any> {
     shopify: {},
     recipeCount: 0,
     publishedAt: null,
-    updatedBy: 'editor@treveanspice.com',
+    updatedBy: 'editor@example.com',
     ...input,
   };
 }
@@ -272,7 +272,7 @@ export function freshState(): StubState {
     height: 2667,
     cdnUrl: HERO_PS.cdnUrl,
     derivatives: [{ format: 'avif', width: 1280, cdnUrl: HERO_PS.cdnUrl }],
-    uploadedBy: 'editor@treveanspice.com',
+    uploadedBy: 'editor@example.com',
     createdAt: '2026-08-13T10:00:00Z',
   });
   media.set('med_01J9Z8XM7P4R2T6W4Q9S3C7E1F', {
@@ -287,7 +287,7 @@ export function freshState(): StubState {
     height: 2667,
     cdnUrl: HERO_CS.cdnUrl,
     derivatives: [],
-    uploadedBy: 'editor@treveanspice.com',
+    uploadedBy: 'editor@example.com',
     createdAt: '2026-08-13T10:04:00Z',
   });
 

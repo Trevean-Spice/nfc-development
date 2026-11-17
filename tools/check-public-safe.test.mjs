@@ -33,6 +33,9 @@ test('the other identifier kinds are found', () => {
   assert.deepEqual(kinds(`org o-${'ab12cd34ef'}`), ['aws-org-id']);
   assert.deepEqual(kinds(`${'aws'}-root@treveanspice.com`), ['root-email']);
   assert.deepEqual(kinds(`aws-root@example.com and editor@treveanspice.com`), []);
+  assert.deepEqual(kinds(`"author": "Trevean <${'someone'}@${'pm'}.me>"`), ['personal-email']);
+  assert.deepEqual(kinds(`mail ${'someone'}@${'gmail'}.com or <TREVEAN_OWNER_EMAIL>`), ['personal-email']);
+  assert.deepEqual(kinds(`editor@example.com, ops@serenelabs.io, git@github.com`), []);
   assert.deepEqual(kinds(`pool us-east-1_${'Ab3dE5gH9'}`), ['cognito-pool-id']);
   assert.deepEqual(kinds(`arn:aws:acm:us-east-1:<TREVEAN_DEV_ACCOUNT_ID>:certificate/${uuid}`), ['acm-certificate']);
   assert.deepEqual(kinds(`the certificate ${uuid} is issued`), ['acm-certificate']);

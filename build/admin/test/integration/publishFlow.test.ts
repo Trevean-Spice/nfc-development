@@ -99,7 +99,7 @@ describe('the placeholder publish guard', () => {
     expect(events).toContain('placeholder_override');
     expect(events).toContain('publish');
     const override = recent(20).find((e) => e.event === 'placeholder_override');
-    expect(override?.email).toBe('editor@treveanspice.com');
+    expect(override?.email).toBe('editor@example.com');
     expect(String(override?.detail['reason'])).toContain('M2 gate rehearsal');
   });
 });
@@ -177,7 +177,7 @@ describe('failure is surfaced and never swallowed', () => {
     const { ApiClient } = await import('../../src/api/client.js');
     const { mintApiToken } = await import('../../src/auth/tokens.js');
     const client = new ApiClient(
-      { subject: 'usr_test', email: 'admin@treveanspice.com', name: 'Admin', role: 'Admin' },
+      { subject: 'usr_test', email: 'admin@example.com', name: 'Admin', role: 'Admin' },
       mintApiToken,
       'http://127.0.0.1:1',
     );

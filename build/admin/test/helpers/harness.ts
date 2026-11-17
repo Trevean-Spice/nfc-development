@@ -24,9 +24,9 @@ export const CONTENT_DIR = resolve(packageRoot, '..', 'content');
 export const SIGNING_KEY = 'local-development-signing-key-not-for-any-real-environment';
 
 export const CREDENTIALS: Record<Role, { email: string; password: string }> = {
-  Viewer: { email: 'viewer@treveanspice.com', password: 'viewer-local-only' },
-  Editor: { email: 'editor@treveanspice.com', password: 'editor-local-only' },
-  Admin: { email: 'admin@treveanspice.com', password: 'admin-local-only' },
+  Viewer: { email: 'viewer@example.com', password: 'viewer-local-only' },
+  Editor: { email: 'editor@example.com', password: 'editor-local-only' },
+  Admin: { email: 'admin@example.com', password: 'admin-local-only' },
 };
 
 export interface Harness {

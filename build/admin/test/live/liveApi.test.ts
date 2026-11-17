@@ -58,9 +58,9 @@ describe.skipIf(!reachable)('against the real API', () => {
     await app.ready();
 
     for (const [role, email] of [
-      ['Viewer', 'viewer@treveanspice.com'],
-      ['Editor', 'editor@treveanspice.com'],
-      ['Admin', 'admin@treveanspice.com'],
+      ['Viewer', 'viewer@example.com'],
+      ['Editor', 'editor@example.com'],
+      ['Admin', 'admin@example.com'],
     ] as const) {
       const response = await app.inject({
         method: 'POST',
@@ -99,7 +99,7 @@ describe.skipIf(!reachable)('against the real API', () => {
     const { mintApiToken } = await import('../../src/auth/tokens.js');
     const token = await mintApiToken({
       subject: 'usr_live',
-      email: 'viewer@treveanspice.com',
+      email: 'viewer@example.com',
       name: 'Viewer',
       role: 'Viewer',
     });
@@ -122,7 +122,7 @@ describe.skipIf(!reachable)('against the real API', () => {
     const { mintApiToken } = await import('../../src/auth/tokens.js');
     const token = await mintApiToken({
       subject: 'usr_live',
-      email: 'editor@treveanspice.com',
+      email: 'editor@example.com',
       name: 'Editor',
       role: 'Editor',
     });

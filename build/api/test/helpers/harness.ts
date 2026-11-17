@@ -90,7 +90,7 @@ export async function token(
   options: { subject?: string; email?: string; expiresIn?: string; issuer?: string; audience?: string } = {},
 ): Promise<string> {
   const secret = new TextEncoder().encode(process.env.SECRET_TREVEAN_API_DEV_JWT_SECRET as string);
-  return new SignJWT({ roles, email: options.email ?? 'editor@treveanspice.com' })
+  return new SignJWT({ roles, email: options.email ?? 'editor@example.com' })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(options.subject ?? 'user_test')
     .setIssuer(options.issuer ?? config.auth.issuer)

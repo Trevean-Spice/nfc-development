@@ -51,7 +51,7 @@ function mintEditorToken() {
   const payload = b64(
     JSON.stringify({
       sub: 'measure-publish-to-live',
-      email: 'editor@treveanspice.com',
+      email: 'editor@example.com',
       roles: ['Editor'],
       iss: ISSUER,
       aud: AUDIENCE,

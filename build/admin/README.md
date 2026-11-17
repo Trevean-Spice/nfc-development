@@ -42,9 +42,9 @@ Open `http://127.0.0.1:3002`. Sign in with one of the three development accounts
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `admin@treveanspice.com` | `admin-local-only` |
-| Editor | `editor@treveanspice.com` | `editor-local-only` |
-| Viewer | `viewer@treveanspice.com` | `viewer-local-only` |
+| Admin | `admin@example.com` | `admin-local-only` |
+| Editor | `editor@example.com` | `editor-local-only` |
+| Viewer | `viewer@example.com` | `viewer-local-only` |
 
 **Those accounts are the local development identity provider and they are refused outright when the stage is production**, in `src/auth/users.ts`, in code rather than by configuration. On the Trevean AWS account the sign in screen is replaced by a redirect to the managed identity provider and the roles come from the token's `roles` claim, per the frozen API contract, section 5.3.
 

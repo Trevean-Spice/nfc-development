@@ -32,6 +32,9 @@
  *                      organizational unit ids.
  *   root-email         a mailbox whose local part names aws or root, outside
  *                      the example.com/.org/.net and .test/.invalid domains.
+ *   personal-email     a mailbox at a personal mail provider (Gmail, Proton,
+ *                      Yahoo, Outlook.com, iCloud and the like). Business
+ *                      and placeholder mailboxes are not findings.
  *   cognito-pool-id    region_xxxxxxxxx user pools and region:uuid identity
  *                      pools.
  *   acm-certificate    an ACM certificate ARN, or a UUID on a line that says
@@ -86,6 +89,8 @@ const MAX_BYTES = 8 * 1024 * 1024;
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const DUMMY_ACCOUNTS = new Set(['123456789012', '210987654321']);
+const PERSONAL_MAIL =
+  /^(?:g(?:oogle)?mail\.com|pm\.me|proton\.me|protonmail\.(?:com|ch)|yahoo\.[a-z.]+|ymail\.com|hotmail\.[a-z.]+|outlook\.[a-z.]+|live\.[a-z.]+|msn\.com|icloud\.com|me\.com|mac\.com|aol\.com|gmx\.[a-z.]+|fastmail\.[a-z.]+|hey\.com|zoho\.com|mail\.com)$/;
 const LICENCE = /licen[cs]|\bBUSL\b|\bMIT\b|\bSPDX\b|copyleft|\bGPL|dependenc|third-party/i;
 
 /** Each rule returns the match indexes that count as findings on one line. */
@@ -116,6 +121,11 @@ const LINE_RULES = [
       if (!/aws|root/.test(local)) return false;
       return !/(^|\.)example\.(com|org|net)$|\.(test|invalid|example|localhost)$/.test(domain);
     },
+  },
+  {
+    kind: 'personal-email',
+    re: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+    keep: (m) => PERSONAL_MAIL.test(m[0].toLowerCase().split('@')[1]),
   },
   {
     kind: 'cognito-pool-id',

@@ -38,9 +38,9 @@ export interface UserView {
 }
 
 const SEED: Array<{ email: string; name: string; role: Role; password: string }> = [
-  { email: 'admin@treveanspice.com', name: 'Dan (Admin)', role: 'Admin', password: 'admin-local-only' },
-  { email: 'editor@treveanspice.com', name: 'Marketing (Editor)', role: 'Editor', password: 'editor-local-only' },
-  { email: 'viewer@treveanspice.com', name: 'Marketing (Viewer)', role: 'Viewer', password: 'viewer-local-only' },
+  { email: 'admin@example.com', name: 'Dan (Admin)', role: 'Admin', password: 'admin-local-only' },
+  { email: 'editor@example.com', name: 'Marketing (Editor)', role: 'Editor', password: 'editor-local-only' },
+  { email: 'viewer@example.com', name: 'Marketing (Viewer)', role: 'Viewer', password: 'viewer-local-only' },
 ];
 
 function hash(password: string, salt: string): string {

@@ -29,7 +29,7 @@ describe('the role model', () => {
 });
 
 describe('sessions', () => {
-  const principal = { subject: 'usr_1', email: 'a@treveanspice.com', name: 'A', role: 'Viewer' as const };
+  const principal = { subject: 'usr_1', email: 'a@example.com', name: 'A', role: 'Viewer' as const };
 
   it('round trip', () => {
     const session = newSession(principal);

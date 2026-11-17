@@ -22,7 +22,7 @@ function base64url(input) {
 export function mintDevToken({
   roles = ['Viewer'],
   subject = 'user_dashboard_local',
-  email = 'marketing@treveanspice.com',
+  email = 'marketing@example.com',
   secret = process.env[DEV_SECRET_ENV] ?? DEV_SECRET_DEFAULT,
   issuer = DEV_ISSUER,
   audience = DEV_AUDIENCE,

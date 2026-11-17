@@ -61,7 +61,7 @@ beforeAll(async () => {
   sessions.Editor = await h.signIn('Editor');
   sessions.Admin = await h.signIn('Admin');
   const { users } = await import('../../src/auth/users.js');
-  adminSubject = users().list().find((u) => u.email === 'admin@treveanspice.com')?.subject ?? '';
+  adminSubject = users().list().find((u) => u.email === 'admin@example.com')?.subject ?? '';
   expect(adminSubject).not.toBe('');
 });
 
@@ -589,7 +589,7 @@ describe('the API refuses independently of the admin', () => {
     // Deliberately bypass the admin's own guard by calling the client with a Viewer
     // principal on an Editor operation. The client refuses first, which is the point.
     const client = new ApiClient(
-      { subject: 'usr_test', email: 'viewer@treveanspice.com', name: 'Viewer', role: 'Viewer' },
+      { subject: 'usr_test', email: 'viewer@example.com', name: 'Viewer', role: 'Viewer' },
       mintApiToken,
       h.stub.url,
     );
@@ -602,7 +602,7 @@ describe('the API refuses independently of the admin', () => {
     const { mintApiToken } = await import('../../src/auth/tokens.js');
     const token = await mintApiToken({
       subject: 'usr_test',
-      email: 'viewer@treveanspice.com',
+      email: 'viewer@example.com',
       name: 'Viewer',
       role: 'Viewer',
     });
@@ -626,7 +626,7 @@ describe('the token the admin mints carries exactly the session role', () => {
   it('never more than one role, and never a role the caller does not hold', async () => {
     const { mintApiToken } = await import('../../src/auth/tokens.js');
     for (const role of ['Viewer', 'Editor', 'Admin'] as Role[]) {
-      const token = await mintApiToken({ subject: 'usr_x', email: 'x@treveanspice.com', name: 'X', role });
+      const token = await mintApiToken({ subject: 'usr_x', email: 'x@example.com', name: 'X', role });
       const claims = decodeJwt(token) as { roles?: string[] };
       expect(claims.roles).toEqual([role]);
     }
@@ -649,7 +649,7 @@ describe('the token the admin mints carries exactly the session role', () => {
 describe('a role revoked in the store takes effect on the next request', () => {
   it('does not wait for the session to expire, because the cookie role is a cache and not an authority', async () => {
     const { users } = await import('../../src/auth/users.js');
-    const editor = users().list().find((u) => u.email === 'editor@treveanspice.com');
+    const editor = users().list().find((u) => u.email === 'editor@example.com');
     expect(editor).toBeDefined();
 
     const allowed = await h.app.inject({
