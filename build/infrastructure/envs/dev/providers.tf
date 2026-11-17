@@ -17,6 +17,11 @@ terraform {
 # certificates for CloudFront must live there, and CloudFront publishes its
 # metrics there. See envs/staging/providers.tf for the longer note.
 #
+# Placeholders: <TREVEAN_DEV_ACCOUNT_ID>, <TREVEAN_MANAGEMENT_ACCOUNT_ID>,
+# <TREVEAN_ORG_ID> and the <TREVEAN_..._ROOT_EMAIL> values stand in for
+# Trevean's real identifiers. The real values are in Trevean's private
+# record, not in this public repository.
+#
 # THE ACCOUNT GUARD IS NOT DECORATION HERE.
 #
 # CORRECTED THURSDAY 27 AUGUST 2026. This comment previously said that

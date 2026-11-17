@@ -14,6 +14,9 @@
  *   node tools/demo-readiness.mjs
  *   node tools/demo-readiness.mjs --base https://<TREVEAN_DISTRIBUTION_DOMAIN>
  *
+ * <TREVEAN_DISTRIBUTION_DOMAIN> and <TREVEAN_PREFIX_SUFFIX> are placeholders; the
+ * real values are in Trevean's private record, not in this public repository.
+ *
  * Exit 0 if every blocking check passes, 1 otherwise. A WARN never fails the run:
  * warnings are things to know before standing up, not reasons to stop.
  *

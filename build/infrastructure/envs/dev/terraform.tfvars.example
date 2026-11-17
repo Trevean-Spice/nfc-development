@@ -5,6 +5,10 @@
 #   [FILL IN] needed when access or an answer lands
 #   [AUDIT]   answered by the scaffold audit
 
+# Placeholders such as <TREVEAN_DEV_ACCOUNT_ID> stand in for Trevean's real
+# account ids. The real values are in Trevean's private record; the real
+# terraform.tfvars lives there too and is never committed.
+#
 # [READY] REQUIRED. The account guard, and it has no default, so a plan
 # without it fails rather than deploying wherever the ambient credentials
 # point. Dev deploys into <TREVEAN_DEV_ACCOUNT_ID>, Trevean-NFC-Development, which is where

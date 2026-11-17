@@ -1,5 +1,5 @@
 {
-  "$comment": "Dry run output. Exactly the PutItem requests this tool would issue, in order.",
+  "$comment": "Dry run output. Exactly the PutItem requests this tool would issue, in order. <TREVEAN_PREFIX_SUFFIX> in the table names is a placeholder; the real suffix is in Trevean's private record, not in this public repository.",
   "generatedOn": "2026-08-22",
   "environment": "staging",
   "endpoint": null,

@@ -25,6 +25,11 @@ terraform {
 # There is no latency argument either way: the customer is served by the edge,
 # not by the region, and nothing on the tap path touches a regional service.
 #
+# Placeholders: <TREVEAN_DEV_ACCOUNT_ID>, <TREVEAN_MANAGEMENT_ACCOUNT_ID>,
+# <TREVEAN_ORG_ID> and the <TREVEAN_..._ROOT_EMAIL> values stand in for
+# Trevean's real identifiers. The real values are in Trevean's private
+# record, not in this public repository.
+#
 # THE ACCOUNT GUARD.
 #
 # Staging is meant to run in an account we control, and the credentials most

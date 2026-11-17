@@ -1,5 +1,7 @@
 # Catalog sync: what changed, and how to deploy it after approval
 
+> **Placeholders.** Values in angle brackets, such as `<TREVEAN_DEV_ACCOUNT_ID>`, `<TREVEAN_MANAGEMENT_ACCOUNT_ID>`, `<TREVEAN_ORG_ID>`, `<TREVEAN_MANAGEMENT_ROOT_EMAIL>`, `<TREVEAN_DEV_ROOT_EMAIL>`, `<TREVEAN_PREFIX_SUFFIX>` and `<TREVEAN_DISTRIBUTION_DOMAIN>`, stand in for Trevean's real AWS identifiers. The real values are in Trevean's private record, not in this public repository.
+
 Written Wednesday 14 October 2026 on branch `fleet/catalog-sync`. **Nothing here has been
 deployed, applied, pushed, or run against AWS or Shopify.** Every step under "Deploy steps"
 is for later, one approval item at a time.

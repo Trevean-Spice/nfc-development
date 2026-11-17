@@ -1,5 +1,7 @@
 # The `/t/{code}` and `/q/{code}` redirect, served by Vercel
 
+> **Placeholders.** Values in angle brackets, such as `<TREVEAN_DEV_ACCOUNT_ID>`, `<TREVEAN_MANAGEMENT_ACCOUNT_ID>`, `<TREVEAN_ORG_ID>`, `<TREVEAN_MANAGEMENT_ROOT_EMAIL>`, `<TREVEAN_DEV_ROOT_EMAIL>`, `<TREVEAN_PREFIX_SUFFIX>` and `<TREVEAN_DISTRIBUTION_DOMAIN>`, stand in for Trevean's real AWS identifiers. The real values are in Trevean's private record, not in this public repository.
+
 This package serves the 1,000 encoded spice jars from the client's existing Vercel project, so the jars work now rather than waiting on an AWS environment.
 
 **Corrected Thursday 27 August 2026.** This line said the jars were waiting on an AWS account that does not exist yet. **The account existed throughout:** `<TREVEAN_DEV_ACCOUNT_ID>` is `Trevean-NFC-Development`, and the Organization management account is `<TREVEAN_MANAGEMENT_ACCOUNT_ID>`. The development environment applied into it on Thursday 27 August 2026. **The reason for this package is unchanged and it was never the account:** Vercel needs no certificate and no nameserver change, so it is the fastest route to working jars on the real domain. See "Decision log", D25 and D32.

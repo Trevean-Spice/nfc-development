@@ -14,6 +14,10 @@
 # A. The values needed to deploy staging today
 # ---------------------------------------------------------------------------
 
+# Placeholders such as <TREVEAN_DEV_ACCOUNT_ID> stand in for Trevean's real
+# account ids. The real values are in Trevean's private record; the real
+# terraform.tfvars lives there too and is never committed.
+#
 # [FILL IN] REQUIRED. The account guard, and it has no default, so a plan
 # without it fails rather than deploying wherever the ambient credentials
 # point. Staging belongs in an account we control, so neither of Trevean's two

@@ -131,7 +131,8 @@ locals {
   container_port = 3003
 
   # Load balancer and target group names are capped at 32 characters and may not
-  # end in a hyphen. "trevean-dev-<TREVEAN_PREFIX_SUFFIX>-publisher-tg" is 33, so a naive
+  # end in a hyphen. The dev name, "trevean-dev-" plus a nine-character suffix
+  # plus "-publisher-tg", is 34, so a naive
   # substr to 32 produces a name ending in a hyphen and the apply fails on a
   # validation error that names neither the resource nor the length.
   alb_name = trimsuffix(substr(local.name, 0, 32), "-")

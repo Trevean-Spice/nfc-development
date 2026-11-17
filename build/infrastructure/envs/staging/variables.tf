@@ -29,6 +29,11 @@ variable "expected_account_id" {
     account is <TREVEAN_MANAGEMENT_ACCOUNT_ID>, Trevean Spice. Staging belongs in neither: it runs
     in an account we control.
 
+    Placeholders such as <TREVEAN_DEV_ACCOUNT_ID> stand in for the real ids,
+    which are in Trevean's private record, not in this public repository.
+    CI runs terraform validate with a dummy value; plan and apply need the
+    real one, from the private terraform.tfvars.
+
     A default of null would leave the guard disarmed for anyone who did not
     read this description, which is the failure being prevented.
 
