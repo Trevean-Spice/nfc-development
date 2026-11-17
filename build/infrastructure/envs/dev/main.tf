@@ -62,8 +62,8 @@ module "stack" {
   catalog_sync_dry_run             = var.catalog_sync_dry_run
   catalog_sync_schedule_expression = var.catalog_sync_schedule_expression
 
-  create_certificate  = var.create_certificate
-  apex_domain         = var.apex_domain
+  create_certificate = var.create_certificate
+  apex_domain        = var.apex_domain
   # A variable rather than a literal so the apex cutover is a tfvars change, in
   # the order "Operations runbook", section 9.2 sets. Default false.
   attach_apex_aliases = var.attach_apex_aliases
