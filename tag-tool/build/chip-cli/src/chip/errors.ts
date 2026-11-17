@@ -21,6 +21,7 @@ export type ChipErrorCode =
   | 'TAG_ABSENT'
   | 'TAG_NOT_ST25TV02KC'
   | 'TAG_CHANGED'
+  | 'TAG_LOCKED'
   | 'WRITE_FAILED'
   | 'READBACK_FAILED'
   | 'READBACK_MISMATCH'

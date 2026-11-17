@@ -26,6 +26,7 @@ import { fromHex } from '../util/hex.js';
 import { runBatch, type BatchEvent } from '../workflow/batch.js';
 import { readJournal, resumeState } from '../workflow/journal.js';
 import { DEFAULT_PORTS as TAG_TOOL_PORTS, probeExisting } from '../app/server.js';
+import { describeExisting, explainRefusedWrite, readExisting } from '../workflow/existing.js';
 import { UnitSession, planEncoding } from '../workflow/unit.js';
 import { compactRanges, renderBatchSummary, renderEncoding, renderError, resumeCommand, rule } from './render.js';
 
@@ -360,7 +361,17 @@ async function commandWrite(
 
     const identity = await session.selectTag();
     out(`Tag selected     uid ${identity.uid ?? 'unknown'}, ${identity.blockCount} blocks of ${identity.blockSizeBytes} bytes`);
-    const plan = await session.write();
+    // A read only, so a tag that was written already is named before anything is sent to it,
+    // and a write it refuses is reported as the tag being locked (src/workflow/existing.ts).
+    const before = await readExisting(transport, table);
+    const held = describeExisting(before);
+    if (held !== null) out(`Already holds    ${held}${before?.entry?.code === entry.code ? ', the code being written' : ''}`);
+    let plan;
+    try {
+      plan = await session.write();
+    } catch (cause) {
+      throw await explainRefusedWrite(cause, before, transport, table, entry.code);
+    }
     out(`Written          ${plan.blocksWritten} blocks, capability container ${plan.ccAction === 'write' ? 'written' : 'preserved'}`);
     const receipt = await session.verify();
     out(`Verified         ${receipt.decodedUri}`);
