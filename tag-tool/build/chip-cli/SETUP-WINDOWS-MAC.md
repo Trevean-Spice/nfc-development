@@ -34,6 +34,8 @@ For writing tags one after another. You click, you type a product code, you swap
 Good to know:
 
 - **It never locks a tag** and never asks for a password. Protection is a separate step, in section 4.3.
+- **A tag that was written already says so.** When you put down a tag that already holds one of the product codes, the page says **Already written**, with the code, the blend and the web address it opens. With the automatic box ticked, it is left alone: take it off and put the next tag on. To write over it anyway, press **Write**.
+- **A locked tag says so too.** If a tag that was written already refuses the write, the page turns red with **"This tag is locked: it was written already"** and names the code it holds. It is tried once, not twice, and the Write button is not offered for it. Do not write it again: if it holds the code you wanted, it is finished; if not, set it aside and label it with its code and LOCKED. Section 4.4.
 - **Every tag is recorded**, written or failed, in the `build\chip-cli\runs\tag-tool` folder: one file per product code each time the Tag Tool is started.
 - **The count at the foot of the page is tags, not writes:** "N tags written and verified" counts each tag once, however many times it was written, and leaves out a tag whose latest write failed until it is written again. The table under it has a row for every write, failed ones included.
 - **Double clicking it a second time** just brings the page back up. It does not start a second copy, even when both double clicks land together.
@@ -239,6 +241,38 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 - **Unplug the reader and plug it back in.** The ACS manual warns that a transparent session can leave the reader unable to see tags until it is reconnected (section 5.3.5.3).
 - Keep the sacrificial tag labelled and set aside, and send what was printed. Nobody edits the tool during the session.
 
+### 4.4 A tag that was written already, or locked
+
+**On the command line**, `write` now reads the tag before writing it, and prints what it already holds:
+
+```
+node bin\chip-cli.mjs write --code ps --transport reader
+```
+
+```
+Tag selected     uid e002..., 80 blocks of 4 bytes
+Already holds    ps (Persian Sunrise), the code being written
+```
+
+On a tag that is not locked the write then goes ahead as before, ending `OK`. On a tag that was written and locked, it stops with nothing changed:
+
+```
+FAILED  TAG_LOCKED
+
+This tag is locked, and it was written already: it holds ps (Persian Sunrise), the code being written. It refused the write and still reads exactly as before, so nothing on it changed.
+The reader said: Writing block 1 failed with status 0x6300.
+
+What to do: Nothing to do: this tag is finished. Do not write it again. Take it off and put the next tag on.
+```
+
+Asked for another code, the last line says instead to set it aside and label it, for example "ps LOCKED".
+
+**What it can and cannot tell.** The tool cannot read whether a tag is locked before it writes: on this reader that read only runs inside the protection test of 4.3 (README section 6.4). So "locked" comes from the tag refusing the very first block and still reading exactly as before. A tag that held nothing, or that reads differently afterwards, keeps the usual `WRITE_FAILED` message. Both are read only checks: no password is sent.
+
+**Unlocking a tag, or changing its password, is not in the tool yet** (README section 5.6). Keep the password of every tag locked with a kept one: it is what will open it. Do not type it into the tool repeatedly, and never guess one.
+
+**Not checked yet, plainly:** this has been run against the simulated reader and tags only, not with the ACR1552U or on a real locked tag.
+
 ---
 
 ## 5. If something goes wrong
@@ -260,6 +294,7 @@ set TREVEAN_TAG_PASSWORD=<paste the sixteen characters it printed>
 | Tag Tool black window: `Reader trouble, reconnecting: The reader rejected a command: NoSmartCard (SCARD_E_NO_SMARTCARD)` several times a second, without stopping | An old copy (afternoon of Monday 26 October 2026). Close it and download the current one. Rebooting does not help |
 | write: `TAG_NOT_ST25TV02KC` | Not the right kind of tag. Nothing was written. If the message says the tag reports another size, its size could not be confirmed, or block 79 could not be read, on a tag sold as ST25TV02KC, stop and report it with the UID and the full message: do not try other tags to make it pass |
 | write: `WRITE_FAILED` on a tag that should be blank | Report it with the full message. Try one more blank tag |
+| write: `TAG_LOCKED`, or the Tag Tool page says "This tag is locked: it was written already" | The tag was written and locked already, and nothing on it changed. Do not write it again. If it holds the code you wanted, it is finished; if not, set it aside and label it with its code and LOCKED (section 4.4) |
 | anything else | Every failure prints a code and a line beginning `What to do:`. README section 7 lists them all |
 
 **Everything here is reversible except section 4.3, which can lock the sacrificial tag for good.** Nothing else in this document can lock a tag.

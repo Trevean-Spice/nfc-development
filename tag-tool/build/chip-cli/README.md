@@ -16,6 +16,7 @@ What it is underneath, for the engineer:
 - `src/app/`: a Node `http` server on **127.0.0.1 only** (the address is a constant, not an option), first free port from 10350 to 10359, live state over server sent events with polling as the fallback. `node bin/tag-tool.mjs --help` for its options; `--simulator` rehearses with no reader and adds buttons to put a tag down, lift it, and unplug the reader.
 - **Each tag goes through the same `UnitSession` select, write and verify path as `chip-cli write` and `batch`, unchanged**, two attempts per tag as the batch does, and is journalled in the batch journal format (section 9) to `runs/tag-tool/`, one file per product code per session.
 - **It never protects a tag.** It has no password or protection control, never calls the protect step, and wraps the transport (`src/app/write-only.ts`) so that every member on the protection path is refused before it reaches the reader: presenting, changing or applying a password, the protection read, the opcode probe, and the two proofs that follow protection. A test lists every `TagTransport` member and which side of that line it is on, and the build fails until a new member is placed. Protection stays in `chip-cli` (section 5).
+- **A tag that already holds a Trevean product URL is named when it is put down** ("Already written", with its product code and blend), from a read only read of the tag, and **automatic writing leaves it alone**: writing over it takes the Write button. A write such a tag refuses while still reading as before is shown as **"This tag is locked: it was written already"** (`TAG_LOCKED`), tried once, and the Write button is not offered for it again. Section 6.15.
 - It uses the reader only through the `TagTransport` interface, so it gets whatever `src/transport/pcsc.ts` does, including the named `TAG_ABSENT` cases and the connect to a mute tag (section 6.8). A reader that is unplugged shows "Reader not found"; a tag the reader sees but cannot read shows "The reader cannot read the tag" with the case; a tag the reader connects to and then loses before the first read (`TAG_NOT_READY`, section 6.9) shows "Tag not ready, retrying", and is retried with a growing pause while the reader stays open. Another program reading the tags (GoToTags, section 6.10) gets its own banner saying how to exit it, and an ID typed into the page by it is thrown away.
 - **It has been driven in a real browser** (Chromium, against `--simulator`, Monday 26 October 2026): reader ready, a tag seen with its UID, `ps` written and read back, the next tag, automatic writing on and off, `kg` refused, the reader unplugged and plugged back, and desktop notifications. **It has not been run on Windows, on a Mac, in Edge, with a physical reader or on a physical tag.**
 
@@ -228,6 +229,15 @@ The three reads of the tag image (at verify, immediately before protection, and 
 - It has a named holder and a documented rotation path.
 - It is handed to Trevean at M5, because a tag password Trevean does not hold is a tag estate Trevean does not own.
 - The batch journal records only a **fingerprint**, the first eight hex characters of the SHA-256 of the password. Enough to prove which key a run used. Not enough to recover it. A test asserts the password itself never reaches the file.
+
+### 5.6 Unlocking a tag, and changing its password: not in this tool yet
+
+**Written Tuesday 17 November 2026.** There is no unlock command and no password change command, in `chip-cli` or in the Tag Tool, and that is deliberate until the gate is reviewed for them.
+
+- **Removing the protection** is WriteConfiguration of RW_PROTECTION_A1 back to `00h`, written under the configuration password (DS13304 Tables 10 and 11). **Changing password 1** is WritePassword, after presenting the current one in the same session (6.4.18). Both are the irreversible pair of section 6.4.
+- **That pair runs only after the opcode probe passes on the tag in the field**, and the probe passes only on a tag whose password 1 and configuration password are still the factory default and whose area 1 is unprotected (section 6.4, "The probe"). A tag locked with a kept password fails it at its second step by design. So on such a tag the tool refuses, with nothing irreversible sent. A test pins this: `--protect` on a tag locked with a kept password rewrites the URL under that password, then stops at the probe (`test/already-written.test.ts`).
+- **Adding either command means a second probe** that presents the kept password instead of the factory default and accepts an area that is already protected. That is a change to the gate, "Decision log", D66, and it is left for that decision rather than made here.
+- **Until then, keep the password of every tag locked with a kept one.** It is what any later unlock or password change will need. Do not present it over and over, and never guess: every wrong presentation counts towards the chip's failed attempt limiter, whose settings ST does not publish (DS13304 5.1.2).
 
 ---
 
@@ -666,6 +676,20 @@ and that was still retried for ever as not ready.
 
 **Unchanged:** the protection path, its bytes and the D66 gate. Not yet run on the ACR1552U.
 
+### 6.15 What changed on Tuesday 17 November 2026: tags already written, and locked tags
+
+On the call of Tuesday 17 November 2026 a spare tag was protected under a password that was kept, and a second write to it failed with messages that did not say it was locked. So:
+
+- **`chip-cli write` reads the tag before writing it** and prints `Already holds    ps (Persian Sunrise)` when it carries a URL from the redirect table, with `, the code being written` when that is the code asked for. A URL that is not in the table is printed as it is, "which is not a Trevean product URL".
+- **A write the tag refuses is `TAG_LOCKED`, "This tag is locked, and it was written already"**, when the tag held a URL before the write and reads exactly the same straight after it, with the reader's own message on the last line. The first block the tool writes is the terminator (section 7.1), so a tag that refuses writes refuses that one and nothing on it changes. When the code asked for is the one it holds, the remedy is that the tag is finished; otherwise, to set it aside labelled with its code and LOCKED.
+- **The Tag Tool** reads each new tag when it is seen, says **Already written** with the product code, blend and address it holds, and **its automatic writing leaves such a tag alone**: writing over it takes the Write button. A `TAG_LOCKED` tag is tried once, not twice, and the page says "Do not write it again" with the Write button not offered.
+
+**How "locked" is known, and how it is not.** It is worked out from the refused write, not read. On the reader, a refused Update Binary has one error row for every cause (ACR1552U manual 5.3.3.5), and the read of the protection register is still sent only behind the probe (section 6.4), which a locked tag never passes. So a tag is never said to be locked before a write is tried, a tag that held nothing is never called locked, and a tag that reads differently after the failure, or cannot be read, keeps the original `WRITE_FAILED` and its remedy. A tag whose write was lost to RF while it still read the same would be called locked: that is why the reader's message is kept on the last line.
+
+**Read only.** The new step reads blocks, through the Tag Tool's write only wrapper too. It sends no password and no ST custom command. **Unchanged:** the protection path, its bytes and the D66 gate.
+
+**Untested on silicon.** Run against the fake ACR1552U and the simulator only (567 tests, Tuesday 17 November 2026). Not yet run on the ACR1552U or on a real locked tag.
+
 ---
 
 ## 7. If something goes wrong
@@ -678,6 +702,7 @@ Every failure prints a code and a line beginning `What to do:`. The codes:
 | `TAG_NOT_ST25TV02KC` | The tag is not ISO 15693, is not made by ST, or is not 320 bytes in 80 blocks: it reports another size in Get System Information (`fewer than 80 blocks`, `larger than ST25TV02KC`, `a different part`), its size `could not be confirmed`, or block 79 would not read | This is not the part, or it could not be shown to be. Check which tags you have. Nothing was written |
 | `TAG_CHANGED` | A different tag came back into the field partway through a unit | Nothing was locked by that step. Set both tags aside, label them, and rerun the unit with one tag on the reader |
 | `WRITE_FAILED` | The tag refused the write, or the write stopped partway | Rewrite the tag. It cannot be carrying a wrong URL: see section 7.1 |
+| `TAG_LOCKED` | The tag already held a URL, refused the write, and still reads exactly as before: it was written and locked already. The message names the code it holds, and ends with the reader's own message (section 6.15) | **Do not write it again.** If it holds the code you wanted, it is finished. If not, set it aside labelled with its code and LOCKED: only the password it was locked with can open it (section 5.6) |
 | `READBACK_FAILED` | The tag stopped responding during the read back | Hold the tag still and retry the unit |
 | `READBACK_MISMATCH` | The tag holds something other than what was written | Do not ship the tag. Rewrite and verify. If it fails twice, set it aside and label it |
 | `AREA_PROTECTED` | The tag is already write protected | Supply the password it was protected with, or set the tag aside |
@@ -714,7 +739,7 @@ An interruption at any point leaves either the old content untouched or a tag th
 chip-cli codes                          list the codes in the redirect table
 chip-cli encode --code ps               show exactly what would be written. No tag needed
 chip-cli decode --hex <bytes>           turn NDEF bytes back into a URL
-chip-cli write --code ps                write, read back, verify one tag
+chip-cli write --code ps                write, read back, verify one tag. First says what the tag already holds
 chip-cli verify --expect ps             read one tag and check it carries the right URL
 chip-cli batch --code ps --count 125 --journal runs/ps.jsonl
 chip-cli status --journal runs/ps.jsonl progress of a batch
