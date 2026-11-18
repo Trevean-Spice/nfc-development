@@ -25,4 +25,4 @@ A short note dated Wednesday 21 October 2026 now sits at the top of that block. 
 
 The documents refer to each other by title and section number, not by file name, so every reference still works here.
 
-The decision log in this folder carries only the engineering entries these documents cite. The other entries are marked as withheld and keep their numbers, so references to them still line up.
+The decision log in this folder is now complete, D1 to D67, apart from the marked removals. Each removal is marked where it was, and the note at the top of the log explains the markers.

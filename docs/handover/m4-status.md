@@ -234,7 +234,19 @@ through the real path. That is the M2 gate, still unbooked.
 
 ## 6. The recommendation
 
-[section withheld: internal]
+**Carve the Shopify work out of M4 and date it against store access, rather than
+moving the whole milestone.**
+
+Two of the three parts are ours and are close. The third has been waiting on store
+access since August (R7, "before M4 starts"), and has now gained two further
+blockers that are also the client's. **Moving M4 whole would re date work that is
+nearly finished because of a dependency that was never ours.**
+
+**Drafted for the client on Thursday 17 September 2026 and not confirmed sent at
+the time of writing.** It is his to accept or decline once it reaches him. Stated
+this way deliberately: a deliverable that records a message as delivered when it
+is still a draft is the same class of error as D45, and the next person reading
+this cannot tell the difference unless it says so.
 
 **Sunday 27 September is not at risk.** The tap path, a jar to a story, is live and
 has been for a week, and it touches none of the three M4 parts.
